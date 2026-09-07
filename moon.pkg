@@ -1,0 +1,3 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz" @moon_boofuzz,
+} for "test"

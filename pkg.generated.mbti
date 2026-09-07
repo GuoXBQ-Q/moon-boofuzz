@@ -1,0 +1,29 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub(all) enum Primitive {
+  Static(Bytes)
+  Choice(Bytes, Array[Bytes])
+} derive(@debug.Debug)
+pub fn Primitive::default_value(Self) -> Bytes
+pub fn Primitive::mutations(Self) -> Array[Bytes]
+
+pub struct Request {
+  fields : Array[Primitive]
+}
+pub fn Request::mutations(Self) -> Array[Bytes]
+pub fn Request::new(Array[Primitive]) -> Self
+pub fn Request::render(Self) -> Bytes
+
+// Type aliases
+
+// Traits

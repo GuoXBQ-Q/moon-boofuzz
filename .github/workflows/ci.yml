@@ -1,0 +1,24 @@
+name: MoonBit CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install MoonBit
+        run: curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
+      - name: Set toolchain path
+        run: echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - run: moon version --all
+      - run: moon check --deny-warn
+      - run: moon build
+      - run: moon test --deny-warn
+      - run: moon run cmd/main
+      - run: moon fmt --check
+      - run: moon info
+      - run: git diff --exit-code
