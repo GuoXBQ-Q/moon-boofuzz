@@ -4,6 +4,7 @@ pub(all) enum Node {
   Leaf(String, Field)
   Nested(Block)
   Repeat(String, String, Int, Int, Int)
+  Sized(String, SizeSpec)
 }
 
 ///|
@@ -24,6 +25,7 @@ priv enum EntryKind {
   Atom(Field)
   Container(Array[Int])
   Repetition(String, Int, Int, Int)
+  ComputedSize(SizeSpec)
 }
 
 ///|
@@ -59,7 +61,7 @@ fn add_node(
 ) -> Int raise ModelError {
   guard depth <= 256 else { raise Invalid("nesting depth exceeds 256") }
   let name = match node {
-    Leaf(name, _) | Repeat(name, _, _, _, _) => name
+    Leaf(name, _) | Repeat(name, _, _, _, _) | Sized(name, _) => name
     Nested(block) => block.name
   }
   guard valid_name(name) else { raise Invalid("invalid name: " + name) }
@@ -70,6 +72,7 @@ fn add_node(
   let kind = match node {
     Leaf(_, field) => Atom(field)
     Nested(_) => Container([])
+    Sized(_, spec) => ComputedSize(spec)
     Repeat(_, target, min, max, step) => {
       guard min >= 0 && max >= min && step > 0 else {
         raise Invalid("invalid repeat range or step")
@@ -132,6 +135,7 @@ pub fn CompiledRequest::compile(
       }
     }
   }
+  request.validate_sizes()
   ignore(request.render())
   request
 }
@@ -180,6 +184,7 @@ fn CompiledRequest::render_node(
     return value
   }
   match self.entries[index].kind {
+    ComputedSize(spec) => self.size_value(spec, replacement)
     Repetition(path, _, _, _) => {
       let count = if replacement is Some((id, value)) && id == index {
         decode_repeat(value)

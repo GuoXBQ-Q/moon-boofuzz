@@ -101,8 +101,10 @@ pub(all) enum Node {
   Leaf(String, Field)
   Nested(Block)
   Repeat(String, String, Int, Int, Int)
+  Sized(String, SizeSpec)
 }
 pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int) -> Self
+pub fn Node::size(String, String, length? : Int, endian? : Endian, offset? : Int, inclusive? : Bool, mutations? : Array[UInt64]) -> Self raise ModelError
 
 pub(all) enum Primitive {
   Static(Bytes)
@@ -117,6 +119,15 @@ pub struct Request {
 pub fn Request::mutations(Self) -> Array[Bytes]
 pub fn Request::new(Array[Primitive]) -> Self
 pub fn Request::render(Self) -> Bytes
+
+pub struct SizeSpec {
+  target : String
+  length : Int
+  endian : Endian
+  offset : Int
+  inclusive : Bool
+  mutations : Array[Bytes]
+}
 
 type TextCandidate derive(Eq)
 

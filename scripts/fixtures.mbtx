@@ -51,7 +51,8 @@ async fn main {
   for case in cases {
     guard case is { "name": String(name), "moon": String(moon), "python": String(python), .. } else { fail("invalid case") }
     // Minimal foreign-language adapter calls upstream code; all orchestration is MoonBit.
-    let adapter = "import sys,json; sys.path.insert(0,sys.argv[1]); from boofuzz import *; p=" + python + "; print(json.dumps([p.render().hex(), [p.encode(m[0].value(p.original_value()) if callable(m[0].value) else m[0].value, None).hex() for m in p.get_mutations()]]))"
+    let render = if case is { "request": True, .. } { "p.render(MutationContext(mutations=m))" } else { "p.encode(m[0].value(p.original_value()) if callable(m[0].value) else m[0].value, None)" }
+    let adapter = "import sys,json; sys.path.insert(0,sys.argv[1]); from boofuzz import *; from boofuzz.mutation_context import MutationContext; p=" + python + "; print(json.dumps([p.render().hex(), [" + render + ".hex() for m in p.get_mutations()]]))"
     let result = @shell.Cmd("python", ["-c", adapter, args[1]]).output(max_output_bytes=512 * 1024 * 1024)
     if result.exit_code() != 0 { fail(result.stderr()) }
     guard @json.parse(result.stdout()) is [String(default_hex), Array(values)] else { fail("invalid oracle result") }
