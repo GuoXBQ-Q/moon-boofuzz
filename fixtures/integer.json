@@ -1,0 +1,10 @@
+[
+  {"name":"integer8 little", "moon":"@moon_boofuzz.Field::integer(42UL)", "python":"BitField(default_value=42,width=8)", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer8 big", "moon":"@moon_boofuzz.Field::integer(255UL, endian=Big)", "python":"BitField(default_value=255,width=8,endian='>')", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer16 little", "moon":"@moon_boofuzz.Field::integer(4660UL, width=16)", "python":"BitField(default_value=4660,width=16)", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer16 big", "moon":"@moon_boofuzz.Field::integer(65535UL, width=16, endian=Big)", "python":"BitField(default_value=65535,width=16,endian='>')", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer32 little", "moon":"@moon_boofuzz.Field::integer(305419896UL, width=32)", "python":"BitField(default_value=305419896,width=32)", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer32 big", "moon":"@moon_boofuzz.Field::integer(4294967295UL, width=32, endian=Big)", "python":"BitField(default_value=4294967295,width=32,endian='>')", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer64 little", "moon":"@moon_boofuzz.Field::integer(18446744073709551615UL, width=64)", "python":"BitField(default_value=18446744073709551615,width=64)", "source":"boofuzz/primitives/bit_field.py"},
+  {"name":"integer64 big", "moon":"@moon_boofuzz.Field::integer(81985529216486895UL, width=64, endian=Big)", "python":"BitField(default_value=81985529216486895,width=64,endian='>')", "source":"boofuzz/primitives/bit_field.py"}
+]

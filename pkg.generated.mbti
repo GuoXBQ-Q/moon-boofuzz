@@ -13,6 +13,11 @@ pub suberror ModelError {
 } derive(@debug.Debug)
 
 // Types and methods
+pub(all) enum Endian {
+  Little
+  Big
+} derive(Eq, @debug.Debug)
+
 pub struct Field {
   value : Bytes
   count : Int
@@ -20,6 +25,7 @@ pub struct Field {
 }
 pub fn Field::default_value(Self) -> Bytes
 pub fn Field::group(Array[Bytes], default_value? : Bytes, fuzzable? : Bool) -> Self raise ModelError
+pub fn Field::integer(UInt64, width? : Int, endian? : Endian, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::mutation(Self, Int) -> Bytes?
 pub fn Field::num_mutations(Self) -> Int
 pub fn Field::simple(Bytes, Array[Bytes], fuzzable? : Bool) -> Self
