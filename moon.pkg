@@ -1,3 +1,7 @@
 import {
+  "moonbitlang/core/encoding/utf8",
+}
+
+import {
   "GuoXBQ-Q/moon-boofuzz" @moon_boofuzz,
 } for "test"

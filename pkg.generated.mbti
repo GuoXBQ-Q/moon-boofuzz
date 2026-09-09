@@ -25,11 +25,13 @@ pub struct Field {
 }
 pub fn Field::binary(Bytes, size? : Int, max_len? : Int, padding? : Bytes, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::default_value(Self) -> Bytes
+pub fn Field::delimiter(String, fuzzable? : Bool) -> Self
 pub fn Field::group(Array[Bytes], default_value? : Bytes, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::integer(UInt64, width? : Int, endian? : Endian, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::mutation(Self, Int) -> Bytes?
 pub fn Field::num_mutations(Self) -> Int
 pub fn Field::simple(Bytes, Array[Bytes], fuzzable? : Bool) -> Self
+pub fn Field::text(String, fuzzable? : Bool) -> Self
 
 pub(all) enum Primitive {
   Static(Bytes)
@@ -44,6 +46,8 @@ pub struct Request {
 pub fn Request::mutations(Self) -> Array[Bytes]
 pub fn Request::new(Array[Primitive]) -> Self
 pub fn Request::render(Self) -> Bytes
+
+type TextCandidate derive(Eq)
 
 // Type aliases
 

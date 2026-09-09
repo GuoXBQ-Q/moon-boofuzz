@@ -1,0 +1,32 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/async/fs",
+  "moonbitlang/core/json",
+  "moonbitlang/core/env",
+}
+async fn main {
+  let args = @env.args()
+  guard args.length() == 3 else { fail("usage: string-library.mbtx UPSTREAM OUTPUT") }
+  let revision = @shell.Cmd("git", ["-c", "safe.directory=" + args[1], "-C", args[1], "rev-parse", "HEAD"]).output()
+  revision.check()
+  guard revision.stdout().trim() == "518c13904fc32e7f2cc88c9dec934e509062953e" else { fail("wrong upstream revision") }
+  let clean = @shell.Cmd("git", ["-c", "safe.directory=" + args[1], "-C", args[1], "diff", "--exit-code", "HEAD", "--", "boofuzz"]).output()
+  clean.check()
+  let result = @shell.Cmd("python", ["-c", "import sys,json; sys.path.insert(0,sys.argv[1]); from boofuzz import String; print(json.dumps([String._fuzz_library, String.long_string_seeds, String().random_indices]))", args[1]]).output()
+  result.check()
+  guard @json.parse(result.stdout()) is [Array(library), Array(seeds), indices] else { fail("invalid upstream data") }
+  let out = StringBuilder()
+  out.write_string("// Generated from boofuzz/primitives/string.py, 518c13904fc32e7f2cc88c9dec934e509062953e.\n// GPL-2.0-only. Reproduce with scripts/string-library.mbtx.\n///|\nlet string_library : Array[String] = [\n")
+  for value in library {
+    // JSON string literals are also valid MoonBit string literals for this corpus.
+    out.write_string("  " + value.stringify() + ",\n")
+  }
+  out.write_string("]\n///|\nlet string_seeds : Array[String] = " + seeds.to_json().stringify() + "\n///|\nlet string_null_indices : Array[Array[Int]] = [\n")
+  for length in [8,16,32,64,128,256,512,1024,2048,4096,32768,65535] {
+    guard indices is Object(map) && map.get(length.to_string()) is Some(value) else { fail("missing indices") }
+    out.write_string(value.stringify() + ",\n")
+  }
+  out.write_string("]\n")
+  @fs.write_file(args[2], out.to_string())
+}

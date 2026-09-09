@@ -7,6 +7,25 @@ import {
 }
 
 fn literal(hex : String) -> String {
+  if hex.length() >= 128 {
+    for width in [2, 4, 6, 8, 10, 12, 14, 16] {
+      let pattern = hex[:width].to_owned()
+      let copies = hex.length() / width
+      let tail = hex[copies * width:].to_owned()
+      if pattern.repeat(copies) + tail == hex {
+        return literal(pattern) + ".repeat(\{copies})" + (if tail.is_empty() { "" } else { " + " + literal(tail) })
+      }
+    }
+    // Long D strings have a single embedded terminator.
+    if hex.has_prefix("44") && hex.has_suffix("44") {
+      let pieces = hex.split("00").to_array()
+      if pieces.length() == 2 && pieces[0].length() % 2 == 0 && pieces[1].length() % 2 == 0 {
+        if pieces[0] == "44".repeat(pieces[0].length() / 2) && pieces[1] == "44".repeat(pieces[1].length() / 2) {
+          return literal(pieces[0].to_owned()) + " + b\"\\x00\" + " + literal(pieces[1].to_owned())
+        }
+      }
+    }
+  }
   let out = StringBuilder()
   out.write_string("b\"")
   for i in 0..<(hex.length() / 2) {
@@ -33,7 +52,7 @@ async fn main {
     guard case is { "name": String(name), "moon": String(moon), "python": String(python), .. } else { fail("invalid case") }
     // Minimal foreign-language adapter calls upstream code; all orchestration is MoonBit.
     let adapter = "import sys,json; sys.path.insert(0,sys.argv[1]); from boofuzz import *; p=" + python + "; print(json.dumps([p.render().hex(), [p.encode(m[0].value(p.original_value()) if callable(m[0].value) else m[0].value, None).hex() for m in p.get_mutations()]]))"
-    let result = @shell.Cmd("python", ["-c", adapter, args[1]]).output(max_output_bytes=64 * 1024 * 1024)
+    let result = @shell.Cmd("python", ["-c", adapter, args[1]]).output(max_output_bytes=512 * 1024 * 1024)
     result.check()
     guard @json.parse(result.stdout()) is [String(default_hex), Array(values)] else { fail("invalid oracle result") }
     out.write_string("\n///|\ntest \"upstream " + name + "\" {\n  let field = " + moon + "\n  assert_eq(field.default_value(), " + literal(default_hex) + ")\n  let expected : Array[Bytes] = [\n")

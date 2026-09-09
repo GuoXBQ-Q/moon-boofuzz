@@ -1,0 +1,8 @@
+[
+  {"name":"text empty", "moon":"@moon_boofuzz.Field::text(\"\")", "python":"String(default_value='')", "source":"boofuzz/primitives/string.py"},
+  {"name":"text unicode", "moon":"@moon_boofuzz.Field::text(\"协议\")", "python":"String(default_value='协议')", "source":"boofuzz/primitives/string.py"},
+  {"name":"text ascii", "moon":"@moon_boofuzz.Field::text(\"hello\")", "python":"String(default_value='hello')", "source":"boofuzz/primitives/string.py"},
+  {"name":"delimiter space", "moon":"@moon_boofuzz.Field::delimiter(\" \")", "python":"Delim(default_value=' ')", "source":"boofuzz/primitives/delim.py"},
+  {"name":"delimiter colon", "moon":"@moon_boofuzz.Field::delimiter(\":\")", "python":"Delim(default_value=':')", "source":"boofuzz/primitives/delim.py"},
+  {"name":"delimiter empty", "moon":"@moon_boofuzz.Field::delimiter(\"\")", "python":"Delim(default_value='')", "source":"boofuzz/primitives/delim.py"}
+]
