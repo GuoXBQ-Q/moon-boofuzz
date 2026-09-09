@@ -53,7 +53,7 @@ async fn main {
     // Minimal foreign-language adapter calls upstream code; all orchestration is MoonBit.
     let adapter = "import sys,json; sys.path.insert(0,sys.argv[1]); from boofuzz import *; p=" + python + "; print(json.dumps([p.render().hex(), [p.encode(m[0].value(p.original_value()) if callable(m[0].value) else m[0].value, None).hex() for m in p.get_mutations()]]))"
     let result = @shell.Cmd("python", ["-c", adapter, args[1]]).output(max_output_bytes=512 * 1024 * 1024)
-    result.check()
+    if result.exit_code() != 0 { fail(result.stderr()) }
     guard @json.parse(result.stdout()) is [String(default_hex), Array(values)] else { fail("invalid oracle result") }
     out.write_string("\n///|\ntest \"upstream " + name + "\" {\n  let field = " + moon + "\n  assert_eq(field.default_value(), " + literal(default_hex) + ")\n  let expected : Array[Bytes] = [\n")
     for value in values {

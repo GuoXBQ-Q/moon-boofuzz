@@ -11,11 +11,12 @@ pub struct Block {
   name : String
   children : Array[Node]
   condition : Condition?
+  alignment : (Int, Bytes)?
 }
 
 ///|
 pub fn Block::new(name : String, children : Array[Node]) -> Block {
-  { name, children: children.copy(), condition: None, }
+  { name, children: children.copy(), condition: None, alignment: None, }
 }
 
 ///|
@@ -31,6 +32,7 @@ struct Entry {
   parent : Int?
   kind : EntryKind
   condition : Condition?
+  alignment : (Int, Bytes)?
 }
 
 ///|
@@ -82,12 +84,22 @@ fn add_node(
     Nested(block) => block.condition
     _ => None
   }
-  entries.push({ path, parent, kind, condition, })
+  let alignment = match node {
+    Nested(block) => block.alignment
+    _ => None
+  }
+  entries.push({ path, parent, kind, condition, alignment, })
   if node is Nested(block) {
     let children = block.children.map(child => {
       add_node(child, path, Some(index), entries, paths, depth + 1)
     })
-    entries[index] = { path, parent, kind: Container(children), condition, }
+    entries[index] = {
+      path,
+      parent,
+      kind: Container(children),
+      condition,
+      alignment,
+    }
   }
   index
 }
@@ -195,6 +207,15 @@ fn CompiledRequest::render_node(
         }
         for byte in bytes {
           output.push(byte)
+        }
+      }
+      if self.entries[index].alignment is Some((modulus, pattern)) {
+        let padding = modulus - output.length() % modulus
+        guard padding <= self.max_bytes - output.length() else {
+          raise Limit("aligned block exceeds byte limit")
+        }
+        for i in 0..<padding {
+          output.push(pattern[i % pattern.length()])
         }
       }
       Bytes::from_array(output)

@@ -18,7 +18,9 @@ pub struct Block {
   name : String
   children : Array[Node]
   condition : Condition?
+  alignment : (Int, Bytes)?
 }
+pub fn Block::aligned(Self, Int, pattern? : Bytes) -> Self raise ModelError
 pub fn Block::new(String, Array[Node]) -> Self
 pub fn Block::when(Self, Condition) -> Self
 

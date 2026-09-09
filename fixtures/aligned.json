@@ -1,0 +1,5 @@
+[
+ {"name":"aligned empty", "moon":"@moon_boofuzz.Field::simple(@moon_boofuzz.CompiledRequest::compile(@moon_boofuzz.Block::new(\"r\", []).aligned(4, pattern=b\"AB\")).render(), [])", "python":"Aligned(name='r',modulus=4,pattern=b'AB',children=[],fuzzable=False)", "source":"boofuzz/blocks/aligned.py"},
+ {"name":"aligned exact", "moon":"@moon_boofuzz.Field::simple(@moon_boofuzz.CompiledRequest::compile(@moon_boofuzz.Block::new(\"r\", [Leaf(\"x\", @moon_boofuzz.Field::simple(b\"1234\", []))]).aligned(4, pattern=b\"AB\")).render(), [])", "python":"Aligned(name='r',modulus=4,pattern=b'AB',children=[Static(default_value=b'1234')],fuzzable=False)", "source":"boofuzz/blocks/aligned.py"},
+ {"name":"aligned partial", "moon":"@moon_boofuzz.Field::simple(@moon_boofuzz.CompiledRequest::compile(@moon_boofuzz.Block::new(\"r\", [Leaf(\"x\", @moon_boofuzz.Field::simple(b\"1\", []))]).aligned(4, pattern=b\"AB\")).render(), [])", "python":"Aligned(name='r',modulus=4,pattern=b'AB',children=[Static(default_value=b'1')],fuzzable=False)", "source":"boofuzz/blocks/aligned.py"}
+]
