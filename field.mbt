@@ -1,6 +1,7 @@
 ///|
 pub suberror ModelError {
   Invalid(String)
+  Limit(String)
 } derive(Debug)
 
 ///|

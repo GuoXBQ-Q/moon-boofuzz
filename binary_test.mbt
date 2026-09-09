@@ -10,6 +10,7 @@ test "binary default is not truncated and invalid sizes are rejected" {
       false
     } catch {
       @moon_boofuzz.ModelError::Invalid(_) => true
+      _ => false
     },
   )
   assert_true(
@@ -18,6 +19,7 @@ test "binary default is not truncated and invalid sizes are rejected" {
       false
     } catch {
       @moon_boofuzz.ModelError::Invalid(_) => true
+      _ => false
     },
   )
 }

@@ -52,6 +52,7 @@ test "empty group returns typed model error" {
     false
   } catch {
     @moon_boofuzz.ModelError::Invalid(_) => true
+    _ => false
   }
   assert_true(rejected)
 }

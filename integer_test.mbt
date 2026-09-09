@@ -25,6 +25,7 @@ test "integer invalid widths and out of range defaults" {
         false
       } catch {
         @moon_boofuzz.ModelError::Invalid(_) => true
+        _ => false
       },
     )
   }
@@ -34,6 +35,7 @@ test "integer invalid widths and out of range defaults" {
       false
     } catch {
       @moon_boofuzz.ModelError::Invalid(_) => true
+      _ => false
     },
   )
 }

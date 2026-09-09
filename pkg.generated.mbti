@@ -10,13 +10,36 @@ import {
 // Errors
 pub suberror ModelError {
   Invalid(String)
+  Limit(String)
 } derive(@debug.Debug)
 
 // Types and methods
+pub struct Block {
+  name : String
+  children : Array[Node]
+}
+pub fn Block::new(String, Array[Node]) -> Self
+
+pub struct CompiledRequest {
+  name : String
+  entries : Array[Entry]
+  paths : Map[String, Int]
+  max_bytes : Int
+}
+pub fn CompiledRequest::compile(Block, max_bytes? : Int) -> Self raise ModelError
+pub fn CompiledRequest::from_request(String, Request, max_bytes? : Int) -> Self raise ModelError
+pub fn CompiledRequest::name(Self) -> String
+pub fn CompiledRequest::parent_path(Self, String) -> String? raise ModelError
+pub fn CompiledRequest::paths(Self) -> Array[String]
+pub fn CompiledRequest::render(Self) -> Bytes raise ModelError
+pub fn CompiledRequest::render_path(Self, String) -> Bytes raise ModelError
+
 pub(all) enum Endian {
   Little
   Big
 } derive(Eq, @debug.Debug)
+
+type Entry
 
 pub struct Field {
   value : Bytes
@@ -32,6 +55,11 @@ pub fn Field::mutation(Self, Int) -> Bytes?
 pub fn Field::num_mutations(Self) -> Int
 pub fn Field::simple(Bytes, Array[Bytes], fuzzable? : Bool) -> Self
 pub fn Field::text(String, fuzzable? : Bool) -> Self
+
+pub(all) enum Node {
+  Leaf(String, Field)
+  Nested(Block)
+}
 
 pub(all) enum Primitive {
   Static(Bytes)
