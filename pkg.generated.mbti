@@ -23,6 +23,7 @@ pub struct Field {
   count : Int
   candidate : (Int) -> Bytes
 }
+pub fn Field::binary(Bytes, size? : Int, max_len? : Int, padding? : Bytes, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::default_value(Self) -> Bytes
 pub fn Field::group(Array[Bytes], default_value? : Bytes, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::integer(UInt64, width? : Int, endian? : Endian, fuzzable? : Bool) -> Self raise ModelError

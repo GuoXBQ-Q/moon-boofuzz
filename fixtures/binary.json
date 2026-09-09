@@ -1,0 +1,6 @@
+[
+  {"name":"binary empty", "moon":"@moon_boofuzz.Field::binary(b\"\", max_len=8)", "python":"Bytes(default_value=b'',max_len=8)", "source":"boofuzz/primitives/bytes.py"},
+  {"name":"binary zero nonutf8", "moon":"@moon_boofuzz.Field::binary(b\"\\x00\\xffABC\", max_len=12)", "python":"Bytes(default_value=b'\\x00\\xffABC',max_len=12)", "source":"boofuzz/primitives/bytes.py"},
+  {"name":"binary fixed size", "moon":"@moon_boofuzz.Field::binary(b\"\\xff\\x00ABC\", size=8, padding=b\"Z\")", "python":"Bytes(default_value=b'\\xff\\x00ABC',size=8,padding=b'Z')", "source":"boofuzz/primitives/bytes.py"},
+  {"name":"binary zero size", "moon":"@moon_boofuzz.Field::binary(b\"ABC\", size=0)", "python":"Bytes(default_value=b'ABC',size=0)", "source":"boofuzz/primitives/bytes.py"}
+]
