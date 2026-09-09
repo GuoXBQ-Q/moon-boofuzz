@@ -3,6 +3,7 @@
 pub(all) enum Node {
   Leaf(String, Field)
   Nested(Block)
+  Repeat(String, String, Int, Int, Int)
 }
 
 ///|
@@ -21,6 +22,7 @@ pub fn Block::new(name : String, children : Array[Node]) -> Block {
 priv enum EntryKind {
   Atom(Field)
   Container(Array[Int])
+  Repetition(String, Int, Int, Int)
 }
 
 ///|
@@ -55,7 +57,7 @@ fn add_node(
 ) -> Int raise ModelError {
   guard depth <= 256 else { raise Invalid("nesting depth exceeds 256") }
   let name = match node {
-    Leaf(name, _) => name
+    Leaf(name, _) | Repeat(name, _, _, _, _) => name
     Nested(block) => block.name
   }
   guard valid_name(name) else { raise Invalid("invalid name: " + name) }
@@ -66,6 +68,15 @@ fn add_node(
   let kind = match node {
     Leaf(_, field) => Atom(field)
     Nested(_) => Container([])
+    Repeat(_, target, min, max, step) => {
+      guard min >= 0 && max >= min && step > 0 else {
+        raise Invalid("invalid repeat range or step")
+      }
+      guard (max - min) / step < 2147483647 else {
+        raise Invalid("repeat count overflow")
+      }
+      Repetition(target, min, max, step)
+    }
   }
   let condition = match node {
     Nested(block) => block.condition
@@ -93,6 +104,15 @@ pub fn CompiledRequest::compile(
   ignore(add_node(Nested(root), "", None, entries, paths, 0))
   let request = { name: root.name, entries, paths, max_bytes, }
   for entry in entries {
+    if entry.kind is Repetition(path, _, _, _) {
+      let target = request.resolve(path)
+      let current = request.resolve(entry.path)
+      guard entries[target].kind is Container(_) &&
+        target < current &&
+        !entry.path.has_prefix(path + ".") else {
+        raise Invalid("repeat target must be a completed preceding block")
+      }
+    }
     if entry.condition is Some(condition) {
       let target = request.resolve(condition.path())
       guard entries[target].kind is Atom(_) else {
@@ -139,13 +159,27 @@ fn CompiledRequest::render_node(
   replacement : (Int, Bytes)?,
 ) -> Bytes raise ModelError {
   guard self.is_visible(index, replacement) else { return b"" }
-  if replacement is Some((target, value)) && target == index {
+  if replacement is Some((target, value)) &&
+    target == index &&
+    !(self.entries[index].kind is Repetition(_, _, _, _)) {
     guard value.length() <= self.max_bytes else {
       raise Limit("request byte limit: " + self.entries[index].path)
     }
     return value
   }
   match self.entries[index].kind {
+    Repetition(path, _, _, _) => {
+      let count = if replacement is Some((id, value)) && id == index {
+        decode_repeat(value)
+      } else {
+        0
+      }
+      let bytes = self.render_node(self.resolve(path), replacement)
+      guard bytes.is_empty() || count <= self.max_bytes / bytes.length() else {
+        raise Limit("repeated block exceeds byte limit")
+      }
+      bytes.repeat(count)
+    }
     Atom(field) => {
       guard field.value.length() <= self.max_bytes else {
         raise Limit("request byte limit: " + self.entries[index].path)

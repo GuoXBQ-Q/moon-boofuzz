@@ -98,7 +98,9 @@ pub(all) struct MutationCase {
 pub(all) enum Node {
   Leaf(String, Field)
   Nested(Block)
+  Repeat(String, String, Int, Int, Int)
 }
+pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int) -> Self
 
 pub(all) enum Primitive {
   Static(Bytes)

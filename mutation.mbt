@@ -46,10 +46,7 @@ pub fn CompiledRequest::cases(
     state: Running,
   }
   for remaining = start; stream.entry < self.entries.length(); {
-    let count = match self.entries[stream.entry].kind {
-      Atom(field) => field.count
-      Container(_) => 0
-    }
+    let count = self.entries[stream.entry].kind.count()
     if remaining < count {
       stream.mutation = remaining
       break
@@ -63,10 +60,7 @@ pub fn CompiledRequest::cases(
 ///|
 fn CaseStream::seek(self : CaseStream) -> Bool {
   while self.entry < self.request.entries.length() {
-    let count = match self.request.entries[self.entry].kind {
-      Atom(field) => field.count
-      Container(_) => 0
-    }
+    let count = self.request.entries[self.entry].kind.count()
     if self.mutation < count {
       return true
     }
@@ -92,8 +86,7 @@ pub fn CaseStream::next(self : CaseStream) -> MutationCase? raise ModelError {
       raise Limit("case ordinal overflow")
     }
     let entry = self.request.entries[self.entry]
-    guard entry.kind is Atom(field) else { return None }
-    let value = (field.candidate)(self.mutation)
+    let value = entry.kind.candidate(self.mutation)
     if !self.request.is_visible(self.entry, Some((self.entry, value))) {
       self.mutation += 1
       self.ordinal += 1
