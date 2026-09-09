@@ -79,37 +79,42 @@ fn CaseStream::seek(self : CaseStream) -> Bool {
 ///|
 pub fn CaseStream::next(self : CaseStream) -> MutationCase? raise ModelError {
   guard self.state == Running else { return None }
-  guard self.seek() else {
-    self.state = Exhausted
-    return None
-  }
-  guard self.emitted < self.limit else {
-    self.state = Limited
-    return None
-  }
-  guard self.ordinal < 2147483647 else {
-    self.state = Stopped
-    raise Limit("case ordinal overflow")
-  }
-  let entry = self.request.entries[self.entry]
-  guard entry.kind is Atom(field) else { return None }
-  let value = (field.candidate)(self.mutation)
   errdefer {
     self.state = Stopped
   }
-  let payload = self.request.render_node(0, Some((self.entry, value)))
-  let case = {
-    id: "v1:" + entry.path + ":\{self.mutation}",
-    request_name: self.request.name,
-    field_path: entry.path,
-    mutation_index: self.mutation,
-    ordinal: self.ordinal,
-    payload,
+  while self.seek() {
+    guard self.emitted < self.limit else {
+      self.state = Limited
+      return None
+    }
+    guard self.ordinal < 2147483647 else {
+      self.state = Stopped
+      raise Limit("case ordinal overflow")
+    }
+    let entry = self.request.entries[self.entry]
+    guard entry.kind is Atom(field) else { return None }
+    let value = (field.candidate)(self.mutation)
+    if !self.request.is_visible(self.entry, Some((self.entry, value))) {
+      self.mutation += 1
+      self.ordinal += 1
+      continue
+    }
+    let payload = self.request.render_node(0, Some((self.entry, value)))
+    let case = {
+      id: "v1:" + entry.path + ":\{self.mutation}",
+      request_name: self.request.name,
+      field_path: entry.path,
+      mutation_index: self.mutation,
+      ordinal: self.ordinal,
+      payload,
+    }
+    self.mutation += 1
+    self.ordinal += 1
+    self.emitted += 1
+    return Some(case)
   }
-  self.mutation += 1
-  self.ordinal += 1
-  self.emitted += 1
-  Some(case)
+  self.state = Exhausted
+  None
 }
 
 ///|

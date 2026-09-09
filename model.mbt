@@ -9,11 +9,12 @@ pub(all) enum Node {
 pub struct Block {
   name : String
   children : Array[Node]
+  condition : Condition?
 }
 
 ///|
 pub fn Block::new(name : String, children : Array[Node]) -> Block {
-  { name, children: children.copy(), }
+  { name, children: children.copy(), condition: None, }
 }
 
 ///|
@@ -27,6 +28,7 @@ struct Entry {
   path : String
   parent : Int?
   kind : EntryKind
+  condition : Condition?
 }
 
 ///|
@@ -65,12 +67,16 @@ fn add_node(
     Leaf(_, field) => Atom(field)
     Nested(_) => Container([])
   }
-  entries.push({ path, parent, kind, })
+  let condition = match node {
+    Nested(block) => block.condition
+    _ => None
+  }
+  entries.push({ path, parent, kind, condition, })
   if node is Nested(block) {
     let children = block.children.map(child => {
       add_node(child, path, Some(index), entries, paths, depth + 1)
     })
-    entries[index] = { path, parent, kind: Container(children), }
+    entries[index] = { path, parent, kind: Container(children), condition, }
   }
   index
 }
@@ -86,6 +92,14 @@ pub fn CompiledRequest::compile(
   let paths : Map[String, Int] = Map([])
   ignore(add_node(Nested(root), "", None, entries, paths, 0))
   let request = { name: root.name, entries, paths, max_bytes, }
+  for entry in entries {
+    if entry.condition is Some(condition) {
+      let target = request.resolve(condition.path())
+      guard entries[target].kind is Atom(_) else {
+        raise Invalid("condition target must be a field")
+      }
+    }
+  }
   ignore(request.render())
   request
 }
@@ -124,6 +138,7 @@ fn CompiledRequest::render_node(
   index : Int,
   replacement : (Int, Bytes)?,
 ) -> Bytes raise ModelError {
+  guard self.is_visible(index, replacement) else { return b"" }
   if replacement is Some((target, value)) && target == index {
     guard value.length() <= self.max_bytes else {
       raise Limit("request byte limit: " + self.entries[index].path)

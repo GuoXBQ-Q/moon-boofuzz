@@ -17,8 +17,10 @@ pub suberror ModelError {
 pub struct Block {
   name : String
   children : Array[Node]
+  condition : Condition?
 }
 pub fn Block::new(String, Array[Node]) -> Self
+pub fn Block::when(Self, Condition) -> Self
 
 pub struct CaseStream {
   request : CompiledRequest
@@ -48,6 +50,12 @@ pub fn CompiledRequest::parent_path(Self, String) -> String? raise ModelError
 pub fn CompiledRequest::paths(Self) -> Array[String]
 pub fn CompiledRequest::render(Self) -> Bytes raise ModelError
 pub fn CompiledRequest::render_path(Self, String) -> Bytes raise ModelError
+
+pub(all) enum Condition {
+  Equal(String, Bytes)
+  NotEqual(String, Bytes)
+  OneOf(String, Array[Bytes])
+}
 
 pub(all) enum Endian {
   Little
