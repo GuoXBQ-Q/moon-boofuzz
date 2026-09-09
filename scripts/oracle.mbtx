@@ -1,0 +1,20 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/core/env",
+}
+
+// Automation stays in MoonBit. Python only invokes the Python upstream oracle.
+async fn main {
+  let args = @env.args()
+  guard args.length() == 3 else { fail("usage: moon run scripts/oracle.mbtx UPSTREAM PYTHON_EXPRESSION") }
+  let output = @shell.Cmd("git", ["-c", "safe.directory=" + args[1], "-C", args[1], "rev-parse", "HEAD"]).output()
+  if output.exit_code() != 0 { fail(output.stderr()) }
+  let revision = output.stdout()
+  guard revision.trim().to_owned() == "518c13904fc32e7f2cc88c9dec934e509062953e" else {
+    fail("wrong upstream revision")
+  }
+  let expression = "import sys; sys.path.insert(0, sys.argv[1]); import boofuzz; from boofuzz import *; print(" + args[2] + ")"
+  let code = @shell.Cmd("python", ["-c", expression, args[1]]).each_line(line => println(line))
+  guard code == 0 else { fail("oracle failed") }
+}

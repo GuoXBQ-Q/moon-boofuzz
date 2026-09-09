@@ -1,0 +1,7 @@
+[
+  {"name":"simple binary", "moon":"@moon_boofuzz.Field::simple(b\"A\", [b\"\", b\"\\x00\\xff\", b\"\\x00\\xff\"])", "python":"Simple(default_value=b'A', fuzz_values=[b'', b'\\x00\\xff', b'\\x00\\xff'])", "source":"boofuzz/primitives/simple.py; boofuzz/fuzzable.py"},
+  {"name":"group duplicates", "moon":"@moon_boofuzz.Field::group([b\"A\",b\"B\",b\"A\",b\"B\"])", "python":"Group(values=[b'A',b'B',b'A',b'B'])", "source":"boofuzz/primitives/group.py"},
+  {"name":"group explicit default", "moon":"@moon_boofuzz.Field::group([b\"A\",b\"B\",b\"B\"], default_value=b\"B\")", "python":"Group(values=[b'A',b'B',b'B'], default_value=b'B')", "source":"boofuzz/primitives/group.py"},
+  {"name":"group missing default", "moon":"@moon_boofuzz.Field::group([b\"A\"], default_value=b\"C\")", "python":"Group(values=[b'A'], default_value=b'C')", "source":"boofuzz/primitives/group.py"},
+  {"name":"group disabled", "moon":"@moon_boofuzz.Field::group([b\"A\",b\"B\"], fuzzable=false)", "python":"Group(values=[b'A',b'B'], fuzzable=False)", "source":"boofuzz/primitives/group.py; boofuzz/fuzzable.py"}
+]

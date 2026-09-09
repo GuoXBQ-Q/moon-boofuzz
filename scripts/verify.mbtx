@@ -1,0 +1,11 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+}
+
+async fn main {
+  for args in [["fmt"], ["info"], ["check", "--deny-warn"], ["build"], ["test", "--deny-warn"], ["check", "--target", "native", "--deny-warn"], ["build", "--target", "native"], ["test", "--target", "native", "--deny-warn"], ["fmt", "--check"]] {
+    println("moon " + args.join(" "))
+    @shell.Cmd("moon", args).run()
+  }
+}
