@@ -20,12 +20,27 @@ pub struct Block {
 }
 pub fn Block::new(String, Array[Node]) -> Self
 
+pub struct CaseStream {
+  request : CompiledRequest
+  limit : Int
+  mut entry : Int
+  mut mutation : Int
+  mut ordinal : Int
+  mut emitted : Int
+  mut state : EnumerationState
+}
+pub fn CaseStream::next(Self) -> MutationCase? raise ModelError
+pub fn CaseStream::position(Self) -> Int
+pub fn CaseStream::state(Self) -> EnumerationState
+pub fn CaseStream::stop(Self) -> Unit
+
 pub struct CompiledRequest {
   name : String
   entries : Array[Entry]
   paths : Map[String, Int]
   max_bytes : Int
 }
+pub fn CompiledRequest::cases(Self, start? : Int, limit? : Int) -> CaseStream raise ModelError
 pub fn CompiledRequest::compile(Block, max_bytes? : Int) -> Self raise ModelError
 pub fn CompiledRequest::from_request(String, Request, max_bytes? : Int) -> Self raise ModelError
 pub fn CompiledRequest::name(Self) -> String
@@ -41,6 +56,13 @@ pub(all) enum Endian {
 
 type Entry
 
+pub(all) enum EnumerationState {
+  Running
+  Exhausted
+  Limited
+  Stopped
+} derive(Eq, @debug.Debug)
+
 pub struct Field {
   value : Bytes
   count : Int
@@ -55,6 +77,15 @@ pub fn Field::mutation(Self, Int) -> Bytes?
 pub fn Field::num_mutations(Self) -> Int
 pub fn Field::simple(Bytes, Array[Bytes], fuzzable? : Bool) -> Self
 pub fn Field::text(String, fuzzable? : Bool) -> Self
+
+pub(all) struct MutationCase {
+  id : String
+  request_name : String
+  field_path : String
+  mutation_index : Int
+  ordinal : Int
+  payload : Bytes
+} derive(Eq, @debug.Debug)
 
 pub(all) enum Node {
   Leaf(String, Field)
