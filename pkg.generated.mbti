@@ -129,6 +129,25 @@ pub fn Request::mutations(Self) -> Array[Bytes]
 pub fn Request::new(Array[Primitive]) -> Self
 pub fn Request::render(Self) -> Bytes
 
+pub struct SessionGraph {
+  requests : Array[CompiledRequest]
+  edges : Array[Array[Int]]
+  names : Map[String, Int]
+}
+pub fn SessionGraph::add(Self, CompiledRequest) -> Unit raise ModelError
+pub fn SessionGraph::connect(Self, String, String) -> Unit raise ModelError
+pub fn SessionGraph::new() -> Self
+pub fn SessionGraph::paths(Self, targets? : Array[String], max_paths? : Int) -> Array[SessionPath] raise ModelError
+
+pub struct SessionPath {
+  requests : Array[CompiledRequest]
+}
+pub fn SessionPath::cases(Self, start? : Int, limit? : Int) -> CaseStream raise ModelError
+pub fn SessionPath::names(Self) -> Array[String]
+pub fn SessionPath::prefix(Self) -> Array[Bytes] raise ModelError
+pub fn SessionPath::requests(Self) -> Array[CompiledRequest]
+pub fn SessionPath::target(Self) -> CompiledRequest
+
 pub struct SizeSpec {
   target : String
   length : Int
