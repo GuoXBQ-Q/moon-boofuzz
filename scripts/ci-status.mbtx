@@ -1,0 +1,18 @@
+import {
+  "moonbitlang/async",
+  "moonbitlang/async/shell",
+  "moonbitlang/core/env",
+  "moonbitlang/core/json",
+}
+async fn main {
+  let args = @env.args()
+  guard args.length() == 2 else { fail("usage: ci-status.mbtx COMMIT_SHA") }
+  let result = @shell.Cmd("curl.exe", ["-fsSL", "https://api.github.com/repos/GuoXBQ-Q/moon-boofuzz/actions/runs?head_sha=" + args[1] + "&per_page=10"]).output()
+  result.check()
+  guard @json.parse(result.stdout()) is { "workflow_runs": Array(runs), .. } else { fail("unexpected Actions response") }
+  for run in runs {
+    guard run is { "html_url": String(url), "status": String(status), "conclusion": conclusion, .. } else { fail("missing run state") }
+    println(status + " " + conclusion.stringify() + " " + url)
+  }
+  if runs.is_empty() { println("No workflow run found yet") }
+}

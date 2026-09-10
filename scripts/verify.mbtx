@@ -1,11 +1,15 @@
 import {
   "moonbitlang/async",
   "moonbitlang/async/shell",
+  "moonbitlang/async/fs",
 }
 
 async fn main {
-  for args in [["fmt"], ["info"], ["check", "--deny-warn"], ["build"], ["test", "--deny-warn"], ["check", "--target", "native", "--deny-warn"], ["build", "--target", "native"], ["test", "--target", "native", "--deny-warn"], ["fmt", "--check"]] {
+  for args in [["fmt"], ["info"], ["info", "--target", "native"], ["check", "--deny-warn"], ["build"], ["test", "--deny-warn"], ["check", "--target", "native", "--deny-warn"], ["build", "--target", "native"], ["test", "--target", "native", "--deny-warn"], ["fmt", "--check"]] {
     println("moon " + args.join(" "))
     @shell.Cmd("moon", args).run()
+  }
+  if @fs.exists("_build/native/debug/check/transport/transport.mbti") {
+    @fs.write_file("docs/transport.native.mbti", @fs.read_file("_build/native/debug/check/transport/transport.mbti"))
   }
 }

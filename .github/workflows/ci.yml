@@ -7,18 +7,40 @@ permissions:
   contents: read
 jobs:
   core:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - name: Install MoonBit
+        if: runner.os == 'Linux'
         run: curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
       - name: Set toolchain path
+        if: runner.os == 'Linux'
         run: echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Install MoonBit on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          irm https://cli.moonbitlang.com/install/powershell.ps1 | iex
+          "$env:USERPROFILE\.moon\bin" >> $env:GITHUB_PATH
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
       - run: moon version --all
       - run: moon check --deny-warn
       - run: moon build
       - run: moon test --deny-warn
+      - run: moon check --target native --deny-warn
+      - run: moon build --target native
+      - run: moon test --target native --deny-warn
+      - name: AddressSanitizer for native bridge
+        if: runner.os == 'Linux'
+        run: moon run scripts/asan.mbtx "$GITHUB_WORKSPACE"
       - run: moon run cmd/main
       - run: moon fmt --check
       - run: moon info
+      - run: moon info --target native
+      - run: moon run scripts/native-info.mbtx '${{ github.workspace }}'
       - run: git diff --exit-code

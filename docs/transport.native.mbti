@@ -1,0 +1,57 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/transport"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub suberror TransportError {
+  InvalidConfiguration(String)
+  ConnectFailure(Int)
+  SendFailure(Int)
+  ReceiveFailure(Int)
+  Timeout(Phase)
+} derive(@debug.Debug)
+
+// Types and methods
+pub struct Connection {
+  socket : Socket
+  endpoint : Endpoint
+  mut closed : Bool
+  mut last_sent : Int
+}
+pub fn Connection::close(Self) -> Unit
+pub fn Connection::last_sent_len(Self) -> Int
+pub fn Connection::receive(Self, max_bytes? : Int) -> Received raise TransportError
+pub fn Connection::send(Self, Bytes) -> Unit raise TransportError
+pub fn Connection::tcp(Endpoint) -> Self raise TransportError
+
+pub struct Endpoint {
+  host : String
+  port : Int
+  connect_timeout_ms : Int
+  send_timeout_ms : Int
+  receive_timeout_ms : Int
+  max_receive : Int
+} derive(ToJson, @debug.Debug)
+pub fn Endpoint::new(String, Int, connect_timeout_ms? : Int, send_timeout_ms? : Int, receive_timeout_ms? : Int, max_receive? : Int) -> Self raise TransportError
+
+pub(all) enum Phase {
+  Connect
+  Send
+  Receive
+} derive(Eq, @debug.Debug)
+
+pub(all) enum Received {
+  Data(Bytes)
+  Closed
+} derive(Eq, @debug.Debug)
+
+type Socket
+
+// Type aliases
+
+// Traits
