@@ -5,6 +5,7 @@ pub(all) enum Node {
   Nested(Block)
   Repeat(String, String, Int, Int, Int)
   Sized(String, SizeSpec)
+  Checksummed(String, ChecksumSpec)
 }
 
 ///|
@@ -26,6 +27,7 @@ priv enum EntryKind {
   Container(Array[Int])
   Repetition(String, Int, Int, Int)
   ComputedSize(SizeSpec)
+  ComputedChecksum(ChecksumSpec)
 }
 
 ///|
@@ -61,7 +63,10 @@ fn add_node(
 ) -> Int raise ModelError {
   guard depth <= 256 else { raise Invalid("nesting depth exceeds 256") }
   let name = match node {
-    Leaf(name, _) | Repeat(name, _, _, _, _) | Sized(name, _) => name
+    Leaf(name, _)
+    | Repeat(name, _, _, _, _)
+    | Sized(name, _)
+    | Checksummed(name, _) => name
     Nested(block) => block.name
   }
   guard valid_name(name) else { raise Invalid("invalid name: " + name) }
@@ -73,6 +78,7 @@ fn add_node(
     Leaf(_, field) => Atom(field)
     Nested(_) => Container([])
     Sized(_, spec) => ComputedSize(spec)
+    Checksummed(_, spec) => ComputedChecksum(spec)
     Repeat(_, target, min, max, step) => {
       guard min >= 0 && max >= min && step > 0 else {
         raise Invalid("invalid repeat range or step")
@@ -136,6 +142,7 @@ pub fn CompiledRequest::compile(
     }
   }
   request.validate_sizes()
+  request.validate_checksums()
   ignore(request.render())
   request
 }
@@ -173,6 +180,7 @@ fn CompiledRequest::render_node(
   self : CompiledRequest,
   index : Int,
   replacement : (Int, Bytes)?,
+  active? : Array[Int] = [],
 ) -> Bytes raise ModelError {
   guard self.is_visible(index, replacement) else { return b"" }
   if replacement is Some((target, value)) &&
@@ -184,6 +192,19 @@ fn CompiledRequest::render_node(
     return value
   }
   match self.entries[index].kind {
+    ComputedChecksum(spec) => {
+      if active.contains(index) {
+        return b"\x00\x00\x00\x00"
+      }
+      let nested = active.copy()
+      nested.push(index)
+      let bytes = self.render_node(
+        self.resolve(spec.target),
+        replacement,
+        active=nested,
+      )
+      encode_integer(crc32(bytes).to_uint64(), 32, spec.endian)
+    }
     ComputedSize(spec) => self.size_value(spec, replacement)
     Repetition(path, _, _, _) => {
       let count = if replacement is Some((id, value)) && id == index {
@@ -191,7 +212,7 @@ fn CompiledRequest::render_node(
       } else {
         0
       }
-      let bytes = self.render_node(self.resolve(path), replacement)
+      let bytes = self.render_node(self.resolve(path), replacement, active~)
       guard bytes.is_empty() || count <= self.max_bytes / bytes.length() else {
         raise Limit("repeated block exceeds byte limit")
       }
@@ -206,7 +227,7 @@ fn CompiledRequest::render_node(
     Container(children) => {
       let output : Array[Byte] = []
       for child in children {
-        let bytes = self.render_node(child, replacement)
+        let bytes = self.render_node(child, replacement, active~)
         guard bytes.length() <= self.max_bytes - output.length() else {
           raise Limit("request byte limit: " + self.entries[index].path)
         }

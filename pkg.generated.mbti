@@ -6,6 +6,7 @@ import {
 }
 
 // Values
+pub fn crc32(Bytes) -> UInt
 
 // Errors
 pub suberror ModelError {
@@ -37,6 +38,12 @@ pub fn CaseStream::next(Self) -> MutationCase? raise ModelError
 pub fn CaseStream::position(Self) -> Int
 pub fn CaseStream::state(Self) -> EnumerationState
 pub fn CaseStream::stop(Self) -> Unit
+
+pub struct ChecksumSpec {
+  target : String
+  endian : Endian
+  mutations : Array[Bytes]
+}
 
 pub struct CompiledRequest {
   name : String
@@ -102,7 +109,9 @@ pub(all) enum Node {
   Nested(Block)
   Repeat(String, String, Int, Int, Int)
   Sized(String, SizeSpec)
+  Checksummed(String, ChecksumSpec)
 }
+pub fn Node::checksum(String, String, endian? : Endian, mutations? : Array[UInt]) -> Self
 pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int) -> Self
 pub fn Node::size(String, String, length? : Int, endian? : Endian, offset? : Int, inclusive? : Bool, mutations? : Array[UInt64]) -> Self raise ModelError
 

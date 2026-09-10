@@ -46,6 +46,7 @@ fn CompiledRequest::measure(
         field.value.length()
       }
     ComputedSize(spec) => spec.length
+    ComputedChecksum(_) => 4
     Repetition(path, _, _, _) => {
       let n = if replacement is Some((id, bytes)) && id == index {
         decode_repeat(bytes)
@@ -119,7 +120,7 @@ fn CompiledRequest::size_dependencies(
       }
     Repetition(path, _, _, _) =>
       self.size_dependencies(self.resolve(path), output, visited)
-    Atom(_) => ()
+    Atom(_) | ComputedChecksum(_) => ()
   }
 }
 
