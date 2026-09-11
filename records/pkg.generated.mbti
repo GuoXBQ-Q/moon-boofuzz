@@ -16,6 +16,8 @@ pub fn parse_jsonl_bytes(Bytes) -> RecordRead
 
 pub fn require_keys(Json, Array[String]) -> Unit raise RecordError
 
+pub fn select_case(Array[CaseRecord], String) -> CaseRecord raise RecordError
+
 // Errors
 pub(all) suberror RecordError {
   Invalid(String)

@@ -224,3 +224,19 @@ pub fn Endpoint::receive_timeout(self : Endpoint) -> Int {
 pub fn monotonic_ms() -> Int64 {
   now_ms()
 }
+
+///|
+pub fn Endpoint::retarget(
+  self : Endpoint,
+  host : String,
+  port : Int,
+) -> Endpoint raise TransportError {
+  Endpoint::new(
+    host,
+    port,
+    connect_timeout_ms=self.connect_timeout_ms,
+    send_timeout_ms=self.send_timeout_ms,
+    receive_timeout_ms=self.receive_timeout_ms,
+    max_receive=self.max_receive,
+  )
+}

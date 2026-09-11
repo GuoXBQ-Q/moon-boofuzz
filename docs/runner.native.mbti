@@ -9,6 +9,7 @@ import {
 }
 
 // Values
+pub fn replay(@records.CaseRecord, override_target? : (String, Int)) -> ReplayResult raise
 
 // Errors
 pub suberror RunError {
@@ -30,6 +31,15 @@ pub(all) struct CaseResult {
   outcome : Outcome
   failed_step : Int?
 } derive(@debug.Debug)
+
+pub struct ExecutionConfig {
+  endpoint : @transport.Endpoint
+  udp : Bool
+  policies : Map[String, ReadPolicy]
+  limit : Int
+}
+pub fn ExecutionConfig::parse(Json) -> Self raise
+pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor) -> Runner raise
 
 pub struct Monitor {
   before : (CaseContext) -> Unit raise
@@ -63,6 +73,13 @@ pub(all) enum ReadPolicy {
   Until(Bytes)
   Datagram
 } derive(Eq, ToJson, @debug.Debug)
+
+pub(all) struct ReplayResult {
+  case_id : String
+  steps : Array[StepResult]
+  outcome : Outcome
+  failed_step : Int?
+} derive(@debug.Debug)
 
 pub struct Runner {
   paths : Array[@moon-boofuzz.SessionPath]
