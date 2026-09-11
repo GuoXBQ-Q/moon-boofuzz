@@ -1,8 +1,18 @@
 ///|
 pub(all) enum Outcome {
   Passed
-  Failed(String)
+  ConnectFailed(Int)
+  SendFailed(Int)
+  ReceiveFailed(Int)
+  ConnectTimedOut
+  SendTimedOut
+  ReceiveTimedOut
+  ConfigurationFailed(String)
+  DatagramTooLarge
   PeerClosed
+  ResponseMismatch
+  CallbackFailed(String)
+  RecoveryFailed(String)
 } derive(Debug, Eq)
 
 ///|
@@ -32,6 +42,7 @@ pub struct Runner {
   receive_limit : Int
   receive_timeout : Int
   limit : Int
+  monitor : Monitor
   mut index : Int
   mut executed : Int
   mut state : @core.EnumerationState
@@ -45,6 +56,7 @@ pub fn Runner::with_dialer(
   receive_limit? : Int = 65536,
   receive_timeout_ms? : Int = 5000,
   limit? : Int = 10000,
+  monitor? : Monitor = Monitor::new(),
 ) -> Runner raise {
   guard limit >= 0 &&
     receive_limit > 0 &&
@@ -74,6 +86,7 @@ pub fn Runner::with_dialer(
     receive_limit,
     receive_timeout: receive_timeout_ms,
     limit,
+    monitor,
     index: 0,
     executed: 0,
     state: Running,
@@ -87,6 +100,7 @@ pub fn Runner::new(
   udp? : Bool = false,
   policies? : Map[String, ReadPolicy] = Map([]),
   limit? : Int = 10000,
+  monitor? : Monitor = Monitor::new(),
 ) -> Runner raise {
   for _, policy in policies {
     guard !udp || policy == NoResponse || policy == Datagram else {
@@ -108,6 +122,7 @@ pub fn Runner::new(
     dial,
     policies~,
     limit~,
+    monitor~,
     receive_limit=endpoint.receive_limit(),
     receive_timeout_ms=endpoint.receive_timeout(),
   )
@@ -122,6 +137,17 @@ fn Runner::execute(
   let names = path.names()
   let id = names.to_json().stringify() + "/" + case.id
   let steps : Array[StepResult] = []
+  (self.monitor.before)({ id, case, path: names.copy(), }) catch {
+    error =>
+      return {
+        id,
+        case,
+        path: names,
+        steps,
+        outcome: CallbackFailed("before: \{Repr(error)}"),
+        failed_step: None,
+      }
+  }
   let channel = (self.dial)() catch {
     error =>
       return {
@@ -129,7 +155,7 @@ fn Runner::execute(
         case,
         path: names,
         steps,
-        outcome: Failed("\{Repr(error)}"),
+        outcome: transport_outcome(error),
         failed_step: Some(-1),
       }
   }
@@ -163,16 +189,38 @@ fn Runner::execute(
           case,
           path: names,
           steps,
-          outcome: Failed("\{Repr(error)}"),
+          outcome: transport_outcome(error),
           failed_step: Some(index),
         }
       }
+    }
+    let accepted = if complete {
+      (self.monitor.check)(names[index], received.val) catch {
+        error => {
+          steps.push({
+            request_name: names[index],
+            sent: bytes,
+            received: received.val,
+            completed: false,
+          })
+          return {
+            id,
+            case,
+            path: names,
+            steps,
+            outcome: CallbackFailed("response check: \{Repr(error)}"),
+            failed_step: Some(index),
+          }
+        }
+      }
+    } else {
+      false
     }
     steps.push({
       request_name: names[index],
       sent: bytes,
       received: received.val,
-      completed: complete,
+      completed: complete && accepted,
     })
     if !complete {
       return {
@@ -181,6 +229,16 @@ fn Runner::execute(
         path: names,
         steps,
         outcome: PeerClosed,
+        failed_step: Some(index),
+      }
+    }
+    if !accepted {
+      return {
+        id,
+        case,
+        path: names,
+        steps,
+        outcome: ResponseMismatch,
         failed_step: Some(index),
       }
     }
@@ -200,7 +258,7 @@ pub fn Runner::next(self : Runner) -> CaseResult? raise @core.ModelError {
   }
   while self.index < self.paths.length() {
     if self.streams[self.index].next() is Some(case) {
-      let result = self.execute(self.paths[self.index], case)
+      let result = self.finish(self.execute(self.paths[self.index], case))
       self.executed += 1
       return Some(result)
     }

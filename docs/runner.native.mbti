@@ -15,6 +15,12 @@ pub suberror RunError {
 } derive(@debug.Debug)
 
 // Types and methods
+pub(all) struct CaseContext {
+  id : String
+  case : @moon-boofuzz.MutationCase
+  path : Array[String]
+} derive(@debug.Debug)
+
 pub(all) struct CaseResult {
   id : String
   case : @moon-boofuzz.MutationCase
@@ -24,10 +30,29 @@ pub(all) struct CaseResult {
   failed_step : Int?
 } derive(@debug.Debug)
 
+pub struct Monitor {
+  before : (CaseContext) -> Unit raise
+  after : (CaseResult) -> Unit raise
+  fault : (CaseResult) -> Unit raise
+  recover : (CaseResult) -> Bool raise
+  check : (String, Bytes) -> Bool raise
+}
+pub fn Monitor::new(before? : (CaseContext) -> Unit raise, after? : (CaseResult) -> Unit raise, fault? : (CaseResult) -> Unit raise, recover? : (CaseResult) -> Bool raise, check? : (String, Bytes) -> Bool raise) -> Self
+
 pub(all) enum Outcome {
   Passed
-  Failed(String)
+  ConnectFailed(Int)
+  SendFailed(Int)
+  ReceiveFailed(Int)
+  ConnectTimedOut
+  SendTimedOut
+  ReceiveTimedOut
+  ConfigurationFailed(String)
+  DatagramTooLarge
   PeerClosed
+  ResponseMismatch
+  CallbackFailed(String)
+  RecoveryFailed(String)
 } derive(Eq, @debug.Debug)
 
 pub(all) enum ReadPolicy {
@@ -45,16 +70,17 @@ pub struct Runner {
   receive_limit : Int
   receive_timeout : Int
   limit : Int
+  monitor : Monitor
   mut index : Int
   mut executed : Int
   mut state : @moon-boofuzz.EnumerationState
 }
 pub fn Runner::executed(Self) -> Int
-pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int) -> Self raise
+pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor) -> Self raise
 pub fn Runner::next(Self) -> CaseResult? raise @moon-boofuzz.ModelError
 pub fn Runner::state(Self) -> @moon-boofuzz.EnumerationState
 pub fn Runner::stop(Self) -> Unit
-pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int) -> Self raise
+pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor) -> Self raise
 
 pub(all) struct StepResult {
   request_name : String

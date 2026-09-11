@@ -73,7 +73,7 @@ test "each case reconnects and prerequisite failure prevents target send" {
     socket
   })
   let first = runner.next().unwrap()
-  assert_true(first.outcome is Failed(_))
+  assert_eq(first.outcome, SendFailed(123))
   assert_eq(first.failed_step, Some(0))
   assert_eq(first.steps.length(), 1)
   let second = runner.next().unwrap()
