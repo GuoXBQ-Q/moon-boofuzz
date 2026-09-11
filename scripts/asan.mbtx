@@ -8,11 +8,20 @@ async fn main {
   let args = @env.args()
   guard args.length() <= 2 else { fail("usage: asan.mbtx [ABSOLUTE_PROJECT_ROOT] (GCC/Clang toolchain required)") }
   let root = if args.length() == 2 && !args[1].is_empty() { args[1] } else { @fs.realpath(".") }
-  let path = root + "/transport/moon.pkg"
-  let original = (@fs.read_file(path)).text()
-  defer @fs.write_file(path, original)
-  let config = original.replace(old="options(", new="options(link: { \"native\": { \"cc\": \"cc\", \"stub-cc\": \"cc\", \"cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"stub-cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\" } }, ")
-  guard config != original else { fail("could not locate native-stub options") }
-  @fs.write_file(path, config)
-  @shell.Cmd("moon", ["test", "--target", "native", "--target-dir", root + "/_build/asan", "-p", "transport", "--deny-warn"], cwd=root).run()
+  let saved : Array[(String, String)] = []
+  defer { for pair in saved { @fs.write_file(pair.0, pair.1) } }
+  let command = ["test", "--target", "native", "--target-dir", root + "/_build/asan", "--deny-warn"]
+  for pkg_name in ["transport", "recordio"] {
+    let path = root + "/" + pkg_name + "/moon.pkg"
+    if @fs.exists(path) {
+      let original = (@fs.read_file(path)).text()
+      let config = original.replace(old="options(", new="options(link: { \"native\": { \"cc\": \"cc\", \"stub-cc\": \"cc\", \"cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"stub-cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\" } }, ")
+      guard config != original else { fail("could not locate native-stub options") }
+      saved.push((path, original))
+      @fs.write_file(path, config)
+      command.push("-p")
+      command.push(pkg_name)
+    }
+  }
+  @shell.Cmd("moon", command, cwd=root).run()
 }

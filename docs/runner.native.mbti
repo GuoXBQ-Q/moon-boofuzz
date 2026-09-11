@@ -3,6 +3,7 @@ package "GuoXBQ-Q/moon-boofuzz/runner"
 
 import {
   "GuoXBQ-Q/moon-boofuzz",
+  "GuoXBQ-Q/moon-boofuzz/records",
   "GuoXBQ-Q/moon-boofuzz/transport",
   "moonbitlang/core/debug",
 }
@@ -54,6 +55,7 @@ pub(all) enum Outcome {
   CallbackFailed(String)
   RecoveryFailed(String)
 } derive(Eq, @debug.Debug)
+pub fn Outcome::name(Self) -> String
 
 pub(all) enum ReadPolicy {
   NoResponse
@@ -71,6 +73,7 @@ pub struct Runner {
   receive_timeout : Int
   limit : Int
   monitor : Monitor
+  config : Json
   mut index : Int
   mut executed : Int
   mut state : @moon-boofuzz.EnumerationState
@@ -78,6 +81,7 @@ pub struct Runner {
 pub fn Runner::executed(Self) -> Int
 pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor) -> Self raise
 pub fn Runner::next(Self) -> CaseResult? raise @moon-boofuzz.ModelError
+pub fn Runner::record(Self, CaseResult) -> @records.CaseRecord
 pub fn Runner::state(Self) -> @moon-boofuzz.EnumerationState
 pub fn Runner::stop(Self) -> Unit
 pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor) -> Self raise

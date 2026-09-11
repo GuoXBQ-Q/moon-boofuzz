@@ -1,0 +1,37 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/recordio"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "GuoXBQ-Q/moon-boofuzz/runner",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn capture(@runner.Runner, Writer) -> Int raise
+
+pub fn read_bytes(String, max_bytes? : Int) -> Bytes raise StorageError
+
+pub fn read_records(String, max_bytes? : Int) -> @records.RecordRead raise StorageError
+
+// Errors
+pub(all) suberror StorageError {
+  InvalidPath
+  OpenFailure(Int)
+  ReadFailure(Int)
+  WriteFailure(Int)
+} derive(@debug.Debug)
+
+// Types and methods
+type FileHandle
+
+pub struct Writer {
+  file : FileHandle
+}
+pub fn Writer::append(Self, @records.CaseRecord) -> Unit raise
+pub fn Writer::close(Self) -> Unit
+pub fn Writer::open(String) -> Self raise StorageError
+
+// Type aliases
+
+// Traits

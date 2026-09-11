@@ -1,0 +1,64 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/records"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn hex_decode(String) -> Bytes raise RecordError
+
+pub fn hex_encode(Bytes) -> String
+
+pub fn parse_jsonl(String) -> RecordRead
+
+pub fn parse_jsonl_bytes(Bytes) -> RecordRead
+
+pub fn require_keys(Json, Array[String]) -> Unit raise RecordError
+
+// Errors
+pub(all) suberror RecordError {
+  Invalid(String)
+  UnsupportedVersion(Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct CaseRecord {
+  format_version : Int
+  case_id : String
+  generator_version : String
+  request_name : String
+  field_path : String
+  mutation_index : Int
+  ordinal : Int
+  path : Array[String]
+  config : Json
+  steps : Array[RecordedStep]
+  outcome : String
+  detail : String
+  failed_step : Int?
+} derive(Eq, @debug.Debug)
+pub fn CaseRecord::decode(String) -> Self raise RecordError
+pub fn CaseRecord::encode(Self) -> String raise RecordError
+pub fn CaseRecord::validate(Self) -> Unit raise RecordError
+
+pub(all) struct RecordIssue {
+  line : Int
+  message : String
+} derive(Eq, @debug.Debug)
+
+pub(all) struct RecordRead {
+  records : Array[CaseRecord]
+  error : RecordIssue?
+} derive(@debug.Debug)
+
+pub(all) struct RecordedStep {
+  request_name : String
+  sent : Bytes
+  received : Bytes
+  completed : Bool
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

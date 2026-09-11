@@ -43,6 +43,7 @@ pub struct Runner {
   receive_timeout : Int
   limit : Int
   monitor : Monitor
+  config : Json
   mut index : Int
   mut executed : Int
   mut state : @core.EnumerationState
@@ -87,6 +88,13 @@ pub fn Runner::with_dialer(
     receive_timeout: receive_timeout_ms,
     limit,
     monitor,
+    config: {
+      "transport": "custom",
+      "max_receive": receive_limit,
+      "receive_timeout_ms": receive_timeout_ms,
+      "policies": policy_config(saved),
+      "case_limit": limit,
+    },
     index: 0,
     executed: 0,
     state: Running,
@@ -117,7 +125,7 @@ pub fn Runner::new(
       @transport.Connection::tcp(endpoint)
     }
   }
-  Runner::with_dialer(
+  let runner = Runner::with_dialer(
     paths,
     dial,
     policies~,
@@ -126,6 +134,19 @@ pub fn Runner::new(
     receive_limit=endpoint.receive_limit(),
     receive_timeout_ms=endpoint.receive_timeout(),
   )
+  {
+    ..runner,
+    config: {
+      "transport": if udp {
+        "udp"
+      } else {
+        "tcp"
+      },
+      "endpoint": ToJson::to_json(endpoint),
+      "policies": policy_config(policies),
+      "case_limit": limit,
+    },
+  }
 }
 
 ///|

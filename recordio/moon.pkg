@@ -1,0 +1,16 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "GuoXBQ-Q/moon-boofuzz/runner",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz" @core,
+  "GuoXBQ-Q/moon-boofuzz/transport",
+} for "wbtest"
+
+options(
+  "native-stub": [ "file.c" ],
+)
