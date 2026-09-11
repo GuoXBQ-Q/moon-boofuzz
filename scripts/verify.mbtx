@@ -9,7 +9,8 @@ async fn main {
     println("moon " + args.join(" "))
     @shell.Cmd("moon", args).run()
   }
-  if @fs.exists("_build/native/debug/check/transport/transport.mbti") {
-    @fs.write_file("docs/transport.native.mbti", @fs.read_file("_build/native/debug/check/transport/transport.mbti"))
+  for pkg_name in ["transport", "runner"] {
+    let source = "_build/native/debug/check/" + pkg_name + "/" + pkg_name + ".mbti"
+    if @fs.exists(source) { @fs.write_file("docs/" + pkg_name + ".native.mbti", @fs.read_file(source)) }
   }
 }

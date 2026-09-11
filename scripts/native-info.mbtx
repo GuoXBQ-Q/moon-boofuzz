@@ -9,6 +9,10 @@ async fn main {
   guard args.length() <= 2 else { fail("usage: native-info.mbtx [ABSOLUTE_PROJECT_ROOT]") }
   let root = if args.length() == 2 && !args[1].is_empty() { args[1] } else { @fs.realpath(".") }
   @shell.Cmd("moon", ["info", "--target", "native"], cwd=root).run()
-  let native = @fs.read_file(root + "/_build/native/debug/check/transport/transport.mbti")
-  @fs.write_file(root + "/docs/transport.native.mbti", native)
+  for pkg_name in ["transport", "runner"] {
+    let source = root + "/_build/native/debug/check/" + pkg_name + "/" + pkg_name + ".mbti"
+    if @fs.exists(source) {
+      @fs.write_file(root + "/docs/" + pkg_name + ".native.mbti", @fs.read_file(source))
+    }
+  }
 }

@@ -1,0 +1,75 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/runner"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz",
+  "GuoXBQ-Q/moon-boofuzz/transport",
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+pub suberror RunError {
+  Invalid(String)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct CaseResult {
+  id : String
+  case : @moon-boofuzz.MutationCase
+  path : Array[String]
+  steps : Array[StepResult]
+  outcome : Outcome
+  failed_step : Int?
+} derive(@debug.Debug)
+
+pub(all) enum Outcome {
+  Passed
+  Failed(String)
+  PeerClosed
+} derive(Eq, @debug.Debug)
+
+pub(all) enum ReadPolicy {
+  NoResponse
+  Fixed(Int)
+  Until(Bytes)
+  Datagram
+} derive(Eq, ToJson, @debug.Debug)
+
+pub struct Runner {
+  paths : Array[@moon-boofuzz.SessionPath]
+  streams : Array[@moon-boofuzz.CaseStream]
+  dial : () -> &Channel raise @transport.TransportError
+  policies : Map[String, ReadPolicy]
+  receive_limit : Int
+  receive_timeout : Int
+  limit : Int
+  mut index : Int
+  mut executed : Int
+  mut state : @moon-boofuzz.EnumerationState
+}
+pub fn Runner::executed(Self) -> Int
+pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int) -> Self raise
+pub fn Runner::next(Self) -> CaseResult? raise @moon-boofuzz.ModelError
+pub fn Runner::state(Self) -> @moon-boofuzz.EnumerationState
+pub fn Runner::stop(Self) -> Unit
+pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int) -> Self raise
+
+pub(all) struct StepResult {
+  request_name : String
+  sent : Bytes
+  received : Bytes
+  completed : Bool
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits
+pub(open) trait Channel {
+  fn send(Self, Bytes) -> Unit raise @transport.TransportError
+  fn receive(Self, Int, Int) -> @transport.Received raise @transport.TransportError
+  fn last_sent_len(Self) -> Int
+  fn close(Self) -> Unit
+}
+pub impl Channel for @transport.Connection

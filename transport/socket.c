@@ -158,7 +158,7 @@ MOONBIT_FFI_EXPORT int bf_send(bf_socket *s, const uint8_t *data, int offset, in
 
 MOONBIT_FFI_EXPORT int bf_recv(bf_socket *s, uint8_t *data, int length) {
   int flags = 0;
-#ifdef MSG_TRUNC
+#if !defined(_WIN32) && defined(MSG_TRUNC)
   if (s->udp) flags = MSG_TRUNC;
 #endif
   int n = (int)recv(s->fd, (char *)data, length, flags);

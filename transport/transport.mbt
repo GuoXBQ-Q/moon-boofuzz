@@ -6,7 +6,7 @@ pub(all) enum Phase {
 } derive(Debug, Eq)
 
 ///|
-pub suberror TransportError {
+pub(all) suberror TransportError {
   InvalidConfiguration(String)
   ConnectFailure(Int)
   SendFailure(Int)
@@ -180,6 +180,7 @@ pub fn Connection::last_sent_len(self : Connection) -> Int {
 pub fn Connection::receive(
   self : Connection,
   max_bytes? : Int,
+  timeout_ms? : Int,
 ) -> Received raise TransportError {
   guard !self.closed else { raise ReceiveFailure(-1) }
   let limit = max_bytes.unwrap_or(self.endpoint.max_receive)
@@ -187,7 +188,11 @@ pub fn Connection::receive(
     raise InvalidConfiguration("receive request exceeds configured bound")
   }
   let buffer = FixedArray::make(limit, b'\x00')
-  let deadline = now_ms() + self.endpoint.receive_timeout_ms.to_int64()
+  let timeout = timeout_ms.unwrap_or(self.endpoint.receive_timeout_ms)
+  guard timeout > 0 && timeout <= self.endpoint.receive_timeout_ms else {
+    raise InvalidConfiguration("invalid receive timeout override")
+  }
+  let deadline = now_ms() + timeout.to_int64()
   for ;; {
     self.wait_ready(Receive, deadline)
     let n = socket_receive(self.socket, buffer, limit)
@@ -203,4 +208,19 @@ pub fn Connection::receive(
     }
     return Data(Bytes::makei(n, i => buffer[i]))
   }
+}
+
+///|
+pub fn Endpoint::receive_limit(self : Endpoint) -> Int {
+  self.max_receive
+}
+
+///|
+pub fn Endpoint::receive_timeout(self : Endpoint) -> Int {
+  self.receive_timeout_ms
+}
+
+///|
+pub fn monotonic_ms() -> Int64 {
+  now_ms()
 }

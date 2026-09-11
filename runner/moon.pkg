@@ -1,0 +1,6 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz" @core,
+  "GuoXBQ-Q/moon-boofuzz/transport",
+}
+
+supported_targets = "native"

@@ -6,9 +6,10 @@ import {
 }
 
 // Values
+pub fn monotonic_ms() -> Int64
 
 // Errors
-pub suberror TransportError {
+pub(all) suberror TransportError {
   InvalidConfiguration(String)
   ConnectFailure(Int)
   SendFailure(Int)
@@ -27,7 +28,7 @@ pub struct Connection {
 }
 pub fn Connection::close(Self) -> Unit
 pub fn Connection::last_sent_len(Self) -> Int
-pub fn Connection::receive(Self, max_bytes? : Int) -> Received raise TransportError
+pub fn Connection::receive(Self, max_bytes? : Int, timeout_ms? : Int) -> Received raise TransportError
 pub fn Connection::send(Self, Bytes) -> Unit raise TransportError
 pub fn Connection::tcp(Endpoint) -> Self raise TransportError
 pub fn Connection::udp(Endpoint) -> Self raise TransportError
@@ -41,6 +42,8 @@ pub struct Endpoint {
   max_receive : Int
 } derive(ToJson, @debug.Debug)
 pub fn Endpoint::new(String, Int, connect_timeout_ms? : Int, send_timeout_ms? : Int, receive_timeout_ms? : Int, max_receive? : Int) -> Self raise TransportError
+pub fn Endpoint::receive_limit(Self) -> Int
+pub fn Endpoint::receive_timeout(Self) -> Int
 
 pub(all) enum Phase {
   Connect

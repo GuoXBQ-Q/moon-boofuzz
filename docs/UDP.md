@@ -8,6 +8,8 @@ sending. Connected sockets discard datagrams from other source endpoints.
 `receive()` returns one `Data` event, including `Data(b"")` for an empty
 datagram. An oversized datagram relative to the receive buffer is consumed and
 raises `DatagramTooLarge`; no truncated payload is reported as complete.
+Linux uses `MSG_TRUNC`; Windows uses the returned `WSAEMSGSIZE` error. A
+Windows SDK definition of MSG_TRUNC must not be passed as a recv input flag.
 Timeout and system failure remain distinct. Broadcast, multicast, unspecified
 destinations, IPv6 and server fuzzing are not supported.
 
