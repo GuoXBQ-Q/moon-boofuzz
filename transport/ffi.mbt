@@ -22,6 +22,7 @@ extern "c" fn socket_connect(
   host : Bytes,
   port : Int,
   timeout : Int,
+  udp : Int,
 ) -> Int = "bf_connect"
 
 ///|

@@ -38,7 +38,7 @@ typedef int bf_fd;
 #include <stdio.h>
 #include <string.h>
 
-typedef struct { bf_fd fd; int error; int started; } bf_socket;
+typedef struct { bf_fd fd; int error; int started; int udp; } bf_socket;
 
 static void bf_reset(void *ptr) {
   bf_socket *s = ptr;
@@ -55,7 +55,7 @@ static void bf_finalize(void *ptr) {
 
 MOONBIT_FFI_EXPORT bf_socket *bf_new(void) {
   bf_socket *s = moonbit_make_external_object(bf_finalize, sizeof(bf_socket));
-  s->fd = BF_INVALID; s->error = 0; s->started = 0;
+  s->fd = BF_INVALID; s->error = 0; s->started = 0; s->udp = 0;
 #ifdef _WIN32
   /* The matching cleanup is per object so no process-global refcount leaks. */
   WSADATA data;
@@ -106,16 +106,19 @@ MOONBIT_FFI_EXPORT int bf_wait(bf_socket *s, int writing, int timeout) {
   }
 }
 
-MOONBIT_FFI_EXPORT int bf_connect(bf_socket *s, const char *host, int port, int timeout) {
+MOONBIT_FFI_EXPORT int bf_connect(bf_socket *s, const char *host, int port, int timeout, int udp) {
   if (s->error) return -1;
   struct addrinfo hints, *list = NULL; memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET; hints.ai_socktype = SOCK_STREAM;
+  s->udp = udp;
+  hints.ai_family = AF_INET; hints.ai_socktype = udp ? SOCK_DGRAM : SOCK_STREAM;
   char service[8]; snprintf(service, sizeof(service), "%d", port);
   int resolved = getaddrinfo(host, service, &hints, &list);
   if (resolved != 0) { s->error = resolved; return -1; }
   int result = -1; int64_t deadline = bf_now() + timeout;
   for (struct addrinfo *address = list; address; address = address->ai_next) {
-    s->fd = socket(AF_INET, SOCK_STREAM, 0);
+    uint32_t ip = ntohl(((struct sockaddr_in *)address->ai_addr)->sin_addr.s_addr);
+    if (udp && (ip == 0 || ip >= 0xe0000000U)) { result = -3; continue; }
+    s->fd = socket(AF_INET, udp ? SOCK_DGRAM : SOCK_STREAM, 0);
     if (s->fd == BF_INVALID) { s->error = bf_errno(); continue; }
     if (bf_nonblock(s->fd) != 0) { s->error = bf_errno(); bf_reset(s); continue; }
     if (connect(s->fd, address->ai_addr, (int)address->ai_addrlen) == 0) { result = 0; break; }
@@ -154,9 +157,17 @@ MOONBIT_FFI_EXPORT int bf_send(bf_socket *s, const uint8_t *data, int offset, in
 }
 
 MOONBIT_FFI_EXPORT int bf_recv(bf_socket *s, uint8_t *data, int length) {
-  int n = (int)recv(s->fd, (char *)data, length, 0);
+  int flags = 0;
+#ifdef MSG_TRUNC
+  if (s->udp) flags = MSG_TRUNC;
+#endif
+  int n = (int)recv(s->fd, (char *)data, length, flags);
+  if (n > length) return -3;
   if (n >= 0) return n;
   s->error = bf_errno();
+#ifdef _WIN32
+  if (s->error == WSAEMSGSIZE) return -3;
+#endif
   return s->error == BF_AGAIN || s->error == BF_INTR ? -2 : -1;
 }
 
@@ -181,4 +192,44 @@ MOONBIT_FFI_EXPORT int bf_accept(bf_socket *listener, bf_socket *client) {
   client->fd = accept(listener->fd, NULL, NULL);
   if (client->fd == BF_INVALID || bf_nonblock(client->fd) != 0) { client->error = bf_errno(); bf_close(client); return -1; }
   return 0;
+}
+
+MOONBIT_FFI_EXPORT int bf_port(bf_socket *s) {
+  struct sockaddr_in address;
+#ifdef _WIN32
+  int length = sizeof(address);
+#else
+  socklen_t length = sizeof(address);
+#endif
+  if (getsockname(s->fd, (struct sockaddr *)&address, &length) != 0) return -1;
+  return ntohs(address.sin_port);
+}
+
+MOONBIT_FFI_EXPORT int bf_bind_udp(bf_socket *s) {
+  if (s->error) return -1;
+  s->udp = 1; s->fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (s->fd == BF_INVALID) return -1;
+  struct sockaddr_in address; memset(&address, 0, sizeof(address));
+  address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  if (bind(s->fd, (struct sockaddr *)&address, sizeof(address)) != 0 || bf_nonblock(s->fd) != 0) { bf_close(s); return -1; }
+  return bf_port(s);
+}
+
+MOONBIT_FFI_EXPORT int bf_udp_receive_peer(bf_socket *s, uint8_t *data, int length) {
+  struct sockaddr_in source;
+#ifdef _WIN32
+  int size = sizeof(source);
+#else
+  socklen_t size = sizeof(source);
+#endif
+  int n = (int)recvfrom(s->fd, (char *)data, length, 0, (struct sockaddr *)&source, &size);
+  if (n < 0) return -1;
+  if (connect(s->fd, (struct sockaddr *)&source, size) != 0) return -1;
+  return n;
+}
+
+MOONBIT_FFI_EXPORT int bf_udp_send_port(bf_socket *s, int port, const uint8_t *data, int length) {
+  struct sockaddr_in address; memset(&address, 0, sizeof(address));
+  address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_LOOPBACK); address.sin_port = htons((uint16_t)port);
+  return (int)sendto(s->fd, (const char *)data, length, 0, (struct sockaddr *)&address, sizeof(address));
 }

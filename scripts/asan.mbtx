@@ -6,12 +6,13 @@ import {
 }
 async fn main {
   let args = @env.args()
-  guard args.length() == 2 else { fail("usage: asan.mbtx ABSOLUTE_PROJECT_ROOT (GCC/Clang toolchain required)") }
-  let path = args[1] + "/transport/moon.pkg"
+  guard args.length() <= 2 else { fail("usage: asan.mbtx [ABSOLUTE_PROJECT_ROOT] (GCC/Clang toolchain required)") }
+  let root = if args.length() == 2 && !args[1].is_empty() { args[1] } else { @fs.realpath(".") }
+  let path = root + "/transport/moon.pkg"
   let original = (@fs.read_file(path)).text()
   defer @fs.write_file(path, original)
-  let config = original.replace(old="options(", new="options(link: { \"native\": { \"cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"stub-cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\" } }, ")
+  let config = original.replace(old="options(", new="options(link: { \"native\": { \"cc\": \"cc\", \"stub-cc\": \"cc\", \"cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"stub-cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\" } }, ")
   guard config != original else { fail("could not locate native-stub options") }
   @fs.write_file(path, config)
-  @shell.Cmd("moon", ["test", "--target", "native", "--target-dir", args[1] + "/_build/asan", "-p", "transport", "--deny-warn"], cwd=args[1]).run()
+  @shell.Cmd("moon", ["test", "--target", "native", "--target-dir", root + "/_build/asan", "-p", "transport", "--deny-warn"], cwd=root).run()
 }

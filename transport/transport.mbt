@@ -12,6 +12,7 @@ pub suberror TransportError {
   SendFailure(Int)
   ReceiveFailure(Int)
   Timeout(Phase)
+  DatagramTooLarge
 } derive(Debug)
 
 ///|
@@ -69,6 +70,7 @@ pub struct Connection {
   endpoint : Endpoint
   mut closed : Bool
   mut last_sent : Int
+  udp : Bool
 }
 
 ///|
@@ -81,8 +83,9 @@ pub fn Connection::tcp(endpoint : Endpoint) -> Connection raise TransportError {
       @utf8.encode(endpoint.host),
       endpoint.port,
       endpoint.connect_timeout_ms,
+      0,
     ) {
-    0 => { socket, endpoint, closed: false, last_sent: 0, }
+    0 => { socket, endpoint, closed: false, last_sent: 0, udp: false, }
     -2 => raise Timeout(Connect)
     _ => raise ConnectFailure(socket_error(socket))
   }
@@ -134,6 +137,21 @@ pub fn Connection::send(
   self.last_sent = 0
   guard !self.closed else { raise SendFailure(-1) }
   let deadline = now_ms() + self.endpoint.send_timeout_ms.to_int64()
+  if self.udp {
+    guard bytes.length() <= 65507 else { raise DatagramTooLarge }
+    for ;; {
+      self.wait_ready(Send, deadline)
+      let n = socket_send(self.socket, bytes, 0, bytes.length())
+      if n == -2 {
+        continue
+      }
+      guard n == bytes.length() else {
+        raise SendFailure(socket_error(self.socket))
+      }
+      self.last_sent = n
+      return
+    }
+  }
   for offset = 0; offset < bytes.length(); {
     self.wait_ready(Send, deadline)
     let sent = socket_send(
@@ -173,11 +191,14 @@ pub fn Connection::receive(
   for ;; {
     self.wait_ready(Receive, deadline)
     let n = socket_receive(self.socket, buffer, limit)
+    if n == -3 {
+      raise DatagramTooLarge
+    }
     if n == -2 {
       continue
     }
     guard n >= 0 else { raise ReceiveFailure(socket_error(self.socket)) }
-    if n == 0 {
+    if n == 0 && !self.udp {
       return Closed
     }
     return Data(Bytes::makei(n, i => buffer[i]))

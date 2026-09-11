@@ -14,6 +14,7 @@ pub suberror TransportError {
   SendFailure(Int)
   ReceiveFailure(Int)
   Timeout(Phase)
+  DatagramTooLarge
 } derive(@debug.Debug)
 
 // Types and methods
@@ -22,12 +23,14 @@ pub struct Connection {
   endpoint : Endpoint
   mut closed : Bool
   mut last_sent : Int
+  udp : Bool
 }
 pub fn Connection::close(Self) -> Unit
 pub fn Connection::last_sent_len(Self) -> Int
 pub fn Connection::receive(Self, max_bytes? : Int) -> Received raise TransportError
 pub fn Connection::send(Self, Bytes) -> Unit raise TransportError
 pub fn Connection::tcp(Endpoint) -> Self raise TransportError
+pub fn Connection::udp(Endpoint) -> Self raise TransportError
 
 pub struct Endpoint {
   host : String

@@ -6,8 +6,9 @@ import {
 }
 async fn main {
   let args = @env.args()
-  guard args.length() == 2 else { fail("usage: native-info.mbtx ABSOLUTE_PROJECT_ROOT") }
-  @shell.Cmd("moon", ["info", "--target", "native"], cwd=args[1]).run()
-  let native = @fs.read_file(args[1] + "/_build/native/debug/check/transport/transport.mbti")
-  @fs.write_file(args[1] + "/docs/transport.native.mbti", native)
+  guard args.length() <= 2 else { fail("usage: native-info.mbtx [ABSOLUTE_PROJECT_ROOT]") }
+  let root = if args.length() == 2 && !args[1].is_empty() { args[1] } else { @fs.realpath(".") }
+  @shell.Cmd("moon", ["info", "--target", "native"], cwd=root).run()
+  let native = @fs.read_file(root + "/_build/native/debug/check/transport/transport.mbti")
+  @fs.write_file(root + "/docs/transport.native.mbti", native)
 }

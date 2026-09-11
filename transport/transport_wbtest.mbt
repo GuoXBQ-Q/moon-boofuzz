@@ -22,6 +22,7 @@ test "TCP loopback bounded partial reads full send timeout EOF and repeated clos
     endpoint,
     closed: false,
     last_sent: 0,
+    udp: false,
   }
   defer peer.close()
   assert_eq(accept_local(listener, peer_socket), 0)

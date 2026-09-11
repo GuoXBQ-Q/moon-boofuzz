@@ -29,6 +29,8 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - run: moon version --all
+      - name: Initialize registry for standalone developer scripts
+        run: moon update
       - run: moon check --deny-warn
       - run: moon build
       - run: moon test --deny-warn
@@ -37,10 +39,10 @@ jobs:
       - run: moon test --target native --deny-warn
       - name: AddressSanitizer for native bridge
         if: runner.os == 'Linux'
-        run: moon run scripts/asan.mbtx "$GITHUB_WORKSPACE"
+        run: moon run scripts/asan.mbtx
       - run: moon run cmd/main
       - run: moon fmt --check
       - run: moon info
       - run: moon info --target native
-      - run: moon run scripts/native-info.mbtx '${{ github.workspace }}'
+      - run: moon run scripts/native-info.mbtx
       - run: git diff --exit-code
