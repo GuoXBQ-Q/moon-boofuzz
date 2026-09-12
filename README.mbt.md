@@ -6,8 +6,8 @@
 `Field::group(values, default_value=...)` selects the first value by default,
 then removes only the first matching default from mutation candidates.
 Both snapshot input arrays; `fuzzable=false` yields zero cases. Indices are
-zero based and out-of-range access returns `None`. These fields do not yet
-participate in the old flat `Request`; structured requests follow separately.
+zero based and out-of-range access returns `None`. Use these fields as named
+Leaf nodes in CompiledRequest; the legacy flat Request remains available.
 
 ```mbt check
 ///|

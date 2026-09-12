@@ -18,6 +18,8 @@ pub fn require_keys(Json, Array[String]) -> Unit raise RecordError
 
 pub fn select_case(Array[CaseRecord], String) -> CaseRecord raise RecordError
 
+pub fn summarize(Array[CaseRecord]) -> Report raise RecordError
+
 // Errors
 pub(all) suberror RecordError {
   Invalid(String)
@@ -44,6 +46,14 @@ pub fn CaseRecord::decode(String) -> Self raise RecordError
 pub fn CaseRecord::encode(Self) -> String raise RecordError
 pub fn CaseRecord::validate(Self) -> Unit raise RecordError
 
+pub(all) struct FailedCase {
+  line : Int
+  case_id : String
+  outcome : String
+  failed_step : Int?
+  detail : String
+} derive(Eq, ToJson, @debug.Debug)
+
 pub(all) struct RecordIssue {
   line : Int
   message : String
@@ -60,6 +70,12 @@ pub(all) struct RecordedStep {
   received : Bytes
   completed : Bool
 } derive(Eq, @debug.Debug)
+
+pub(all) struct Report {
+  total : Int
+  outcomes : Map[String, Int]
+  failures : Array[FailedCase]
+} derive(ToJson, @debug.Debug)
 
 // Type aliases
 

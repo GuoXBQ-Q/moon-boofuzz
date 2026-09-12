@@ -19,8 +19,8 @@ repository = "https://github.com/GuoXBQ-Q/moon-boofuzz"
 
 license = "GPL-2.0-only"
 
-keywords = [ ]
+keywords = [ "fuzzing", "protocol", "boofuzz", "testing" ]
 
 preferred_target = "wasm"
 
-description = "Early MoonBit port of boofuzz protocol modeling and mutation testing"
+description = "Deterministic protocol fuzzing core with native TCP/UDP execution and portable JSONL replay"

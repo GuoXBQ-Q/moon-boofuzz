@@ -1,63 +1,71 @@
 # moon-boofuzz
 
-将 [boofuzz](https://github.com/jtpereyda/boofuzz) 的协议建模与变异测试核心移植到 MoonBit，为协议实现、解析器和服务端提供可复用的健壮性测试工具。
+MoonBit 协议模糊测试核心：定义协议、生成单字段变异、执行前置会话、通过 TCP/UDP 发送、记录结果并重放。
 
-**状态：早期骨架，尚未完成 boofuzz 移植，尚未发布到 mooncakes.io。** 当前 API 不保证与上游兼容。项目用于 2026 年 9 月赛事「新生态项目建设」方向。
+采用 boofuzz 固定版本 `518c13904fc32e7f2cc88c9dec934e509062953e` 的明确功能子集。核心支持 Wasm 与 Native，网络和文件 I/O 支持 Windows/Linux Native。当前源码版本为 0.1.0，尚未发布到 mooncakes。
 
-## 当前可以运行什么
+## 开始使用
 
-- `Static`：固定字节字段。
-- `Choice`：默认字节值和调用者给定的变异值。
-- `Request`：平面字段序列，默认请求渲染、单字段逐次变异。
-- 创建请求时复制字段数组和候选数组，避免调用者后续修改影响结果。
-- 纯离线示例、黑盒测试和文档测试。
-
-当前变异结果一次性保存在内存中，适用于小规模显式用例集；不包含自动边界值生成、网络发送、故障检测或重放。
-
-## 本地开始
-
-安装 [MoonBit](https://www.moonbitlang.com/download)。初始开发工具链：moonc v0.10.11，moon 0.1.20260827。
+安装 [MoonBit](https://www.moonbitlang.com/download/)。Native 构建在 Windows 使用 MSVC 和 Windows SDK，在 Linux 使用 GCC/Clang。初始开发工具链为 moon 0.1.20260827、moonc v0.10.11。
 
 ```sh
 git clone https://github.com/GuoXBQ-Q/moon-boofuzz.git
 cd moon-boofuzz
-moon version --all
+moon update
 moon check --deny-warn
 moon build
 moon test --deny-warn
-moon run cmd/main
+moon build --target native
+moon test --target native --deny-warn
+moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
 ```
 
-GitHub 链接是预定发布地址，需由维护者首次推送后才能克隆。示例仅生成 `PING` 请求的两个变异用例，不连接网络。可运行 API 示例见 [README.mbt.md](README.mbt.md)。
+全部自动验收场景使用临时文件、回环地址和临时端口，无需另启服务：
 
-## 预期使用场景
-
-1. **二进制解析器回归测试**：开发者定义字段和边界值，离线生成输入，交给自己的解析器；保存触发错误的输入，作为修复后的固定回归用例。
-2. **本地 TCP 服务健壮性测试**：开发者启动测试服务，以协议请求模板生成异常字段，执行并分类记录超时、断连和正常响应，再重放失败用例验证修复。
-3. **有状态协议流程测试**：为自有协议描述握手、认证、业务请求的前置顺序，保留有效前置请求，仅变异目标步骤；每个用例重新建立状态，避免前一个失败污染后续测试。
-
-以上为预期场景，当前骨架只实现其中的数据生成起点。
-
-## 交付计划
-
-计划实现整数/字节变异、嵌套 Block、长度及校验和字段、确定性用例编号、基础会话路径、TCP 连接、异常分类、结果持久化与重放。详见 [架构和阶段计划](docs/ROADMAP.md)。首版不承诺 boofuzz 全量 API 兼容、覆盖率引导、Web UI、串口、原始链路层或跨平台调试器。
-
-## 项目结构
-
-```text
-moon.mod                模块元数据
-moon.pkg                核心包与黑盒测试配置
-primitive.mbt           字段模型
-request.mbt             请求渲染与显式变异
-request_test.mbt        行为测试
-README.mbt.md           可执行 API 示例
-cmd/main/               离线运行示例
-.github/workflows/ci.yml 检查、构建、测试
-docs/                   移植计划、来源说明、报名自查
+```sh
+moon test --target native --deny-warn -p cmd/boofuzz
 ```
 
-## 来源与许可
+## CLI 流程
 
-采用 **GPL-2.0-only**，全文见 [LICENSE](LICENSE)。上游为 jtpereyda/boofuzz，研究基线为 `518c13904fc32e7f2cc88c9dec934e509062953e`。当前 MoonBit 源码为 AI 辅助编写的初始实现，参考上游概念，没有复制上游完整变异库；测试数据由本项目构造。后续移植将逐项记录来源与兼容边界，见 [UPSTREAM.md](docs/UPSTREAM.md)。本项目不是上游官方版本。
+`examples/tcp.json`、`udp.json` 和 `stateful.json` 默认指向 127.0.0.1:9000。运行这些定义前，启动自己的测试目标并按需要修改地址和读取策略。
 
-报名材料要求及尚需完成的事项见 [报名自查](docs/REGISTRATION.md)。
+```sh
+moon run --target native cmd/boofuzz -- run examples/tcp.json --output _build/tcp-cases.jsonl
+moon run --target native cmd/boofuzz -- report _build/tcp-cases.jsonl
+moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["packet"]/v1:packet.data:0'
+```
+
+从 report 复制实际 case_id。重放可用 `--host HOST --port PORT` 显式覆盖目标，始终发送记录中的字节，不重新生成变异。响应无需与原记录完全相同。
+
+generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；report 按结果分类并给出失败行号和身份。每次运行使用新日志文件，避免追加相同身份后产生歧义。report 遇到损坏尾行仍输出之前的完整记录汇总，并以状态码 2 退出。replay 拒绝损坏文件；重放结果失败返回 1，配置或文件错误返回 2。
+
+## 支持的核心
+
+- Simple、Group、8/16/32/64 位整数、二进制 Bytes、UTF-8 字符串和分隔符变异。
+- 命名嵌套块、条件块、重复、对齐、长度字段及 CRC32。
+- 惰性单字段枚举、稳定身份、起始位置、数量限制与停止状态。
+- DAG 会话路径；每例重新连接并执行默认前置请求，仅变异末端目标。
+- TCP 完整发送与无响应/固定长度/分隔符读取；UDP 保留报文边界和空报文。
+- 生命周期回调、响应检查、故障通知、恢复失败停止。
+- 版本化 JSON 定义、JSONL 记录、按保存字节重放及分类报告。
+
+旧 Static、Choice 和平面 Request 行为保留。Choice 是原项目显式候选 API，不冒充上游 Group。新 API 示例见 [README.mbt.md](README.mbt.md)，JSON 格式见 [DEFINITIONS.md](docs/DEFINITIONS.md)。
+
+## 边界
+
+默认单请求 1 MiB、每次执行 10,000 例、接收 64 KiB；可显式调整。超限返回明确错误或 limited 状态，不静默截断载荷。动态变异在分配前检查长度。
+
+连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃。
+
+首版不包含 Python DSL、Web UI、TLS、IPv6、串口、原始帧、调试器、覆盖率引导、多字段组合或并行执行。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界见 [UPSTREAM.md](docs/UPSTREAM.md)。
+
+## 验证与发布准备
+
+[GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows/MSVC、Linux、Wasm/Native 和 Linux ASan。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
+
+`moon package --list` 审查源码包内容，`moon package` 生成待发布源码包。发布前清单见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。报名申报书仍由本人撰写，本项目不代填或提交。
+
+## 许可与来源
+
+本项目保持 **GPL-2.0-only**，见 [LICENSE](LICENSE)。移植来源、差分样本生成方式、已知差异及工具链许可注意事项见 [UPSTREAM.md](docs/UPSTREAM.md)。本项目不是 boofuzz 官方版本。

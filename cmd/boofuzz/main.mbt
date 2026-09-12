@@ -52,7 +52,7 @@ fn state_name(state : @core.EnumerationState) -> String {
 fn dispatch(args : Array[String]) -> Int raise {
   if args.is_empty() || args == ["--help"] {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
@@ -62,6 +62,9 @@ fn dispatch(args : Array[String]) -> Int raise {
   }
   guard args is [command, input, .. flags] else {
     raise InvalidArguments("expected a command and input path")
+  }
+  if command == "replay" || command == "report" {
+    return replay_or_report(command, input, flags)
   }
   guard command == "generate" || command == "run" else {
     raise InvalidArguments("unknown command: " + command)

@@ -1,33 +1,30 @@
-# 架构与交付边界
+# 架构与功能提交清单
 
-## 当前实现
+初始化保留 Static、Choice 和平面 Request。之后按计划的 20 个功能提交构建以下核心子集；每项同时包含实现、测试和来源/使用说明。
 
-根包拥有公开的 Primitive / Request 类型。所有数据按 Bytes 处理，不隐式 UTF-8 解码。请求创建时快照字段定义；生成器按字段顺序和候选顺序枚举，每次只替换一个字段。重复候选保留，空候选列表产生零个用例。
+| # | 功能 | 主要实现/验证 |
+|---|---|---|
+|1|Simple / Group|field.mbt，simple_group_fixture_test.mbt|
+|2|整数编码与边界|integer.mbt，integer_fixture_test.mbt|
+|3|Bytes 变异|binary.mbt，binary_fixture_test.mbt|
+|4|String / Delim|text.mbt，text_fixture_test.mbt|
+|5|命名嵌套块|model.mbt，model_test.mbt|
+|6|惰性用例流|mutation.mbt，mutation_wbtest.mbt|
+|7|条件块|condition.mbt，condition_test.mbt|
+|8|重复块|repeat.mbt，repeat_test.mbt|
+|9|对齐|aligned.mbt，aligned_fixture_test.mbt|
+|10|长度字段|size.mbt，size_fixture_test.mbt|
+|11|CRC32|checksum.mbt，checksum_fixture_test.mbt|
+|12|会话路径|session.mbt，session_test.mbt|
+|13|Native TCP|transport/，回环测试和双平台 CI|
+|14|Native UDP|transport/udp_wbtest.mbt|
+|15|隔离执行器|runner/，真实 TCP/UDP 与注入测试|
+|16|回调与分类|runner/monitor_wbtest.mbt|
+|17|JSONL 记录|records/、recordio/，文件及 ASan 测试|
+|18|保存序列重放|runner/replay_wbtest.mbt|
+|19|JSON 定义和 generate/run|definition/、cmd/boofuzz/|
+|20|replay/report 和完整场景|records/report.mbt、cmd/boofuzz/scenarios_wbtest.mbt|
 
-这是项目自定义的初始语义，尚未证明与 boofuzz 的 Group / Simple / Request 行为一致。当前 Choice 并非宣称已完成某个上游原语的移植。
+纯核心、定义和记录格式不依赖网络。Native transport/recordio 只用 C 桥接系统调用；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 
-## 分阶段开发
-
-| 阶段 | 实现内容 | 验证方式 |
-| --- | --- | --- |
-| 已完成：初始化 | 平面请求、固定字节、显式候选、离线示例 | 字节精确比较、顺序及数组隔离测试 |
-| 1：变异核心 | 定长整数/字节边界值、惰性枚举、稳定编号 | 边界测试、选定上游子集差分测试 |
-| 2：协议结构 | 嵌套块、重复、长度、CRC32 校验和 | 依赖解析、循环依赖错误、大小端与长度溢出测试 |
-| 3：执行 | TCP 连接、超时、重连、请求前置路径 | 本地自建服务验证正常响应、超时、断连 |
-| 4：诊断与重放 | 明确区分传输失败与目标崩溃、记录载荷/路径/配置、重放 | 保存后逐字节重放；状态隔离回归测试 |
-| 5：交付 | API 文档、完整场景、CI、mooncakes 发布 | README 从干净检出复现、检查/构建/测试通过 |
-
-这些阶段是实际开发工作，不是为了达到报名提交数量而拆分的提交清单。
-
-## 技术取舍
-
-- 用 MoonBit 类型与显式构造 API 表达字段，不复刻 Python 继承和全局 DSL 状态。
-- 核心生成与 I/O 分离；未来网络包以 Native 为首选验证目标，先验证 TCP 的超时、取消和重连能力再选依赖。当前纯核心以默认 Wasm 目标验证。
-- 后续将 eager 数组接口升级或补充为惰性生成器，增加请求大小和用例数限制；不直接生成笛卡尔积。
-- 长度/校验和需定义正常计算、主动变异以及依赖环的行为，不能简单拼接字节替代。
-- 前置会话路径属于状态协议调度，不把网络断连直接判定为程序崩溃。
-- 当前目标是生成式协议测试，不是 AFL/libFuzzer 类覆盖率引导引擎。
-
-## 首版不做
-
-Web UI、Python 脚本兼容、串口、原始二层/三层网络帧、远程调试器、虚拟机控制、完整协议模板全集。上游 pgraph 的可视化功能也不纳入首版。
+多字段笛卡尔积、动态会话变量、随机/浮点/文件原语、协议模板全集、覆盖率引导、并行执行和调试器留待后续版本。

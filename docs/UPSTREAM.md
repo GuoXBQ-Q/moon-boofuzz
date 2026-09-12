@@ -9,10 +9,18 @@
 
 | 本项目部分 | 参考范围 | 当前来源/兼容状态 |
 | --- | --- | --- |
-| Primitive | primitives 与协议定义文档的字段思想 | AI 辅助新实现；Static/Choice 不承诺完整上游行为 |
-| Request | blocks/request.py 的请求建模思想 | AI 辅助新实现；仅平面字段与显式单字段变异 |
-| 测试/示例 | 本项目构造的 PING、ASCII、零字节与 0xff 输入 | 未复制外部报文、数据集或上游 fixtures |
-| 后续移植 | primitives、blocks、sessions、connections 的选定子集 | 尚未实施，实施时补充文件、版本和修改范围 |
+| Static / Choice / 平面 Request | 初始化自定义 API | 保留原行为；Choice 不冒充 Group |
+| Simple / Group | primitives/simple.py、group.py、fuzzable.py | 字节候选、默认值与重复语义；fixtures/simple_group.json |
+| 整数 | primitives/bit_field.py | 8/16/32/64 位二进制；完整边界序列样本；见 INTEGER.md |
+| Bytes | primitives/bytes.py | 基础候选、魔术值、替换和长度处理；单字节 padding；见 BINARY.md |
+| String / Delim | primitives/string.py、delim.py | 固定字符串库、确定性长字符串；动态 UTF-8 子集；见 TEXT.md |
+| 命名块/变异流 | blocks/request.py、fuzzable_block.py | 不可变编译模型和惰性序列为 MoonBit 适配；见 MODEL.md、MUTATION.md |
+| 条件/重复/对齐 | blocks/block.py、repeat.py、aligned.py | 条件子集、静态重复、整组对齐；见 CONDITIONS.md、REPEAT.md、ALIGNED.md |
+| Size / CRC32 | blocks/size.py、checksum.py | 派生字段、自包含、显式错误值；请求级样本；见 SIZE.md、CHECKSUM.md |
+| 会话 | sessions/session.py、pgraph/graph.py | DAG、插入顺序、末端目标变异；见 SESSION.md |
+| TCP / UDP | connections/tcp_socket_connection.py、udp_socket_connection.py | 新写系统调用桥接；见 TRANSPORT.md、UDP.md |
+| 回调与执行 | monitors/base_monitor.py、sessions/session.py | 顺序隔离、类型化结果；见 RUNNER.md、MONITORS.md |
+| JSONL / 重放 / CLI | fuzz_logger.py、fuzz_logger_db.py 的记录概念 | 新格式和适配实现；见 RECORDS.md、REPLAY.md、DEFINITIONS.md |
 
 ## 1. Simple / Group
 
@@ -48,4 +56,10 @@ Flask (BSD), psutil (BSD), colorama (BSD). They are not linked or distributed
 with the MoonBit library. `moonbitlang/async` (Apache-2.0) is used only by
 developer `.mbtx` tooling; the production module has no new dependencies.
 
-保留未来复制或翻译文件中的原版权和许可证声明，并注明修改。添加第三方算法、fixture 或依赖前单独核查其许可证；不将上游历史或 AI 生成内容冒充个人既有成果。维护者需要理解并复核 AI 辅助实现和测试。
+移植文件保留基线、路径与许可说明。string_library.mbt 和 *_fixture_test.mbt 是固定上游生成的数据；fixtures/*.json 记录输入与来源，scripts/fixtures.mbtx 生成完整字节测试，CI 使用已提交样本。其余测试包含本项目构造的回环、二进制、错误路径和状态隔离场景。维护者需理解并复核 AI 辅助实现，不将上游历史或 AI 生成内容冒充个人既有成果。
+
+## 工具链和发布范围
+
+生产模块没有新增第三方模块依赖，没有内嵌网络运行时；Winsock/POSIX 和 C 标准文件 API 由系统提供。原本就依赖的 MoonBit 标准库和运行时使用 Apache-2.0，本次未把其源码或二进制复制到项目源码包。
+
+Apache-2.0 与 GPL-2.0-only 不能被笼统认定为兼容，参见 [Apache 许可 FAQ](https://www.apache.org/foundation/license-faq.html)。正式分发合并二进制前，需要确认工具链组件的系统库例外或其他授权适用条件，参见 [GNU GPLv2 FAQ](https://www.gnu.org/licenses/old-licenses/gpl-2.0-faq.html)。本次准备的是项目源码包；此记录不等于已经取得合并二进制的额外分发许可。

@@ -47,3 +47,4 @@ jobs:
       - run: moon info --target native
       - run: moon run scripts/native-info.mbtx
       - run: git diff --exit-code
+      - run: moon package --list

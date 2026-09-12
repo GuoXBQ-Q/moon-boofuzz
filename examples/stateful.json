@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "requests": [
+    {"name":"hello","children":[{"type":"static","name":"data","value_hex":"48454c4c4f0a"}]},
+    {"name":"auth","children":[{"type":"static","name":"data","value_hex":"4155544820746573740a"}]},
+    {"name":"query","children":[
+      {"type":"static","name":"command","value_hex":"4441544120"},
+      {"type":"simple","name":"value","value_hex":"6f6b","values_hex":["6f6e65","74776f"]},
+      {"type":"static","name":"end","value_hex":"0a"}
+    ]}
+  ],
+  "edges": [["hello","auth"],["auth","query"]],
+  "targets": ["query"],
+  "execution": {"transport":"tcp","endpoint":{"host":"127.0.0.1","port":9000},"case_limit":2}
+}
