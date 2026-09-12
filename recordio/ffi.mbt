@@ -2,6 +2,10 @@
 type FileHandle
 
 ///|
+#borrow(bytes)
+extern "c" fn print_error_ffi(bytes : Bytes, length : Int) -> Unit = "bf_print_error"
+
+///|
 #borrow(path)
 extern "c" fn open_file(path : Bytes, write : Int) -> FileHandle = "bf_file_open"
 

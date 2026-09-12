@@ -94,6 +94,21 @@ pub fn Field::binary(
     } else {
       0
     },
+    candidate_length: index => {
+      let raw = if index < 9 {
+        [0, 1, 1, 10, 100, 1000, 5000, 10000, 100000][index]
+      } else if index < 12 {
+        value.length() * [2, 10, 100][index - 9]
+      } else if index < 12 + magic_bytes.length() {
+        magic_bytes[index - 12].length()
+      } else {
+        value.length()
+      }
+      match size {
+        Some(n) => n.to_int64()
+        None => max_len.map(n => raw.min(n)).unwrap_or(raw).to_int64()
+      }
+    },
     candidate: fn(index) {
       let raw = if index < 9 {
         match index {
@@ -103,7 +118,9 @@ pub fn Field::binary(
           _ => b"A".repeat([10, 100, 1000, 5000, 10000, 100000][index - 3])
         }
       } else if index < 12 {
-        value.repeat([2, 10, 100][index - 9])
+        let raw_length = value.length() * [2, 10, 100][index - 9]
+        let cap = size.unwrap_or(max_len.unwrap_or(raw_length))
+        Bytes::makei(raw_length.min(cap), i => value[i % value.length()])
       } else if index < 12 + magic_bytes.length() {
         magic_bytes[index - 12]
       } else {

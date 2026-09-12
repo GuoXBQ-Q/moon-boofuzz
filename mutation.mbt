@@ -86,6 +86,28 @@ pub fn CaseStream::next(self : CaseStream) -> MutationCase? raise ModelError {
       raise Limit("case ordinal overflow")
     }
     let entry = self.request.entries[self.entry]
+    let mut depends_on_self = false
+    for parent = Some(self.entry)
+        parent is Some(i)
+        parent = self.request.entries[i].parent {
+      if self.request.entries[i].condition is Some(condition) &&
+        condition.path() == entry.path {
+        depends_on_self = true
+      }
+    }
+    if !depends_on_self && !self.request.is_visible(self.entry, None) {
+      self.mutation += 1
+      self.ordinal += 1
+      continue
+    }
+    if entry.kind is Atom(field) {
+      guard (field.candidate_length)(self.mutation) <=
+        self.request.max_bytes.to_int64() else {
+        raise Limit(
+          "field mutation exceeds request byte limit before allocation",
+        )
+      }
+    }
     let value = entry.kind.candidate(self.mutation)
     if !self.request.is_visible(self.entry, Some((self.entry, value))) {
       self.mutation += 1
@@ -123,4 +145,12 @@ pub fn CaseStream::state(self : CaseStream) -> EnumerationState {
 ///|
 pub fn CaseStream::position(self : CaseStream) -> Int {
   self.ordinal
+}
+
+///|
+/// Raw candidate positions, including candidates suppressed by hidden blocks.
+pub fn CompiledRequest::raw_mutation_count(self : CompiledRequest) -> Int64 {
+  self.entries.fold(init=0L, (total, entry) => {
+    total + entry.kind.count().to_int64()
+  })
 }

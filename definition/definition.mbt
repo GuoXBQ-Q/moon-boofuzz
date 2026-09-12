@@ -1,0 +1,120 @@
+///|
+pub struct ProtocolDefinition {
+  requests : Array[@core.CompiledRequest]
+  paths : Array[@core.SessionPath]
+  execution_text : String?
+}
+
+///|
+pub fn ProtocolDefinition::parse(source : String) -> ProtocolDefinition raise {
+  let value = @json.parse(source)
+  @records.require_keys(value, [
+    "schema_version", "requests", "edges", "targets", "max_bytes", "max_paths", "execution",
+  ])
+  let version : Int = @json.from_json(required(value, "schema_version"))
+  guard version == 1 else { raise UnsupportedVersion(version) }
+  let descriptions : Array[Json] = @json.from_json(required(value, "requests"))
+  let requests = descriptions.map(description => {
+    @core.CompiledRequest::compile(
+      parse_block(description, 0, true),
+      max_bytes=number(value, "max_bytes", 1048576),
+    )
+  })
+  let graph = @core.SessionGraph::new()
+  for request in requests {
+    graph.add(request)
+  }
+  if property(value, "edges") is Some(edges) {
+    guard edges is Array(edges) else { raise Invalid("edges must be an array") }
+    for edge in edges {
+      guard edge is [String(from), String(to)] else {
+        raise Invalid("edge must have two request names")
+      }
+      graph.connect(from, to)
+    }
+  }
+  let max_paths = number(value, "max_paths", 10000)
+  let paths = match property(value, "targets") {
+    None => graph.paths(max_paths~)
+    Some(targets) => graph.paths(targets=@json.from_json(targets), max_paths~)
+  }
+  {
+    requests,
+    paths,
+    execution_text: property(value, "execution").map(json => json.stringify()),
+  }
+}
+
+///|
+pub fn ProtocolDefinition::requests(
+  self : ProtocolDefinition,
+) -> Array[@core.CompiledRequest] {
+  self.requests.copy()
+}
+
+///|
+pub fn ProtocolDefinition::paths(
+  self : ProtocolDefinition,
+) -> Array[@core.SessionPath] {
+  self.paths.copy()
+}
+
+///|
+pub fn ProtocolDefinition::execution(self : ProtocolDefinition) -> Json? {
+  self.execution_text.map(text => try! @json.parse(text))
+}
+
+///|
+pub(all) struct GeneratedCase {
+  case_id : String
+  path : Array[String]
+  prefix : Array[Bytes]
+  case : @core.MutationCase
+} derive(Debug)
+
+///|
+pub(all) struct GenerationResult {
+  generated : Int
+  state : @core.EnumerationState
+} derive(Debug, Eq)
+
+///|
+pub fn ProtocolDefinition::generate(
+  self : ProtocolDefinition,
+  emit : (GeneratedCase) -> Bool raise,
+  start? : Int = 0,
+  limit? : Int = 10000,
+) -> GenerationResult raise {
+  guard start >= 0 && limit >= 0 else {
+    raise Invalid("negative generation start or limit")
+  }
+  let mut skip = start
+  let mut generated = 0
+  for path in self.paths {
+    let count = path.target().raw_mutation_count()
+    if skip.to_int64() >= count {
+      skip -= count.to_int()
+      continue
+    }
+    let stream = path.cases(start=skip, limit=2147483647)
+    skip = 0
+    for ;; {
+      if generated >= limit {
+        return { generated, state: Limited, }
+      }
+      guard stream.next() is Some(case) else { break }
+      let names = path.names()
+      let keep_going = emit({
+        case_id: names.to_json().stringify() + "/" + case.id,
+        path: names,
+        prefix: path.prefix(),
+        case,
+      })
+      generated += 1
+      if !keep_going {
+        return { generated, state: Stopped, }
+      }
+    }
+  }
+  { generated, state: Exhausted, }
+}

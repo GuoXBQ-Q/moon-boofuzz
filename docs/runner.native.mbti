@@ -39,7 +39,7 @@ pub struct ExecutionConfig {
   limit : Int
 }
 pub fn ExecutionConfig::parse(Json) -> Self raise
-pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor) -> Runner raise
+pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int) -> Runner raise
 
 pub struct Monitor {
   before : (CaseContext) -> Unit raise

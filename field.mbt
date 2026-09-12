@@ -10,6 +10,7 @@ pub struct Field {
   value : Bytes
   count : Int
   candidate : (Int) -> Bytes
+  candidate_length : (Int) -> Int64
 }
 
 ///|
@@ -27,6 +28,7 @@ pub fn Field::simple(
       0
     },
     candidate: fn(i) { saved[i] },
+    candidate_length: i => saved[i].length().to_int64(),
   }
 }
 

@@ -57,6 +57,7 @@ pub fn CompiledRequest::from_request(String, Request, max_bytes? : Int) -> Self 
 pub fn CompiledRequest::name(Self) -> String
 pub fn CompiledRequest::parent_path(Self, String) -> String? raise ModelError
 pub fn CompiledRequest::paths(Self) -> Array[String]
+pub fn CompiledRequest::raw_mutation_count(Self) -> Int64
 pub fn CompiledRequest::render(Self) -> Bytes raise ModelError
 pub fn CompiledRequest::render_path(Self, String) -> Bytes raise ModelError
 
@@ -84,6 +85,7 @@ pub struct Field {
   value : Bytes
   count : Int
   candidate : (Int) -> Bytes
+  candidate_length : (Int) -> Int64
 }
 pub fn Field::binary(Bytes, size? : Int, max_len? : Int, padding? : Bytes, fuzzable? : Bool) -> Self raise ModelError
 pub fn Field::default_value(Self) -> Bytes

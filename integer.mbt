@@ -82,5 +82,6 @@ pub fn Field::integer(
       0
     },
     candidate: fn(i) { encode_integer(candidates[i], width, endian) },
+    candidate_length: _ => (width / 8).to_int64(),
   }
 }

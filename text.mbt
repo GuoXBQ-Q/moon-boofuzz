@@ -4,14 +4,14 @@
 ///|
 pub fn Field::delimiter(value : String, fuzzable? : Bool = true) -> Field {
   let encoded = @utf8.encode(value)
-  let candidates : Array[Bytes] = []
+  let candidates : Array[TextCandidate] = []
   for n in [2, 5, 10, 25, 100, 500, 1000] {
-    candidates.push(encoded.repeat(n))
+    candidates.push(Repeated(encoded, n, 0))
   }
-  candidates.push(b"")
+  candidates.push(Literal(b""))
   if value == " " {
     for n in [1, 2, 100] {
-      candidates.push(b"\t".repeat(n))
+      candidates.push(Repeated(b"\t", n, 0))
     }
   }
   for
@@ -57,9 +57,18 @@ pub fn Field::delimiter(value : String, fuzzable? : Bool = true) -> Field {
       "\r\n".repeat(128),
       "\r\n".repeat(512),
     ] {
-    candidates.push(@utf8.encode(text))
+    candidates.push(Literal(@utf8.encode(text)))
   }
-  Field::simple(encoded, candidates, fuzzable~)
+  {
+    value: encoded,
+    count: if fuzzable {
+      candidates.length()
+    } else {
+      0
+    },
+    candidate: i => candidates[i].render(),
+    candidate_length: i => candidates[i].length(),
+  }
 }
 
 ///|
@@ -81,6 +90,16 @@ fn TextCandidate::render(self : TextCandidate) -> Bytes {
 }
 
 ///|
+fn TextCandidate::length(self : TextCandidate) -> Int64 {
+  match self {
+    Literal(bytes) => bytes.length().to_int64()
+    Repeated(bytes, copies, prefix) =>
+      bytes.length().to_int64() * copies.to_int64() + prefix.to_int64()
+    Terminator(size, _) => size.to_int64()
+  }
+}
+
+///|
 /// UTF-8 bad-string library, variable repeats and deterministic long strings.
 /// Only dynamic size is supported. Enforce wire-byte limits at request rendering.
 pub fn Field::text(value : String, fuzzable? : Bool = true) -> Field {
@@ -89,10 +108,13 @@ pub fn Field::text(value : String, fuzzable? : Bool = true) -> Field {
   for text in string_library {
     candidates.push(Literal(@utf8.encode(text)))
   }
+  let max_library_chars = string_library.fold(init=0, (n, item) => {
+    n.max(item.length())
+  })
   for n in [2, 10, 100] {
-    let text = value.repeat(n)
-    if !string_library.contains(text) {
-      candidates.push(Literal(@utf8.encode(text)))
+    if value.length() > max_library_chars / n ||
+      !string_library.contains(value.repeat(n)) {
+      candidates.push(Repeated(encoded, n, 0))
     }
   }
   let lengths = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 32768, 65535]
@@ -128,5 +150,6 @@ pub fn Field::text(value : String, fuzzable? : Bool = true) -> Field {
       0
     },
     candidate: fn(i) { unique[i].render() },
+    candidate_length: i => unique[i].length(),
   }
 }

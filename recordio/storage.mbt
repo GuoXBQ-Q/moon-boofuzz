@@ -12,6 +12,12 @@ pub struct Writer {
 }
 
 ///|
+pub fn print_error(message : String) -> Unit {
+  let bytes = @utf8.encode(message + "\n")
+  print_error_ffi(bytes, bytes.length())
+}
+
+///|
 fn check_path(path : String) -> Bytes raise StorageError {
   guard !path.is_empty() && !path.contains("\u0000") else { raise InvalidPath }
   @utf8.encode(path)

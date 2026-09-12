@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "requests": [{
+    "name": "packet",
+    "children": [{"type": "simple", "name": "data", "value_hex": "50494e47", "values_hex": ["00ff", "414141"]}]
+  }],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {"host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 100},
+    "policies": {"packet": {"kind": "fixed", "length": 2}},
+    "case_limit": 2
+  }
+}

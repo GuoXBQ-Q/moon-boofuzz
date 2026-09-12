@@ -12,6 +12,10 @@ and exhaustion. A rendering error stops the stream and raises its typed error.
 Limits never truncate a payload. Construction and skipping do not render
 mutation payloads; the white-box test uses a million-candidate generator to
 verify only requested candidates are called.
+The execution stream checks candidate byte-length metadata before allocation;
+large binary padding and text/delimiter repetitions cannot bypass its byte cap.
+`raw_mutation_count()` exposes cursor positions, including hidden candidates,
+for generation start offsets across request paths.
 
 Source: single-field ordering follows `boofuzz/fuzzable.py`,
 `fuzzable_block.py` and `blocks/request.py` at

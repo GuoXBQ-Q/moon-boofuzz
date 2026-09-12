@@ -1,0 +1,176 @@
+///|
+type FixtureSocket
+
+///|
+type FixtureFile
+
+///|
+extern "c" fn fixture_new() -> FixtureSocket = "bf_new"
+
+///|
+#borrow(socket)
+extern "c" fn fixture_close(socket : FixtureSocket) -> Unit = "bf_close"
+
+///|
+#borrow(socket)
+extern "c" fn fixture_listen(socket : FixtureSocket) -> Int = "bf_listen"
+
+///|
+#borrow(socket)
+extern "c" fn fixture_udp(socket : FixtureSocket) -> Int = "bf_bind_udp"
+
+///|
+#borrow(socket)
+extern "c" fn fixture_wait(
+  socket : FixtureSocket,
+  write : Int,
+  timeout : Int,
+) -> Int = "bf_wait"
+
+///|
+#borrow(listener, client)
+extern "c" fn fixture_accept(
+  listener : FixtureSocket,
+  client : FixtureSocket,
+) -> Int = "bf_accept"
+
+///|
+#borrow(socket, bytes)
+extern "c" fn fixture_receive(
+  socket : FixtureSocket,
+  bytes : FixedArray[Byte],
+  limit : Int,
+) -> Int = "bf_recv"
+
+///|
+extern "c" fn fixture_path() -> Bytes = "bf_file_temp"
+
+///|
+#borrow(path)
+extern "c" fn fixture_remove(path : Bytes) -> Unit = "bf_file_remove"
+
+///|
+#borrow(path)
+extern "c" fn fixture_open(path : Bytes, write : Int) -> FixtureFile = "bf_file_open"
+
+///|
+#borrow(file, bytes)
+extern "c" fn fixture_write(
+  file : FixtureFile,
+  bytes : Bytes,
+  length : Int,
+) -> Int = "bf_file_write"
+
+///|
+#borrow(file)
+extern "c" fn fixture_file_close(file : FixtureFile) -> Unit = "bf_file_close"
+
+///|
+fn save_definition(path : Bytes, value : Json) -> Unit raise {
+  let file = fixture_open(path, 1)
+  defer fixture_file_close(file)
+  let bytes = @utf8.encode(value.stringify() + "\n")
+  assert_eq(fixture_write(file, bytes, bytes.length()), 0)
+}
+
+///|
+test "CLI run completes TCP and UDP flows with portable records" {
+  for udp in [false, true] {
+    let server = fixture_new()
+    defer fixture_close(server)
+    let port = if udp { fixture_udp(server) } else { fixture_listen(server) }
+    assert_true(port > 0)
+    let definition_path = fixture_path()
+    defer fixture_remove(definition_path)
+    let output_path = fixture_path()
+    defer fixture_remove(output_path)
+    let definition : Json = {
+      "schema_version": 1,
+      "requests": [
+        {
+          "name": "r",
+          "children": [
+            { "type": "simple", "name": "data", "values_hex": ["00ff", "41"] },
+          ],
+        },
+      ],
+      "execution": {
+        "transport": if udp {
+          "udp"
+        } else {
+          "tcp"
+        },
+        "endpoint": { "host": "127.0.0.1", "port": port },
+        "case_limit": 2,
+      },
+    }
+    save_definition(definition_path, definition)
+    assert_eq(
+      dispatch([
+        "run",
+        @utf8.decode(definition_path),
+        "--output",
+        @utf8.decode(output_path),
+      ]),
+      0,
+    )
+    let records = @recordio.read_records(@utf8.decode(output_path))
+    assert_true(records.error is None)
+    assert_eq(records.records.length(), 2)
+    for i, expected in [b"\x00\xff", b"A"] {
+      assert_eq(records.records[i].steps[0].sent, expected)
+      assert_eq(records.records[i].outcome, "passed")
+      assert_eq(fixture_wait(server, 0, 1000), 1)
+      let peer = if udp {
+        server
+      } else {
+        let peer = fixture_new()
+        assert_eq(fixture_accept(server, peer), 0)
+        peer
+      }
+      let buffer = FixedArray::make(128, b'\x00')
+      assert_eq(fixture_wait(peer, 0, 1000), 1)
+      let n = fixture_receive(peer, buffer, 128)
+      assert_true(n >= 0)
+      assert_eq(Bytes::makei(n, j => buffer[j]), expected)
+      if !udp {
+        fixture_close(peer)
+      }
+    }
+  }
+}
+
+///|
+test "CLI rejects malformed definitions before any connection" {
+  let server = fixture_new()
+  defer fixture_close(server)
+  let port = fixture_listen(server)
+  let path = fixture_path()
+  defer fixture_remove(path)
+  save_definition(path, {
+    "schema_version": 1,
+    "requests": [],
+    "unsupported": true,
+    "execution": {
+      "transport": "tcp",
+      "endpoint": { "host": "127.0.0.1", "port": port },
+    },
+  })
+  assert_true(
+    try {
+      ignore(dispatch(["run", @utf8.decode(path), "--output", "unused.jsonl"]))
+      false
+    } catch {
+      _ => true
+    },
+  )
+  assert_eq(fixture_wait(server, 0, 10), 0)
+  assert_true(
+    try {
+      ignore(dispatch(["generate", @utf8.decode(path), "--unknown", "x"]))
+      false
+    } catch {
+      _ => true
+    },
+  )
+}

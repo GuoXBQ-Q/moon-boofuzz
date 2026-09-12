@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "requests": [{"name": "packet", "children": [{"type": "simple", "name": "data", "value_hex": "50494e47", "values_hex": ["", "00ff"]}]}],
+  "execution": {
+    "transport": "udp", "endpoint": {"host": "127.0.0.1", "port": 9000},
+    "policies": {"packet": {"kind": "datagram"}}, "case_limit": 2
+  }
+}

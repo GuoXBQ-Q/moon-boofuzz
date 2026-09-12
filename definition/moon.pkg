@@ -1,0 +1,5 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz" @core,
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "moonbitlang/core/json",
+}

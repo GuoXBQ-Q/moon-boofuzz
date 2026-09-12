@@ -12,6 +12,10 @@
 #include <string.h>
 #include <errno.h>
 
+MOONBIT_FFI_EXPORT void bf_print_error(const uint8_t *bytes, int length) {
+  fwrite(bytes, 1, (size_t)length, stderr); fflush(stderr);
+}
+
 typedef struct { FILE *file; int error; } bf_file;
 
 static FILE *bf_fopen(const char *path, int write) {

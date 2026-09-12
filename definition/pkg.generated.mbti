@@ -1,0 +1,44 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/definition"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn decimal_u64(String) -> UInt64 raise DefinitionError
+
+// Errors
+pub(all) suberror DefinitionError {
+  Invalid(String)
+  UnsupportedVersion(Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct GeneratedCase {
+  case_id : String
+  path : Array[String]
+  prefix : Array[Bytes]
+  case : @moon-boofuzz.MutationCase
+} derive(@debug.Debug)
+
+pub(all) struct GenerationResult {
+  generated : Int
+  state : @moon-boofuzz.EnumerationState
+} derive(Eq, @debug.Debug)
+
+pub struct ProtocolDefinition {
+  requests : Array[@moon-boofuzz.CompiledRequest]
+  paths : Array[@moon-boofuzz.SessionPath]
+  execution_text : String?
+}
+pub fn ProtocolDefinition::execution(Self) -> Json?
+pub fn ProtocolDefinition::generate(Self, (GeneratedCase) -> Bool raise, start? : Int, limit? : Int) -> GenerationResult raise
+pub fn ProtocolDefinition::parse(String) -> Self raise
+pub fn ProtocolDefinition::paths(Self) -> Array[@moon-boofuzz.SessionPath]
+pub fn ProtocolDefinition::requests(Self) -> Array[@moon-boofuzz.CompiledRequest]
+
+// Type aliases
+
+// Traits

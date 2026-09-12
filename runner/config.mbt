@@ -98,13 +98,14 @@ pub fn ExecutionConfig::runner(
   self : ExecutionConfig,
   paths : Array[@core.SessionPath],
   monitor? : Monitor = Monitor::new(),
+  limit? : Int,
 ) -> Runner raise {
   Runner::new(
     paths,
     self.endpoint,
     udp=self.udp,
     policies=self.policies,
-    limit=self.limit,
+    limit=limit.unwrap_or(self.limit),
     monitor~,
   )
 }
