@@ -26,7 +26,20 @@ moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
 moon test --target native --deny-warn -p cmd/boofuzz
 ```
 
+Windows 用户建议在 Visual Studio 的 Developer PowerShell 中执行 Native 命令，让 `cl.exe` 和 Windows SDK 可被发现。仅安装 MoonBit 可以运行纯核心 Wasm 检查；网络 CLI 还需要 C 工具链。运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
+
+第一次体验建议先执行上面的自动场景测试，再运行离线 `generate`，最后连接自己的服务。
+
 ## CLI 流程
+
+| 命令 | 输入与用途 | 主要选项 |
+| --- | --- | --- |
+| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N` |
+| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`，可选 `--limit N` |
+| `report` | JSONL 执行记录 → 分类计数、失败身份和行号 | `--max-bytes N` |
+| `replay` | JSONL 执行记录 → 按身份重放保存的字节 | 必填 `--id ID`，可选成对的 `--host HOST --port PORT`、`--max-bytes N` |
+
+查看帮助：`moon run --target native cmd/boofuzz -- --help`。所有命令均从项目根目录执行。
 
 `examples/tcp.json`、`udp.json` 和 `stateful.json` 默认指向 127.0.0.1:9000。运行这些定义前，启动自己的测试目标并按需要修改地址和读取策略。
 
@@ -38,7 +51,31 @@ moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["pa
 
 从 report 复制实际 case_id。重放可用 `--host HOST --port PORT` 显式覆盖目标，始终发送记录中的字节，不重新生成变异。响应无需与原记录完全相同。
 
+示例的具体含义：
+
+- [offline.json](examples/offline.json)：保留 `PING ` 前缀，依次生成空值、`00ff` 二进制值和 `long`。`payload_hex` 是完整请求，`prefix_hex` 是会话前置请求。
+- [tcp.json](examples/tcp.json)：向 127.0.0.1:9000 发送 `00ff`、`414141` 两个用例，每例等待 2 字节响应，接收超时 100 ms。目标不回复时会记录超时。
+- [udp.json](examples/udp.json)：发送空报文及 `00ff`，每例接收一个 UDP 报文。
+- [stateful.json](examples/stateful.json)：每个新连接重新发送 `HELLO`、`AUTH test`，再发送变异 `DATA`；只变异末端 `query`。示例使用默认的无响应读取策略。
+
+`value_hex` 定义正常值，`values_hex` 定义显式变异候选；默认值用于普通渲染和前置请求，不会自动额外插入变异序列。Group 会从候选中只移除一次默认值。自动变异可使用 `integer`、`bytes` 或 `text` 字段。
+
+运行前应按协议配置响应边界：TCP 用 `none`、`fixed` 或 `until`，UDP 用 `none` 或 `datagram`。完整 JSON 写法见 [协议定义说明](docs/DEFINITIONS.md)。
+
 generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；report 按结果分类并给出失败行号和身份。每次运行使用新日志文件，避免追加相同身份后产生歧义。report 遇到损坏尾行仍输出之前的完整记录汇总，并以状态码 2 退出。replay 拒绝损坏文件；重放结果失败返回 1，配置或文件错误返回 2。
+
+`limited` 表示达到配置的数量上限，并不表示一定还有未生成的用例。`run` 成功写完记录时返回 0，即使其中存在超时或其他失败用例；判断目标结果应查看 `report`，不能只看 `run` 的退出码。生成结果与执行记录是两种不同格式，`replay` 的输入应来自 `run --output`。
+
+## 文档导航
+
+| 需求 | 文档 |
+| --- | --- |
+| 编写 JSON 协议、字段与读取策略 | [DEFINITIONS.md](docs/DEFINITIONS.md) |
+| 在 MoonBit 代码中构造请求 | [可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
+| 配置前置路径和执行器 | [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) |
+| 响应检查、故障通知和恢复回调 | [MONITORS.md](docs/MONITORS.md) |
+| 理解日志、重放和退出码 | [RECORDS.md](docs/RECORDS.md)、[REPLAY.md](docs/REPLAY.md)、[REPORT.md](docs/REPORT.md) |
+| 核对验收、兼容边界与许可 | [ACCEPTANCE.md](docs/ACCEPTANCE.md)、[UPSTREAM.md](docs/UPSTREAM.md) |
 
 ## 支持的核心
 

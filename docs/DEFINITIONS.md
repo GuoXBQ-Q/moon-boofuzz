@@ -1,5 +1,52 @@
 # JSON protocol definitions (schema version 1)
 
+## 快速修改现有定义
+
+从 `examples/offline.json` 开始：`requests[].name` 是请求名，`children` 按顺序拼接字段。二进制值使用不带 `0x` 的十六进制字符串，如 `00ff`；`text`/`delimiter` 的 `value` 使用普通 UTF-8 文本。
+
+```json
+{
+  "schema_version": 1,
+  "requests": [{
+    "name": "packet",
+    "children": [
+      {"type": "static", "name": "prefix", "value_hex": "50494e4720"},
+      {"type": "simple", "name": "value", "value_hex": "6f6b", "values_hex": ["", "00ff", "6c6f6e67"]}
+    ]
+  }]
+}
+```
+
+普通载荷为 `PING ok`；变异依次替换 `value`，得到 `PING `、`PING ` 加二进制 `00ff`、`PING long`。正常值不会自动增加为单独用例。给支持该选项的字段设置 `fuzzable: false`，会保留正常值并关闭其变异。
+
+## 响应读取策略
+
+`execution.policies` 的键是请求名，不是字段路径。未配置的请求使用 `none`。
+
+| JSON | 适用传输 | 含义 |
+| --- | --- | --- |
+| `{"kind":"none"}` | TCP/UDP | 发送后不等待响应 |
+| `{"kind":"fixed","length":2}` | TCP | 读取恰好 2 字节 |
+| `{"kind":"until","delimiter_hex":"0d0a"}` | TCP | 读取到 CRLF，返回值包含分隔符 |
+| `{"kind":"datagram"}` | UDP | 读取一个完整报文，包括空报文 |
+
+例如给上述定义添加：
+
+```json
+"execution": {
+  "transport": "tcp",
+  "endpoint": {"host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 100},
+  "policies": {"packet": {"kind": "fixed", "length": 2}},
+  "case_limit": 3
+}
+```
+
+这段是顶层对象中的一个属性片段，需与 `requests` 之间加逗号。目标服务必须已经运行；它不回复时，`run` 会保存超时结果。`fixed` 和 `until` 对整次响应采用一个超时期限。
+
+有前置流程时，参考 `examples/stateful.json` 的 `edges` 和 `targets`。每个用例都会重新执行完整前置序列，仅变异所选路径的末端请求。
+
+## 格式参考
+
 Top-level properties are schema_version=1, requests, optional edges, targets,
 max_bytes (default 1048576), max_paths (default 10000), and execution.
 Each request has name and children; blocks optionally have condition/alignment.

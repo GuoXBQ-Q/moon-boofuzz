@@ -10,7 +10,7 @@ Shared successors produce a separate path for each predecessor route.
 
 `path.prefix()` renders only default prerequisite requests; `path.cases()`
 mutates only the final target. Prefixes must be rerun on a fresh connection
-for every case. The runner will assign path-qualified case identities.
+for every case. The runner assigns path-qualified case identities.
 Duplicate names/edges, unknown nodes and cycles raise typed model errors.
 Path expansion is limited to 10,000 paths and 256 requests per path; excessive
 expansion raises an error instead of returning a truncated array.

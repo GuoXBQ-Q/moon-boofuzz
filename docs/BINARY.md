@@ -14,7 +14,8 @@ Padding must be exactly one byte; multi-byte/empty patterns are rejected
 because upstream can produce values larger or smaller than its declared size.
 Negative lengths are rejected. `fuzzable=false` disables enumeration.
 Inputs above 20,000,000 bytes are rejected to keep count arithmetic bounded;
-execution limits on compiled requests will impose a smaller default bound.
+compiled requests impose a smaller default execution bound and check candidate
+length before allocation. The limit is adjustable when compiling the request.
 
 `fixtures/binary.json` covers empty, zero, non-UTF8, fixed length and zero size;
 regenerate `binary_fixture_test.mbt` with `scripts/fixtures.mbtx`.
