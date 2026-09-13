@@ -14,12 +14,51 @@ pub struct Field {
 }
 
 ///|
+/// Append user-supplied fuzz values after the built-in candidates with
+/// continuous mutation indices, following boofuzz/fuzzable.py get_mutations
+/// at 518c139 (fuzz_values chain after mutations(); index keeps incrementing).
+/// Only applied when the field is fuzzable; disabled fields stay at zero.
+fn Field::with_fuzz_values(
+  base : Field,
+  extra : Array[Bytes],
+  fuzzable : Bool,
+) -> Field {
+  if !fuzzable || extra.is_empty() {
+    return base
+  }
+  let saved = extra.copy()
+  let base_count = base.count
+  {
+    value: base.value,
+    count: base_count + saved.length(),
+    candidate: fn(i) {
+      if i < base_count {
+        (base.candidate)(i)
+      } else {
+        saved[i - base_count]
+      }
+    },
+    candidate_length: fn(i) {
+      if i < base_count {
+        (base.candidate_length)(i)
+      } else {
+        saved[i - base_count].length().to_int64()
+      }
+    },
+  }
+}
+
+///|
 pub fn Field::simple(
   value : Bytes,
   values : Array[Bytes],
   fuzzable? : Bool = true,
+  fuzz_values? : Array[Bytes] = [],
 ) -> Field {
   let saved = values.copy()
+  for item in fuzz_values {
+    saved.push(item)
+  }
   {
     value,
     count: if fuzzable {
@@ -38,6 +77,7 @@ pub fn Field::group(
   values : Array[Bytes],
   default_value? : Bytes,
   fuzzable? : Bool = true,
+  fuzz_values? : Array[Bytes] = [],
 ) -> Field raise ModelError {
   guard !values.is_empty() else { raise Invalid("empty group") }
   let value = default_value.unwrap_or(values[0])
@@ -50,7 +90,8 @@ pub fn Field::group(
       saved.push(item)
     }
   }
-  Field::simple(value, saved, fuzzable~)
+  let base = Field::simple(value, saved, fuzzable~)
+  Field::with_fuzz_values(base, fuzz_values, fuzzable)
 }
 
 ///|

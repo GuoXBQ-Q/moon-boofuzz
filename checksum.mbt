@@ -24,14 +24,21 @@ pub fn Node::checksum(
   target : String,
   endian? : Endian = Little,
   mutations? : Array[UInt] = [],
+  fuzzable? : Bool = true,
 ) -> Node {
-  Checksummed(name, {
-    target,
-    endian,
-    mutations: mutations.map(value => {
-      encode_integer(value.to_uint64(), 32, endian)
-    }),
-  })
+  // Upstream seeds a fuzzable checksum with six fixed byte boundaries
+  // (boofuzz/blocks/checksum.py:91-98, 518c139); explicit values replace them.
+  let selected : Array[Bytes] = if !fuzzable {
+    []
+  } else if mutations.is_empty() {
+    [
+      b"\x00\x00\x00\x00", b"\x11\x11\x11\x11", b"\xee\xee\xee\xee", b"\xff\xff\xff\xff",
+      b"\xff\xff\xff\xfe", b"\x00\x00\x00\x01",
+    ]
+  } else {
+    mutations.map(value => encode_integer(value.to_uint64(), 32, endian))
+  }
+  Checksummed(name, { target, endian, mutations: selected, })
 }
 
 ///|
@@ -51,9 +58,9 @@ fn CompiledRequest::checksum_dependencies(
       for child in children {
         self.checksum_dependencies(child, output, visited)
       }
-    Repetition(path, _, _, _) =>
+    Repetition(path, _, _, _, _) =>
       self.checksum_dependencies(self.resolve(path), output, visited)
-    Atom(_) | ComputedSize(_) => ()
+    Dynamic(_, _) | Atom(_) | ComputedSize(_) | Mirror(_) => ()
   }
 }
 

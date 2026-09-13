@@ -34,7 +34,7 @@ pub struct ProtocolDefinition {
   execution_text : String?
 }
 pub fn ProtocolDefinition::execution(Self) -> Json?
-pub fn ProtocolDefinition::generate(Self, (GeneratedCase) -> Bool raise, start? : Int, limit? : Int) -> GenerationResult raise
+pub fn ProtocolDefinition::generate(Self, (GeneratedCase) -> Bool raise, start? : Int, limit? : Int, combinatorial? : Bool, max_depth? : Int) -> GenerationResult raise
 pub fn ProtocolDefinition::parse(String) -> Self raise
 pub fn ProtocolDefinition::paths(Self) -> Array[@moon-boofuzz.SessionPath]
 pub fn ProtocolDefinition::requests(Self) -> Array[@moon-boofuzz.CompiledRequest]

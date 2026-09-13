@@ -26,7 +26,7 @@ verify 包含 fmt/info、Wasm 和 Native check/build/test、格式检查，并�
 
 ## 发布清单
 
-- 检查 git status，确认仅包含预期内容；验证初始化之后恰有 20 个功能提交。
+- 检查 git status，确认仅包含预期内容；验证初始化之后的功能提交数与 ROADMAP.md 清单一致。
 - 确认最新提交已同步 GitHub，并打开 Actions 验证最终提交的双平台检查。
 - 审查 moon package --list，确保源码、LICENSE、说明和样本齐全，构建缓存及本地日志未进入包。
 - 本次准备源码包，不自动打标签或执行 moon publish；发布账户、包名权限和最终二进制许可核查由维护者确认。

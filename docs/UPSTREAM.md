@@ -21,6 +21,12 @@
 | TCP / UDP | connections/tcp_socket_connection.py、udp_socket_connection.py | 新写系统调用桥接；见 TRANSPORT.md、UDP.md |
 | 回调与执行 | monitors/base_monitor.py、sessions/session.py | 顺序隔离、类型化结果；见 RUNNER.md、MONITORS.md |
 | JSONL / 重放 / CLI | fuzz_logger.py、fuzz_logger_db.py 的记录概念 | 新格式和适配实现；见 RECORDS.md、REPLAY.md、DEFINITIONS.md |
+| Size 自动变异 / Checksum 边界 | blocks/size.py、blocks/checksum.py 的内嵌 BitField 委托与 6 条边界 | 已按上游实现；见 SIZE.md、CHECKSUM.md |
+| 条件运算符 / 隐藏块发射 | blocks/block.py dep_compare 与条件不满足渲染空块 | 全部运算符与发射语义对齐（操作数顺序保留上游 quirk）；见 CONDITIONS.md |
+| fuzz_values / RandomData / Float / FromFile / Mirror | primitives/*.py | fuzz_values 追加语义等价；随机序列 MT19937 逐位一致；个别计数 quirk 未复现并声明；见 PRIMITIVES.md、MODEL.md |
+| Group+Block 笛卡尔 | blocks/block.py mutations 的 group 乘积 | 枚举顺序与用例数 n*(1+g) 一致；见 MODEL.md |
+| 组合爆破 | sessions/session.py _generate_mutations_indefinitely | 深度循环/子串包含去重/累积 skip quirk 均对齐；MUTATION.md |
+| 会话变量与动态重复 | protocol_session*.py、Repeat(variable=) | 内外双路径语义与 KeyError 对齐；见 VARIABLES.md |
 
 ## 1. Simple / Group
 

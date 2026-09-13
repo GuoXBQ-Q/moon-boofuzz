@@ -49,6 +49,7 @@ pub fn Field::binary(
   max_len? : Int,
   padding? : Bytes = b"\x00",
   fuzzable? : Bool = true,
+  fuzz_values? : Array[Bytes] = [],
 ) -> Field raise ModelError {
   guard padding.length() == 1 else {
     raise Invalid("binary padding must be one byte")
@@ -87,7 +88,7 @@ pub fn Field::binary(
         }
     }
   }
-  {
+  let base : Field = {
     value,
     count: if fuzzable {
       count
@@ -141,4 +142,5 @@ pub fn Field::binary(
       adjust(raw)
     },
   }
+  Field::with_fuzz_values(base, fuzz_values, fuzzable)
 }

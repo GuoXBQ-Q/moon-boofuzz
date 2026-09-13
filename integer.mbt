@@ -31,16 +31,10 @@ fn encode_integer(value : UInt64, width : Int, endian : Endian) -> Bytes {
 }
 
 ///|
-/// Unsigned binary integers with upstream's sorted, deduplicated +/-10 boundaries.
-/// Width is in bits. ASCII, full_range and custom max_num are not supported.
-pub fn Field::integer(
-  value : UInt64,
-  width? : Int = 8,
-  endian? : Endian = Little,
-  fuzzable? : Bool = true,
-) -> Field raise ModelError {
-  let maximum = integer_max(width)
-  guard value <= maximum else { raise Invalid("integer default out of range") }
+/// Upstream bit_field.py's sorted, deduplicated "interesting boundary"
+/// candidates for the full range [0, maximum]. `maximum` is 2^width - 1;
+/// the last upstream boundary 2^width contributes its ten lower neighbors.
+fn integer_boundaries(maximum : UInt64) -> Array[UInt64] {
   let candidates : Array[UInt64] = []
   let boundaries : Array[UInt64] = [0UL]
   // Compute floor(2^width / divisor) without ever representing 2^64.
@@ -74,7 +68,23 @@ pub fn Field::integer(
       candidates.push(candidate)
     }
   }
-  {
+  candidates
+}
+
+///|
+/// Unsigned binary integers with upstream's sorted, deduplicated +/-10 boundaries.
+/// Width is in bits. ASCII, full_range and custom max_num are not supported.
+pub fn Field::integer(
+  value : UInt64,
+  width? : Int = 8,
+  endian? : Endian = Little,
+  fuzzable? : Bool = true,
+  fuzz_values? : Array[Bytes] = [],
+) -> Field raise ModelError {
+  let maximum = integer_max(width)
+  guard value <= maximum else { raise Invalid("integer default out of range") }
+  let candidates = integer_boundaries(maximum)
+  let base : Field = {
     value: encode_integer(value, width, endian),
     count: if fuzzable {
       candidates.length()
@@ -84,4 +94,5 @@ pub fn Field::integer(
     candidate: fn(i) { encode_integer(candidates[i], width, endian) },
     candidate_length: _ => (width / 8).to_int64(),
   }
+  Field::with_fuzz_values(base, fuzz_values, fuzzable)
 }

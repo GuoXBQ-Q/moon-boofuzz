@@ -52,7 +52,7 @@ fn state_name(state : @core.EnumerationState) -> String {
 fn dispatch(args : Array[String]) -> Int raise {
   if args.is_empty() || args == ["--help"] {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
@@ -72,12 +72,21 @@ fn dispatch(args : Array[String]) -> Int raise {
   let opts = options(
     flags,
     if command == "generate" {
-      ["--limit", "--start"]
+      ["--limit", "--start", "--combinatorial", "--max-depth"]
     } else {
-      ["--limit", "--output"]
+      ["--limit", "--output", "--combinatorial", "--max-depth"]
     },
   )
   let limit = int_option(opts, "--limit")
+  let combinatorial : Bool? = opts
+    .get("--combinatorial")
+    .map(text => {
+      guard text == "true" || text == "false" else {
+        raise InvalidArguments("--combinatorial must be true or false")
+      }
+      text == "true"
+    })
+  let max_depth = int_option(opts, "--max-depth")
   let definition = @definition.ProtocolDefinition::parse(
     @utf8.decode(@recordio.read_bytes(input)),
   )
@@ -103,6 +112,8 @@ fn dispatch(args : Array[String]) -> Int raise {
       },
       start=int_option(opts, "--start").unwrap_or(0),
       limit=limit.unwrap_or(10000),
+      combinatorial=combinatorial.unwrap_or(false),
+      max_depth?,
     )
     let summary : Json = {
       "kind": "generation_summary",
@@ -116,8 +127,9 @@ fn dispatch(args : Array[String]) -> Int raise {
     raise InvalidArguments("run requires an execution configuration")
   })
   let runner = match limit {
-    Some(n) => config.runner(definition.paths(), limit=n)
-    None => config.runner(definition.paths())
+    Some(n) =>
+      config.runner(definition.paths(), limit=n, combinatorial?, max_depth?)
+    None => config.runner(definition.paths(), combinatorial?, max_depth?)
   }
   let output = opts
     .get("--output")

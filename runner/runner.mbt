@@ -58,6 +58,9 @@ pub fn Runner::with_dialer(
   receive_timeout_ms? : Int = 5000,
   limit? : Int = 10000,
   monitor? : Monitor = Monitor::new(),
+  combinatorial? : Bool = false,
+  max_depth? : Int,
+  variables? : Map[String, Bytes]? = None,
 ) -> Runner raise {
   guard limit >= 0 &&
     receive_limit > 0 &&
@@ -81,7 +84,17 @@ pub fn Runner::with_dialer(
   }
   {
     paths: paths.copy(),
-    streams: paths.map(path => path.cases(limit=2147483647)),
+    streams: paths.map(path => {
+      if combinatorial {
+        path.combinatorial_cases_with_variables(
+          variables,
+          limit=2147483647,
+          max_depth?,
+        )
+      } else {
+        path.cases_with_variables(variables, limit=2147483647)
+      }
+    }),
     dial,
     policies: saved,
     receive_limit,
@@ -109,6 +122,9 @@ pub fn Runner::new(
   policies? : Map[String, ReadPolicy] = Map([]),
   limit? : Int = 10000,
   monitor? : Monitor = Monitor::new(),
+  combinatorial? : Bool = false,
+  max_depth? : Int,
+  variables? : Map[String, Bytes]? = None,
 ) -> Runner raise {
   for _, policy in policies {
     guard !udp || policy == NoResponse || policy == Datagram else {
@@ -131,22 +147,25 @@ pub fn Runner::new(
     policies~,
     limit~,
     monitor~,
+    combinatorial~,
+    max_depth?,
+    variables~,
     receive_limit=endpoint.receive_limit(),
     receive_timeout_ms=endpoint.receive_timeout(),
   )
-  {
-    ..runner,
-    config: {
-      "transport": if udp {
-        "udp"
-      } else {
-        "tcp"
-      },
-      "endpoint": ToJson::to_json(endpoint),
-      "policies": policy_config(policies),
-      "case_limit": limit,
-    },
+  let config_map : Map[String, Json] = Map([])
+  config_map["transport"] = if udp { "udp" } else { "tcp" }
+  config_map["endpoint"] = ToJson::to_json(endpoint)
+  config_map["policies"] = policy_config(policies)
+  config_map["case_limit"] = limit.to_json()
+  if combinatorial {
+    config_map["combinatorial"] = true
+    match max_depth {
+      Some(depth) => config_map["max_depth"] = depth.to_json()
+      None => ()
+    }
   }
+  { ..runner, config: Json::object(config_map), }
 }
 
 ///|

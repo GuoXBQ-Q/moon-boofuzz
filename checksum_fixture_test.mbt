@@ -6,7 +6,12 @@ test "upstream checksum payload mutations" {
   let field = request_fixture(
     @moon_boofuzz.CompiledRequest::compile(
       @moon_boofuzz.Block::new("r", [
-        @moon_boofuzz.Node::checksum("crc", "r.body", endian=Big),
+        @moon_boofuzz.Node::checksum(
+          "crc",
+          "r.body",
+          endian=Big,
+          fuzzable=false,
+        ),
         Nested(
           @moon_boofuzz.Block::new("body", [
             Leaf("x", @moon_boofuzz.Field::simple(b"123456789", [b""])),
@@ -31,8 +36,8 @@ test "upstream checksum and parent size" {
   let field = request_fixture(
     @moon_boofuzz.CompiledRequest::compile(
       @moon_boofuzz.Block::new("r", [
-        @moon_boofuzz.Node::size("len", "r", length=1),
-        @moon_boofuzz.Node::checksum("crc", "r"),
+        @moon_boofuzz.Node::size("len", "r", length=1, fuzzable=false),
+        @moon_boofuzz.Node::checksum("crc", "r", fuzzable=false),
         Leaf("x", @moon_boofuzz.Field::simple(b"A", [b"BB"])),
       ]),
     ),

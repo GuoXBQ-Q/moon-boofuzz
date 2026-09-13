@@ -2,7 +2,11 @@
 // Port of the UTF-8, dynamic-size subset of boofuzz primitives/string.py and delim.py.
 
 ///|
-pub fn Field::delimiter(value : String, fuzzable? : Bool = true) -> Field {
+pub fn Field::delimiter(
+  value : String,
+  fuzzable? : Bool = true,
+  fuzz_values? : Array[Bytes] = [],
+) -> Field {
   let encoded = @utf8.encode(value)
   let candidates : Array[TextCandidate] = []
   for n in [2, 5, 10, 25, 100, 500, 1000] {
@@ -59,7 +63,7 @@ pub fn Field::delimiter(value : String, fuzzable? : Bool = true) -> Field {
     ] {
     candidates.push(Literal(@utf8.encode(text)))
   }
-  {
+  let base : Field = {
     value: encoded,
     count: if fuzzable {
       candidates.length()
@@ -69,6 +73,7 @@ pub fn Field::delimiter(value : String, fuzzable? : Bool = true) -> Field {
     candidate: i => candidates[i].render(),
     candidate_length: i => candidates[i].length(),
   }
+  Field::with_fuzz_values(base, fuzz_values, fuzzable)
 }
 
 ///|
@@ -102,7 +107,11 @@ fn TextCandidate::length(self : TextCandidate) -> Int64 {
 ///|
 /// UTF-8 bad-string library, variable repeats and deterministic long strings.
 /// Only dynamic size is supported. Enforce wire-byte limits at request rendering.
-pub fn Field::text(value : String, fuzzable? : Bool = true) -> Field {
+pub fn Field::text(
+  value : String,
+  fuzzable? : Bool = true,
+  fuzz_values? : Array[Bytes] = [],
+) -> Field {
   let encoded = @utf8.encode(value)
   let candidates : Array[TextCandidate] = []
   for text in string_library {
@@ -142,7 +151,7 @@ pub fn Field::text(value : String, fuzzable? : Bool = true) -> Field {
       unique.push(candidate)
     }
   }
-  {
+  let base : Field = {
     value: encoded,
     count: if fuzzable {
       unique.length()
@@ -152,4 +161,5 @@ pub fn Field::text(value : String, fuzzable? : Bool = true) -> Field {
     candidate: fn(i) { unique[i].render() },
     candidate_length: i => unique[i].length(),
   }
+  Field::with_fuzz_values(base, fuzz_values, fuzzable)
 }

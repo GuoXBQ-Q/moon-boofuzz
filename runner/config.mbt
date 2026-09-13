@@ -14,12 +14,16 @@ pub struct ExecutionConfig {
   udp : Bool
   policies : Map[String, ReadPolicy]
   limit : Int
+  combinatorial : Bool
+  max_depth : Int?
+  variables : Map[String, Bytes]
 }
 
 ///|
 pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
   @records.require_keys(value, [
-    "transport", "endpoint", "policies", "case_limit",
+    "transport", "endpoint", "policies", "case_limit", "combinatorial", "max_depth",
+    "variables",
   ])
   guard value is { "transport": String(kind), "endpoint": endpoint_json, .. } else {
     raise Invalid("execution config requires transport and endpoint")
@@ -90,7 +94,45 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
       policies[name] = parsed
     }
   }
-  { endpoint, udp: kind == "udp", policies, limit, }
+  let combinatorial = boolean_json(value, "combinatorial")
+  let max_depth : Int? = if value is { "max_depth": depth, .. } {
+    let parsed : Int = @json.from_json(depth)
+    guard parsed >= 1 else { raise Invalid("max_depth must be at least 1") }
+    Some(parsed)
+  } else {
+    None
+  }
+  let variables : Map[String, Bytes] = Map([])
+  if value is { "variables": vars_json, .. } {
+    guard vars_json is Object(fields) else {
+      raise Invalid("variables must be an object")
+    }
+    for name, hex_value in fields {
+      let text : String = @json.from_json(hex_value)
+      variables[name] = @records.hex_decode(text)
+    }
+  }
+  {
+    endpoint,
+    udp: kind == "udp",
+    policies,
+    limit,
+    combinatorial,
+    max_depth,
+    variables,
+  }
+}
+
+///|
+fn boolean_json(value : Json, name : String) -> Bool raise {
+  if value is { "combinatorial": flag, .. } {
+    let parsed : Bool = @json.from_json(flag)
+    parsed
+  } else if name == "combinatorial" {
+    false
+  } else {
+    false
+  }
 }
 
 ///|
@@ -99,7 +141,14 @@ pub fn ExecutionConfig::runner(
   paths : Array[@core.SessionPath],
   monitor? : Monitor = Monitor::new(),
   limit? : Int,
+  combinatorial? : Bool,
+  max_depth? : Int,
 ) -> Runner raise {
+  let use_combinatorial = combinatorial.unwrap_or(self.combinatorial)
+  let max_depth = match max_depth {
+    Some(depth) => Some(depth)
+    None => self.max_depth
+  }
   Runner::new(
     paths,
     self.endpoint,
@@ -107,5 +156,8 @@ pub fn ExecutionConfig::runner(
     policies=self.policies,
     limit=limit.unwrap_or(self.limit),
     monitor~,
+    combinatorial=use_combinatorial,
+    max_depth?,
+    variables=Some(self.variables),
   )
 }

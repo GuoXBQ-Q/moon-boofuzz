@@ -6,8 +6,9 @@ pub fn Node::repeat(
   min? : Int = 0,
   max? : Int = 25,
   step? : Int = 1,
+  variable? : String,
 ) -> Node {
-  Repeat(name, target, min, max, step)
+  Repeat(name, target, min, max, step, variable)
 }
 
 ///|
@@ -22,9 +23,11 @@ fn decode_repeat(bytes : Bytes) -> Int {
 fn EntryKind::count(self : EntryKind) -> Int {
   match self {
     Atom(field) => field.count
+    Dynamic(field, _) => field.count
     ComputedSize(spec) => spec.mutations.length()
     ComputedChecksum(spec) => spec.mutations.length()
-    Repetition(_, min, max, step) => (max - min) / step + 1
+    Repetition(_, min, max, step, _) => (max - min) / step + 1
+    Mirror(_) => 0
     Container(_) => 0
   }
 }
@@ -33,10 +36,12 @@ fn EntryKind::count(self : EntryKind) -> Int {
 fn EntryKind::candidate(self : EntryKind, index : Int) -> Bytes {
   match self {
     Atom(field) => (field.candidate)(index)
+    Dynamic(field, _) => (field.candidate)(index)
     ComputedSize(spec) => spec.mutations[index]
     ComputedChecksum(spec) => spec.mutations[index]
-    Repetition(_, min, _, step) =>
+    Repetition(_, min, _, step, _) =>
       encode_integer((min + step * index).to_uint64(), 32, Little)
+    Mirror(_) => b""
     Container(_) => b""
   }
 }

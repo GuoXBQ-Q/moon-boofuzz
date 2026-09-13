@@ -17,17 +17,28 @@ pub fn Node::size(
   offset? : Int = 0,
   inclusive? : Bool = false,
   mutations? : Array[UInt64] = [],
+  fuzzable? : Bool = true,
 ) -> Node raise ModelError {
   guard length == 1 || length == 2 || length == 4 || length == 8 else {
     raise Invalid("size length must be 1, 2, 4 or 8 bytes")
   }
   let maximum = integer_max(length * 8)
-  let values = mutations.map(value => {
-    guard value <= maximum else {
-      raise Invalid("explicit size mutation overflow")
+  // With no explicit values, upstream delegates mutations to an inner
+  // BitField over the full width (boofuzz/blocks/size.py:91-104, 518c139);
+  // the encoded values then bypass length computation (size.py:106-115).
+  let selected : Array[UInt64] = if !fuzzable {
+    []
+  } else if mutations.is_empty() {
+    integer_boundaries(maximum)
+  } else {
+    for value in mutations {
+      guard value <= maximum else {
+        raise Invalid("explicit size mutation overflow")
+      }
     }
-    encode_integer(value, length * 8, endian)
-  })
+    mutations
+  }
+  let values = selected.map(value => encode_integer(value, length * 8, endian))
   Sized(name, { target, length, endian, offset, inclusive, mutations: values, })
 }
 
@@ -35,25 +46,61 @@ pub fn Node::size(
 fn CompiledRequest::measure(
   self : CompiledRequest,
   index : Int,
-  replacement : (Int, Bytes)?,
+  replacements : Replacements,
+  vars : Map[String, Bytes]?,
+  active? : Array[Int] = [],
 ) -> Int raise ModelError {
-  guard self.is_visible(index, replacement) else { return 0 }
+  guard self.is_visible(index, replacements, vars) else { return 0 }
   let size = match self.entries[index].kind {
     Atom(field) =>
-      if replacement is Some((id, value)) && id == index {
-        value.length()
-      } else {
-        field.value.length()
+      match replacements.lookup(index) {
+        Some(value) => value.length()
+        None => field.value.length()
+      }
+    Dynamic(field, variable) =>
+      match replacements.lookup(index) {
+        Some(value) => value.length()
+        None =>
+          match vars {
+            Some(map) =>
+              match map.get(variable) {
+                Some(bytes) => bytes.length()
+                None => raise Invalid("missing session variable: " + variable)
+              }
+            None => field.value.length()
+          }
       }
     ComputedSize(spec) => spec.length
     ComputedChecksum(_) => 4
-    Repetition(path, _, _, _) => {
-      let n = if replacement is Some((id, bytes)) && id == index {
-        decode_repeat(bytes)
-      } else {
-        0
+    Mirror(target) => {
+      guard !active.contains(index) else { return 0 }
+      let nested = active.copy()
+      nested.push(index)
+      self.measure(self.resolve(target), replacements, vars, active=nested)
+    }
+    Repetition(path, _, _, _, variable) => {
+      let n = match replacements.lookup(index) {
+        Some(bytes) => decode_repeat(bytes)
+        None =>
+          match variable {
+            Some(name) =>
+              match vars {
+                Some(map) =>
+                  match map.get(name) {
+                    Some(bytes) => {
+                      guard bytes.length() >= 4 else {
+                        raise Invalid("repeat variable needs 4 bytes")
+                      }
+                      decode_repeat(bytes)
+                    }
+                    None => raise Invalid("missing session variable: " + name)
+                  }
+                None => 0
+              }
+            None => 0
+          }
       }
-      let child = self.measure(self.resolve(path), replacement)
+      let child = self.measure(self.resolve(path), replacements, vars)
       guard child == 0 || n <= self.max_bytes / child else {
         raise Limit("repeated length exceeds byte limit")
       }
@@ -62,7 +109,7 @@ fn CompiledRequest::measure(
     Container(children) => {
       let mut total = 0
       for child in children {
-        let n = self.measure(child, replacement)
+        let n = self.measure(child, replacements, vars)
         guard n <= self.max_bytes - total else {
           raise Limit("measured request exceeds byte limit")
         }
@@ -88,9 +135,12 @@ fn CompiledRequest::measure(
 fn CompiledRequest::size_value(
   self : CompiledRequest,
   spec : SizeSpec,
-  replacement : (Int, Bytes)?,
+  replacements : Replacements,
+  vars : Map[String, Bytes]?,
 ) -> Bytes raise ModelError {
-  let length = self.measure(self.resolve(spec.target), replacement).to_int64() +
+  let length = self
+    .measure(self.resolve(spec.target), replacements, vars)
+    .to_int64() +
     spec.offset.to_int64() +
     (if spec.inclusive { spec.length.to_int64() } else { 0L })
   guard length >= 0L else { raise Invalid("negative computed size") }
@@ -118,9 +168,9 @@ fn CompiledRequest::size_dependencies(
       for child in children {
         self.size_dependencies(child, output, visited)
       }
-    Repetition(path, _, _, _) =>
+    Repetition(path, _, _, _, _) =>
       self.size_dependencies(self.resolve(path), output, visited)
-    Atom(_) | ComputedChecksum(_) => ()
+    Dynamic(_, _) | Atom(_) | ComputedChecksum(_) | Mirror(_) => ()
   }
 }
 
@@ -181,7 +231,7 @@ fn CompiledRequest::validate_sizes(
   }
   for entry in self.entries {
     if entry.kind is ComputedSize(spec) {
-      ignore(self.size_value(spec, None))
+      ignore(self.size_value(spec, [], None))
     }
   }
 }

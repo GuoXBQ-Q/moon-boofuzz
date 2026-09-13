@@ -2,9 +2,12 @@
 
 `Node::size("len", "request.body", length=4, endian=Little, offset=0,
 inclusive=false, mutations=[])` encodes a block's current wire length.
-Length is 1/2/4/8 bytes; explicit mutations are unsigned integer values that
-replace the computed length. No automatic size mutations or math callbacks
-are implied. The target must be a full block path.
+Length is 1/2/4/8 bytes. With no explicit mutations, the field reproduces
+upstream's delegation to an inner bit field: the full sorted boundary
+sequence of the width (140 values for 16 bits, for example) replaces the
+computed length, bypassing length calculation exactly like upstream.
+Explicit `mutations` replace that automatic sequence. Math callbacks are
+not exposed. The target must be a full block path.
 
 Self-containing sizes are supported: measuring a parent counts the size field's
 fixed width. As upstream does, inclusive=true adds that width again, even if

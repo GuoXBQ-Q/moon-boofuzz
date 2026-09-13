@@ -37,9 +37,12 @@ pub struct ExecutionConfig {
   udp : Bool
   policies : Map[String, ReadPolicy]
   limit : Int
+  combinatorial : Bool
+  max_depth : Int?
+  variables : Map[String, Bytes]
 }
 pub fn ExecutionConfig::parse(Json) -> Self raise
-pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int) -> Runner raise
+pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int, combinatorial? : Bool, max_depth? : Int) -> Runner raise
 
 pub struct Monitor {
   before : (CaseContext) -> Unit raise
@@ -96,12 +99,12 @@ pub struct Runner {
   mut state : @moon-boofuzz.EnumerationState
 }
 pub fn Runner::executed(Self) -> Int
-pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor) -> Self raise
+pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?) -> Self raise
 pub fn Runner::next(Self) -> CaseResult? raise @moon-boofuzz.ModelError
 pub fn Runner::record(Self, CaseResult) -> @records.CaseRecord
 pub fn Runner::state(Self) -> @moon-boofuzz.EnumerationState
 pub fn Runner::stop(Self) -> Unit
-pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor) -> Self raise
+pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?) -> Self raise
 
 pub(all) struct StepResult {
   request_name : String

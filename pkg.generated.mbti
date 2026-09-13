@@ -20,22 +20,38 @@ pub struct Block {
   children : Array[Node]
   condition : Condition?
   alignment : (Int, Bytes)?
+  group : String?
 }
 pub fn Block::aligned(Self, Int, pattern? : Bytes) -> Self raise ModelError
 pub fn Block::new(String, Array[Node]) -> Self
 pub fn Block::when(Self, Condition) -> Self
+pub fn Block::with_group(Self, String) -> Self
+
+pub enum CaseSeq {
+  Plain(Int)
+  Sequence(Array[CaseSeq])
+  Product(Int, CaseSeq)
+}
 
 pub struct CaseStream {
   request : CompiledRequest
   limit : Int
-  mut entry : Int
-  mut mutation : Int
+  mut skip : Int
   mut ordinal : Int
   mut emitted : Int
   mut state : EnumerationState
+  stack : Array[StreamFrame]
+  combinatorial : Bool
+  units : Array[StreamUnit]
+  max_depth : Int?
+  mut depth : Int
+  mut depth_emitted : Int
+  frames : Array[CombFrame]
+  vars : Map[String, Bytes]?
 }
 pub fn CaseStream::next(Self) -> MutationCase? raise ModelError
 pub fn CaseStream::position(Self) -> Int
+pub fn CaseStream::remaining_skip(Self) -> Int
 pub fn CaseStream::state(Self) -> EnumerationState
 pub fn CaseStream::stop(Self) -> Unit
 
@@ -45,13 +61,24 @@ pub struct ChecksumSpec {
   mutations : Array[Bytes]
 }
 
+pub struct CombFrame {
+  mut unit_index : Int
+  incoming : Map[Int, Bool]
+  acc : Map[Int, Bool]
+  parts : Array[(Int, Int, Bool)]
+}
+
 pub struct CompiledRequest {
   name : String
   entries : Array[Entry]
   paths : Map[String, Int]
   max_bytes : Int
+  seq : CaseSeq
 }
-pub fn CompiledRequest::cases(Self, start? : Int, limit? : Int) -> CaseStream raise ModelError
+pub fn CompiledRequest::cases(Self, start? : Int, limit? : Int, vars? : Map[String, Bytes]?) -> CaseStream raise ModelError
+pub fn CompiledRequest::cases_with_variables(Self, Map[String, Bytes]?, start? : Int, limit? : Int) -> CaseStream raise ModelError
+pub fn CompiledRequest::combinatorial_cases(Self, start? : Int, limit? : Int, max_depth? : Int) -> CaseStream raise ModelError
+pub fn CompiledRequest::combinatorial_cases_with_variables(Self, Map[String, Bytes]?, start? : Int, limit? : Int, max_depth? : Int) -> CaseStream raise ModelError
 pub fn CompiledRequest::compile(Block, max_bytes? : Int) -> Self raise ModelError
 pub fn CompiledRequest::from_request(String, Request, max_bytes? : Int) -> Self raise ModelError
 pub fn CompiledRequest::name(Self) -> String
@@ -65,6 +92,11 @@ pub(all) enum Condition {
   Equal(String, Bytes)
   NotEqual(String, Bytes)
   OneOf(String, Array[Bytes])
+  NotOneOf(String, Array[Bytes])
+  Greater(String, Bytes)
+  GreaterEqual(String, Bytes)
+  Less(String, Bytes)
+  LessEqual(String, Bytes)
 }
 
 pub(all) enum Endian {
@@ -87,15 +119,18 @@ pub struct Field {
   candidate : (Int) -> Bytes
   candidate_length : (Int) -> Int64
 }
-pub fn Field::binary(Bytes, size? : Int, max_len? : Int, padding? : Bytes, fuzzable? : Bool) -> Self raise ModelError
+pub fn Field::binary(Bytes, size? : Int, max_len? : Int, padding? : Bytes, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self raise ModelError
 pub fn Field::default_value(Self) -> Bytes
-pub fn Field::delimiter(String, fuzzable? : Bool) -> Self
-pub fn Field::group(Array[Bytes], default_value? : Bytes, fuzzable? : Bool) -> Self raise ModelError
-pub fn Field::integer(UInt64, width? : Int, endian? : Endian, fuzzable? : Bool) -> Self raise ModelError
+pub fn Field::delimiter(String, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self
+pub fn Field::float(default_value? : Double, s_format? : String, f_min? : Double, f_max? : Double, max_mutations? : Int, seed? : Int64, encode_as_ieee_754? : Bool, endian? : Endian, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self raise ModelError
+pub fn Field::from_lines(default_value? : Bytes, lines? : Array[Bytes], max_len? : Int, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self raise ModelError
+pub fn Field::group(Array[Bytes], default_value? : Bytes, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self raise ModelError
+pub fn Field::integer(UInt64, width? : Int, endian? : Endian, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self raise ModelError
 pub fn Field::mutation(Self, Int) -> Bytes?
 pub fn Field::num_mutations(Self) -> Int
-pub fn Field::simple(Bytes, Array[Bytes], fuzzable? : Bool) -> Self
-pub fn Field::text(String, fuzzable? : Bool) -> Self
+pub fn Field::random_data(default_value? : Bytes, min_length? : Int, max_length? : Int, max_mutations? : Int, step? : Int, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self raise ModelError
+pub fn Field::simple(Bytes, Array[Bytes], fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self
+pub fn Field::text(String, fuzzable? : Bool, fuzz_values? : Array[Bytes]) -> Self
 
 pub(all) struct MutationCase {
   id : String
@@ -104,18 +139,23 @@ pub(all) struct MutationCase {
   mutation_index : Int
   ordinal : Int
   payload : Bytes
+  extra : Array[(String, Int)]
 } derive(Eq, @debug.Debug)
 
 pub(all) enum Node {
   Leaf(String, Field)
   Nested(Block)
-  Repeat(String, String, Int, Int, Int)
+  Repeat(String, String, Int, Int, Int, String?)
   Sized(String, SizeSpec)
   Checksummed(String, ChecksumSpec)
+  Mirrored(String, String)
+  Dynamic(String, String, Field)
 }
-pub fn Node::checksum(String, String, endian? : Endian, mutations? : Array[UInt]) -> Self
-pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int) -> Self
-pub fn Node::size(String, String, length? : Int, endian? : Endian, offset? : Int, inclusive? : Bool, mutations? : Array[UInt64]) -> Self raise ModelError
+pub fn Node::checksum(String, String, endian? : Endian, mutations? : Array[UInt], fuzzable? : Bool) -> Self
+pub fn Node::dynamic(String, String, Field) -> Self
+pub fn Node::mirror(String, String) -> Self
+pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int, variable? : String) -> Self
+pub fn Node::size(String, String, length? : Int, endian? : Endian, offset? : Int, inclusive? : Bool, mutations? : Array[UInt64], fuzzable? : Bool) -> Self raise ModelError
 
 pub(all) enum Primitive {
   Static(Bytes)
@@ -144,7 +184,9 @@ pub fn SessionGraph::paths(Self, targets? : Array[String], max_paths? : Int) -> 
 pub struct SessionPath {
   requests : Array[CompiledRequest]
 }
-pub fn SessionPath::cases(Self, start? : Int, limit? : Int) -> CaseStream raise ModelError
+pub fn SessionPath::cases(Self, start? : Int, limit? : Int, variables? : Map[String, Bytes]?) -> CaseStream raise ModelError
+pub fn SessionPath::cases_with_variables(Self, Map[String, Bytes]?, start? : Int, limit? : Int) -> CaseStream raise ModelError
+pub fn SessionPath::combinatorial_cases_with_variables(Self, Map[String, Bytes]?, start? : Int, limit? : Int, max_depth? : Int) -> CaseStream raise ModelError
 pub fn SessionPath::names(Self) -> Array[String]
 pub fn SessionPath::prefix(Self) -> Array[Bytes] raise ModelError
 pub fn SessionPath::requests(Self) -> Array[CompiledRequest]
@@ -157,6 +199,18 @@ pub struct SizeSpec {
   offset : Int
   inclusive : Bool
   mutations : Array[Bytes]
+}
+
+pub struct StreamFrame {
+  seq : CaseSeq
+  mut child : Int
+  mut pass : Int
+  mut walking : Bool
+}
+
+pub struct StreamUnit {
+  parts : Array[(Int, Int, Bool)]
+  child : Int
 }
 
 type TextCandidate derive(Eq)

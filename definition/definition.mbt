@@ -84,6 +84,8 @@ pub fn ProtocolDefinition::generate(
   emit : (GeneratedCase) -> Bool raise,
   start? : Int = 0,
   limit? : Int = 10000,
+  combinatorial? : Bool = false,
+  max_depth? : Int,
 ) -> GenerationResult raise {
   guard start >= 0 && limit >= 0 else {
     raise Invalid("negative generation start or limit")
@@ -91,6 +93,46 @@ pub fn ProtocolDefinition::generate(
   let mut skip = start
   let mut generated = 0
   for path in self.paths {
+    if combinatorial {
+      // Combinatorial totals are unknown up front; the start position walks
+      // emitted cases and any remainder carries into the next path.
+      let stream = path.combinatorial_cases_with_variables(
+        None,
+        start=skip,
+        limit=2147483647,
+        max_depth?,
+      )
+      skip = 0
+      let mut exhausted = false
+      for ;; {
+        if generated >= limit {
+          return { generated, state: Limited, }
+        }
+        match stream.next() {
+          Some(case) => {
+            let names = path.names()
+            let keep_going = emit({
+              case_id: names.to_json().stringify() + "/" + case.id,
+              path: names,
+              prefix: path.prefix(),
+              case,
+            })
+            generated += 1
+            if !keep_going {
+              return { generated, state: Stopped, }
+            }
+          }
+          None => {
+            exhausted = true
+            break
+          }
+        }
+      }
+      if exhausted {
+        skip = stream.remaining_skip()
+      }
+      continue
+    }
     let count = path.target().raw_mutation_count()
     if skip.to_int64() >= count {
       skip -= count.to_int()

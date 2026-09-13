@@ -3,9 +3,11 @@
 pub(all) enum Node {
   Leaf(String, Field)
   Nested(Block)
-  Repeat(String, String, Int, Int, Int)
+  Repeat(String, String, Int, Int, Int, String?)
   Sized(String, SizeSpec)
   Checksummed(String, ChecksumSpec)
+  Mirrored(String, String)
+  Dynamic(String, String, Field)
 }
 
 ///|
@@ -14,20 +16,37 @@ pub struct Block {
   children : Array[Node]
   condition : Condition?
   alignment : (Int, Bytes)?
+  group : String?
 }
 
 ///|
 pub fn Block::new(name : String, children : Array[Node]) -> Block {
-  { name, children: children.copy(), condition: None, alignment: None, }
+  {
+    name,
+    children: children.copy(),
+    condition: None,
+    alignment: None,
+    group: None,
+  }
+}
+
+///|
+/// Link the block to a Group field; its candidates multiply with the block's
+/// own mutation cases like upstream Block(group=...) (boofuzz/blocks/block.py
+/// mutations, 518c139). The target is a full field path.
+pub fn Block::with_group(self : Block, target : String) -> Block {
+  { ..self, group: Some(target), }
 }
 
 ///|
 priv enum EntryKind {
   Atom(Field)
+  Dynamic(Field, String)
   Container(Array[Int])
-  Repetition(String, Int, Int, Int)
+  Repetition(String, Int, Int, Int, String?)
   ComputedSize(SizeSpec)
   ComputedChecksum(ChecksumSpec)
+  Mirror(String)
 }
 
 ///|
@@ -37,6 +56,17 @@ struct Entry {
   kind : EntryKind
   condition : Condition?
   alignment : (Int, Bytes)?
+  group : String?
+}
+
+///|
+/// Lazy case sequence tree. Upstream enumerates a block as its plain child
+/// mutations followed by group products replaying that same sequence once
+/// per group candidate (boofuzz/blocks/block.py mutations, 518c139).
+pub enum CaseSeq {
+  Plain(Int)
+  Sequence(Array[CaseSeq])
+  Product(Int, CaseSeq)
 }
 
 ///|
@@ -45,11 +75,39 @@ pub struct CompiledRequest {
   entries : Array[Entry]
   paths : Map[String, Int]
   max_bytes : Int
+  seq : CaseSeq
+}
+
+///|
+/// Build the lazy case sequence for an entry. A grouped block replays its
+/// children sequence once per group candidate after the plain pass.
+fn build_case_seq(
+  entries : Array[Entry],
+  paths : Map[String, Int],
+  groups : Map[Int, Int],
+  index : Int,
+) -> CaseSeq raise ModelError {
+  match entries[index].kind {
+    Container(children) => {
+      let inner = Sequence(
+        children.map(child => build_case_seq(entries, paths, groups, child)),
+      )
+      match groups.get(index) {
+        Some(group_entry) => Sequence([inner, Product(group_entry, inner)])
+        None => inner
+      }
+    }
+    Mirror(_) => Sequence([])
+    kind => if kind.count() > 0 { Plain(index) } else { Sequence([]) }
+  }
 }
 
 ///|
 fn valid_name(name : String) -> Bool {
-  !name.is_empty() && !name.contains(".") && !name.contains("/")
+  !name.is_empty() &&
+  !name.contains(".") &&
+  !name.contains("/") &&
+  !name.contains("+")
 }
 
 ///|
@@ -64,9 +122,11 @@ fn add_node(
   guard depth <= 256 else { raise Invalid("nesting depth exceeds 256") }
   let name = match node {
     Leaf(name, _)
-    | Repeat(name, _, _, _, _)
+    | Repeat(name, _, _, _, _, _)
     | Sized(name, _)
-    | Checksummed(name, _) => name
+    | Checksummed(name, _)
+    | Mirrored(name, _)
+    | Dynamic(name, _, _) => name
     Nested(block) => block.name
   }
   guard valid_name(name) else { raise Invalid("invalid name: " + name) }
@@ -76,17 +136,19 @@ fn add_node(
   paths[path] = index
   let kind = match node {
     Leaf(_, field) => Atom(field)
+    Dynamic(_, variable, field) => Dynamic(field, variable)
     Nested(_) => Container([])
     Sized(_, spec) => ComputedSize(spec)
     Checksummed(_, spec) => ComputedChecksum(spec)
-    Repeat(_, target, min, max, step) => {
+    Mirrored(_, target) => Mirror(target)
+    Repeat(_, target, min, max, step, variable) => {
       guard min >= 0 && max >= min && step > 0 else {
         raise Invalid("invalid repeat range or step")
       }
       guard (max - min) / step < 2147483647 else {
         raise Invalid("repeat count overflow")
       }
-      Repetition(target, min, max, step)
+      Repetition(target, min, max, step, variable)
     }
   }
   let condition = match node {
@@ -97,7 +159,11 @@ fn add_node(
     Nested(block) => block.alignment
     _ => None
   }
-  entries.push({ path, parent, kind, condition, alignment, })
+  let group = match node {
+    Nested(block) => block.group
+    _ => None
+  }
+  entries.push({ path, parent, kind, condition, alignment, group, })
   if node is Nested(block) {
     let children = block.children.map(child => {
       add_node(child, path, Some(index), entries, paths, depth + 1)
@@ -108,6 +174,7 @@ fn add_node(
       kind: Container(children),
       condition,
       alignment,
+      group,
     }
   }
   index
@@ -123,9 +190,24 @@ pub fn CompiledRequest::compile(
   let entries : Array[Entry] = []
   let paths : Map[String, Int] = Map([])
   ignore(add_node(Nested(root), "", None, entries, paths, 0))
-  let request = { name: root.name, entries, paths, max_bytes, }
+  // Resolve group references; a Group candidate multiplies the cases of the
+  // block that references it (upstream resolves by name at mutation time).
+  let groups : Map[Int, Int] = Map([])
+  for i, entry in entries {
+    if entry.group is Some(target) {
+      let group_entry = paths
+        .get(target)
+        .unwrap_or_else(() => raise Invalid("unknown path: " + target))
+      guard entries[group_entry].kind is Atom(_) else {
+        raise Invalid("group target must be a field")
+      }
+      groups[i] = group_entry
+    }
+  }
+  let seq = build_case_seq(entries, paths, groups, 0)
+  let request = { name: root.name, entries, paths, max_bytes, seq, }
   for entry in entries {
-    if entry.kind is Repetition(path, _, _, _) {
+    if entry.kind is Repetition(path, _, _, _, _) {
       let target = request.resolve(path)
       let current = request.resolve(entry.path)
       guard entries[target].kind is Container(_) &&
@@ -136,8 +218,21 @@ pub fn CompiledRequest::compile(
     }
     if entry.condition is Some(condition) {
       let target = request.resolve(condition.path())
-      guard entries[target].kind is Atom(_) else {
+      guard entries[target].kind is Atom(_) ||
+        entries[target].kind is Dynamic(_, _) else {
         raise Invalid("condition target must be a field")
+      }
+    }
+    if entry.kind is Mirror(target) {
+      // A mirror may not live inside its target's subtree; indirect cycles
+      // are broken by the active chain during rendering.
+      let target_index = request.resolve(target)
+      let mut parent = entry.parent
+      while parent is Some(p) {
+        guard p != target_index else {
+          raise Invalid("mirror target contains the mirror")
+        }
+        parent = entries[p].parent
       }
     }
   }
@@ -176,48 +271,120 @@ fn CompiledRequest::resolve(
 }
 
 ///|
+/// Multi-point render replacements: (entry index, candidate bytes) pairs.
+/// Entry indices are unique by construction, so at most one pair matches
+/// any node; the first match wins.
+type Replacements = Array[(Int, Bytes)]
+
+///|
+fn zero_byte() -> Byte {
+  let zero : Int = 0
+  zero.to_byte()
+}
+
+///|
+fn Replacements::lookup(self : Replacements, index : Int) -> Bytes? {
+  for pair in self {
+    let (target, value) = pair
+    if target == index {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
 fn CompiledRequest::render_node(
   self : CompiledRequest,
   index : Int,
-  replacement : (Int, Bytes)?,
+  replacements : Replacements,
+  vars : Map[String, Bytes]?,
   active? : Array[Int] = [],
 ) -> Bytes raise ModelError {
-  guard self.is_visible(index, replacement) else { return b"" }
-  if replacement is Some((target, value)) &&
-    target == index &&
-    !(self.entries[index].kind is Repetition(_, _, _, _)) {
-    guard value.length() <= self.max_bytes else {
-      raise Limit("request byte limit: " + self.entries[index].path)
+  guard self.is_visible(index, replacements, vars) else { return Bytes::new(0) }
+  if !(self.entries[index].kind is Repetition(_, _, _, _, _)) {
+    match replacements.lookup(index) {
+      Some(value) => {
+        guard value.length() <= self.max_bytes else {
+          raise Limit("request byte limit: " + self.entries[index].path)
+        }
+        return value
+      }
+      None => ()
     }
-    return value
   }
   match self.entries[index].kind {
     ComputedChecksum(spec) => {
       if active.contains(index) {
-        return b"\x00\x00\x00\x00"
+        return Bytes::makei(4, fn(_) { zero_byte() })
       }
       let nested = active.copy()
       nested.push(index)
       let bytes = self.render_node(
         self.resolve(spec.target),
-        replacement,
+        replacements,
+        vars,
         active=nested,
       )
       encode_integer(crc32(bytes).to_uint64(), 32, spec.endian)
     }
-    ComputedSize(spec) => self.size_value(spec, replacement)
-    Repetition(path, _, _, _) => {
-      let count = if replacement is Some((id, value)) && id == index {
-        decode_repeat(value)
-      } else {
-        0
+    ComputedSize(spec) => self.size_value(spec, replacements, vars)
+    Mirror(target) => {
+      if active.contains(index) {
+        return Bytes::new(0)
       }
-      let bytes = self.render_node(self.resolve(path), replacement, active~)
+      let nested = active.copy()
+      nested.push(index)
+      self.render_node(self.resolve(target), replacements, vars, active=nested)
+    }
+    Repetition(path, _, _, _, variable) => {
+      let count = match replacements.lookup(index) {
+        Some(value) => decode_repeat(value)
+        None =>
+          // Dynamic repetition resolves its count from session variables;
+          // outside a test case it falls back to zero like upstream's
+          // ProtocolSessionReference(name, default_value=0).
+          match variable {
+            Some(name) =>
+              match vars {
+                Some(map) =>
+                  match map.get(name) {
+                    Some(bytes) => {
+                      guard bytes.length() >= 4 else {
+                        raise Invalid("repeat variable needs 4 bytes")
+                      }
+                      decode_repeat(bytes)
+                    }
+                    None => raise Invalid("missing session variable: " + name)
+                  }
+                None => 0
+              }
+            None => 0
+          }
+      }
+      let bytes = self.render_node(
+        self.resolve(path),
+        replacements,
+        vars,
+        active~,
+      )
       guard bytes.is_empty() || count <= self.max_bytes / bytes.length() else {
         raise Limit("repeated block exceeds byte limit")
       }
       bytes.repeat(count)
     }
+    Dynamic(field, variable) =>
+      // Upstream resolves ProtocolSessionReference values from the protocol
+      // session inside a test case and falls back to the stored default
+      // outside it (fuzzable.py original_value, 518c139).
+      match vars {
+        Some(map) =>
+          match map.get(variable) {
+            Some(bytes) => bytes
+            None => raise Invalid("missing session variable: " + variable)
+          }
+        None => field.value
+      }
     Atom(field) => {
       guard field.value.length() <= self.max_bytes else {
         raise Limit("request byte limit: " + self.entries[index].path)
@@ -227,7 +394,7 @@ fn CompiledRequest::render_node(
     Container(children) => {
       let output : Array[Byte] = []
       for child in children {
-        let bytes = self.render_node(child, replacement, active~)
+        let bytes = self.render_node(child, replacements, vars, active~)
         guard bytes.length() <= self.max_bytes - output.length() else {
           raise Limit("request byte limit: " + self.entries[index].path)
         }
@@ -253,7 +420,7 @@ fn CompiledRequest::render_node(
 pub fn CompiledRequest::render(
   self : CompiledRequest,
 ) -> Bytes raise ModelError {
-  self.render_node(0, None)
+  self.render_node(0, [], None)
 }
 
 ///|
@@ -261,7 +428,7 @@ pub fn CompiledRequest::render_path(
   self : CompiledRequest,
   path : String,
 ) -> Bytes raise ModelError {
-  self.render_node(self.resolve(path), None)
+  self.render_node(self.resolve(path), [], None)
 }
 
 ///|

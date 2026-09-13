@@ -1,8 +1,9 @@
 # CRC32 fields
 
 `Node::checksum("crc", "request.body", endian=Little, mutations=[])` emits
-IEEE CRC32 with a four-byte result. Explicit UInt mutations replace the correct
-checksum. Other algorithms are not exposed. `crc32(bytes)` is also available.
+IEEE CRC32 with a four-byte result. With no explicit mutations the field emits upstream's six
+fuzzable byte boundaries (00*, 11*, ee*, ff*, ff*(n-1)+fe, 00*(n-1)+01);
+explicit `mutations` replace them. Other algorithms are not exposed. `crc32(bytes)` is also available.
 Payload mutation recomputes checksums on each render. If the target contains
 the checksum, its own bytes are zero during calculation, as in upstream.
 

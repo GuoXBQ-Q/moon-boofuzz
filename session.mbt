@@ -85,8 +85,37 @@ pub fn SessionPath::cases(
   self : SessionPath,
   start? : Int = 0,
   limit? : Int = 10000,
+  variables? : Map[String, Bytes]? = None,
 ) -> CaseStream raise ModelError {
-  self.target().cases(start~, limit~)
+  self.target().cases(start~, limit~, vars=variables)
+}
+
+///|
+pub fn SessionPath::cases_with_variables(
+  self : SessionPath,
+  vars : Map[String, Bytes]?,
+  start? : Int = 0,
+  limit? : Int = 10000,
+) -> CaseStream raise ModelError {
+  self.target().cases_with_variables(vars, start~, limit~)
+}
+
+///|
+pub fn SessionPath::combinatorial_cases_with_variables(
+  self : SessionPath,
+  vars : Map[String, Bytes]?,
+  start? : Int = 0,
+  limit? : Int = 10000,
+  max_depth? : Int,
+) -> CaseStream raise ModelError {
+  match max_depth {
+    Some(depth) =>
+      self
+      .target()
+      .combinatorial_cases_with_variables(vars, start~, limit~, max_depth=depth)
+    None =>
+      self.target().combinatorial_cases_with_variables(vars, start~, limit~)
+  }
 }
 
 ///|

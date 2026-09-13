@@ -13,6 +13,7 @@ test "upstream size dynamic bytes" {
           endian=Big,
           offset=1,
           inclusive=true,
+          fuzzable=false,
         ),
         Nested(
           @moon_boofuzz.Block::new("body", [
@@ -35,7 +36,13 @@ test "upstream size own parent" {
   let field = request_fixture(
     @moon_boofuzz.CompiledRequest::compile(
       @moon_boofuzz.Block::new("r", [
-        @moon_boofuzz.Node::size("len", "r", length=1, inclusive=true),
+        @moon_boofuzz.Node::size(
+          "len",
+          "r",
+          length=1,
+          inclusive=true,
+          fuzzable=false,
+        ),
       ]),
     ),
   )
