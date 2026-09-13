@@ -44,6 +44,7 @@ pub struct Runner {
   limit : Int
   monitor : Monitor
   config : Json
+  variables : Map[String, Bytes]
   mut index : Int
   mut executed : Int
   mut state : @core.EnumerationState
@@ -111,6 +112,7 @@ pub fn Runner::with_dialer(
     index: 0,
     executed: 0,
     state: Running,
+    variables: variables.unwrap_or(Map([])),
   }
 }
 
@@ -200,10 +202,40 @@ fn Runner::execute(
       }
   }
   defer channel.close()
-  let messages = path.prefix()
-  messages.push(case.payload)
+  let received_all : Array[Bytes] = []
+  let case_variables : Map[String, Bytes] = Map([])
+  for name, value in self.variables {
+    case_variables[name] = value
+  }
   let pending = Ref(b"")
-  for index, bytes in messages {
+  let count = names.length()
+  for index in 0..<count {
+    // Upstream runs the edge callback before transmitting: the callback may
+    // write session variables that the node's render then resolves, and its
+    // truthy return value replaces the rendered data (session.py:754-794,
+    // 518c139).
+    let mut replacement : Bytes? = None
+    match path.transitions[index] {
+      Some(callback) =>
+        replacement = callback({
+          variables: case_variables,
+          received: received_all.copy(),
+          request: names[index],
+        })
+      None => ()
+    }
+    let request = path.requests()[index]
+    let rendered = if index == count - 1 {
+      // The fuzzed payload re-renders at send time so variable writes are
+      // visible, matching upstream's render-at-send.
+      request.render_case(case.parts(), Some(case_variables))
+    } else {
+      request.render_with(Some(case_variables))
+    }
+    let bytes = match replacement {
+      Some(data) => if data.length() > 0 { data } else { rendered }
+      None => rendered
+    }
     let received = Ref(b"")
     let complete = try {
       channel.send(bytes)
@@ -262,6 +294,7 @@ fn Runner::execute(
       received: received.val,
       completed: complete && accepted,
     })
+    received_all.push(received.val)
     if !complete {
       return {
         id,

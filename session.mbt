@@ -1,13 +1,25 @@
 ///|
+/// Context handed to an edge callback: the mutable session-variable map for
+/// the running case, bytes received from earlier steps, and the destination
+/// request name. Mirrors upstream's ProtocolSession (protocol_session.py,
+/// 518c139); callbacks write variables and may return replacement data.
+pub(all) struct StepContext {
+  variables : Map[String, Bytes]
+  received : Array[Bytes]
+  request : String
+}
+
+///|
 pub struct SessionGraph {
   requests : Array[CompiledRequest]
   edges : Array[Array[Int]]
   names : Map[String, Int]
+  edge_callbacks : Map[(Int, Int), (StepContext) -> Bytes?]
 }
 
 ///|
 pub fn SessionGraph::new() -> SessionGraph {
-  { requests: [], edges: [], names: Map([]), }
+  { requests: [], edges: [], names: Map([]), edge_callbacks: Map([]), }
 }
 
 ///|
@@ -38,6 +50,7 @@ pub fn SessionGraph::connect(
   self : SessionGraph,
   from : String,
   to : String,
+  callback? : (StepContext) -> Bytes?,
 ) -> Unit raise ModelError {
   let source = self.resolve(from)
   let target = self.resolve(to)
@@ -57,11 +70,18 @@ pub fn SessionGraph::connect(
     }
   }
   self.edges[source].push(target)
+  match callback {
+    Some(function) => self.edge_callbacks[(source, target)] = function
+    None => ()
+  }
 }
 
 ///|
 pub struct SessionPath {
   requests : Array[CompiledRequest]
+  /// Callback on the edge into each request; roots have None. Sourced from
+  /// SessionGraph::connect (upstream edge callbacks, session.py:754-794).
+  transitions : Array[((StepContext) -> Bytes?)?]
 }
 
 ///|
@@ -130,6 +150,7 @@ fn SessionGraph::walk(
   self : SessionGraph,
   index : Int,
   prefix : Array[CompiledRequest],
+  transitions : Array[((StepContext) -> Bytes?)?],
   targets : Array[Int]?,
   reachable : Array[Bool],
   max_paths : Int,
@@ -140,15 +161,25 @@ fn SessionGraph::walk(
   }
   let path = prefix.copy()
   path.push(self.requests[index])
+  // Transitions stay aligned with the path: one entry per request, the
+  // callback on the edge into it (None for roots).
+  let path_transitions = transitions.copy()
+  if path_transitions.is_empty() {
+    path_transitions.push(None)
+  }
   if targets.map(values => values.contains(index)).unwrap_or(true) {
     guard output.length() < max_paths else {
       raise Limit("session path count limit")
     }
-    output.push({ requests: path, })
+    output.push({ requests: path, transitions: path_transitions, })
   }
   for child in self.edges[index] {
     if reachable[child] {
-      self.walk(child, path, targets, reachable, max_paths, output)
+      let child_transitions = path_transitions.copy()
+      child_transitions.push(self.edge_callbacks.get((index, child)))
+      self.walk(
+        child, path, child_transitions, targets, reachable, max_paths, output,
+      )
     }
   }
 }
@@ -186,7 +217,7 @@ pub fn SessionGraph::paths(
   let output : Array[SessionPath] = []
   for index in 0..<self.requests.length() {
     if !incoming[index] && reachable[index] {
-      self.walk(index, [], selected, reachable, max_paths, output)
+      self.walk(index, [], [], selected, reachable, max_paths, output)
     }
   }
   output

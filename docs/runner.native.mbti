@@ -94,6 +94,7 @@ pub struct Runner {
   limit : Int
   monitor : Monitor
   config : Json
+  variables : Map[String, Bytes]
   mut index : Int
   mut executed : Int
   mut state : @moon-boofuzz.EnumerationState

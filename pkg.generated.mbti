@@ -86,7 +86,9 @@ pub fn CompiledRequest::parent_path(Self, String) -> String? raise ModelError
 pub fn CompiledRequest::paths(Self) -> Array[String]
 pub fn CompiledRequest::raw_mutation_count(Self) -> Int64
 pub fn CompiledRequest::render(Self) -> Bytes raise ModelError
+pub fn CompiledRequest::render_case(Self, Array[(String, Int)], Map[String, Bytes]?) -> Bytes raise ModelError
 pub fn CompiledRequest::render_path(Self, String) -> Bytes raise ModelError
+pub fn CompiledRequest::render_with(Self, Map[String, Bytes]?) -> Bytes raise ModelError
 
 pub(all) enum Condition {
   Equal(String, Bytes)
@@ -141,6 +143,7 @@ pub(all) struct MutationCase {
   payload : Bytes
   extra : Array[(String, Int)]
 } derive(Eq, @debug.Debug)
+pub fn MutationCase::parts(Self) -> Array[(String, Int)]
 
 pub(all) enum Node {
   Leaf(String, Field)
@@ -175,14 +178,16 @@ pub struct SessionGraph {
   requests : Array[CompiledRequest]
   edges : Array[Array[Int]]
   names : Map[String, Int]
+  edge_callbacks : Map[(Int, Int), (StepContext) -> Bytes?]
 }
 pub fn SessionGraph::add(Self, CompiledRequest) -> Unit raise ModelError
-pub fn SessionGraph::connect(Self, String, String) -> Unit raise ModelError
+pub fn SessionGraph::connect(Self, String, String, callback? : (StepContext) -> Bytes?) -> Unit raise ModelError
 pub fn SessionGraph::new() -> Self
 pub fn SessionGraph::paths(Self, targets? : Array[String], max_paths? : Int) -> Array[SessionPath] raise ModelError
 
 pub struct SessionPath {
   requests : Array[CompiledRequest]
+  transitions : Array[((StepContext) -> Bytes?)?]
 }
 pub fn SessionPath::cases(Self, start? : Int, limit? : Int, variables? : Map[String, Bytes]?) -> CaseStream raise ModelError
 pub fn SessionPath::cases_with_variables(Self, Map[String, Bytes]?, start? : Int, limit? : Int) -> CaseStream raise ModelError
@@ -199,6 +204,12 @@ pub struct SizeSpec {
   offset : Int
   inclusive : Bool
   mutations : Array[Bytes]
+}
+
+pub(all) struct StepContext {
+  variables : Map[String, Bytes]
+  received : Array[Bytes]
+  request : String
 }
 
 pub struct StreamFrame {

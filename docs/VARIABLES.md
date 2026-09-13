@@ -25,10 +25,25 @@
 - JSON `execution` 段：`"variables": {"auth": "68656c6c6f"}`（值为
   hex 字符串）；字段与 repeat 节点上的 `"variable"` 键。
 
+## 边回调（challenge-response）
+
+`SessionGraph::connect(from, to, callback=fn(ctx) { ... })` 在边上挂回调。
+回调在**发送该节点数据之前**执行（上游 `_callback_current_node` 先于
+transmit，session.py:754-794），收到 `StepContext`：
+
+- `variables`：当前用例的会话变量表（可写入，后续渲染立即可见）；
+- `received`：本用例此前各步收到的响应字节；
+- `request`：目标请求名。
+
+返回 `Some(bytes)` 且非空时**整体替代**该节点发送数据（空/None 回退为
+渲染值，对应 Python falsy 语义）；节点的渲染发生在回调之后，因此动态
+字段能看到回调写入的变量。JSON 定义无法表达回调，仅 MoonBit API 可用。
+`SessionPath::transitions` 按请求携带各边回调；目标载荷在发送时用
+`render_case(parts, vars)` 重新渲染（等价上游 render-at-send）。
+
 ## 边界
 
-JSON 定义无法注入"写变量"的回调；运行期修改变量需要 MoonBit API
-（边回调接入前的过渡方案是 execution.variables 静态注入）。
+回调本身不可抛错（返回 Bytes?）；JSON 定义无法注入回调。
 
 Source: `boofuzz/protocol_session*.py`、`fuzzable.py`、
 `blocks/repeat.py`、`sessions/session.py`（ProtocolSession 构造与传递）。

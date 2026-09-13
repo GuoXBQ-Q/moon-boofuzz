@@ -424,6 +424,32 @@ pub fn CompiledRequest::render(
 }
 
 ///|
+/// Render with session variables; inside a running case dynamic fields
+/// resolve strictly, matching upstream node.render(mutation_context).
+pub fn CompiledRequest::render_with(
+  self : CompiledRequest,
+  vars : Map[String, Bytes]?,
+) -> Bytes raise ModelError {
+  self.render_node(0, [], vars)
+}
+
+///|
+/// Render a mutation case (parts from MutationCase::parts) with session
+/// variables, so edge-callback variable writes are visible at send time.
+pub fn CompiledRequest::render_case(
+  self : CompiledRequest,
+  parts : Array[(String, Int)],
+  vars : Map[String, Bytes]?,
+) -> Bytes raise ModelError {
+  let replacements : Replacements = []
+  for part in parts {
+    let index = self.resolve(part.0)
+    replacements.push((index, self.entries[index].kind.candidate(part.1)))
+  }
+  self.render_node(0, replacements, vars)
+}
+
+///|
 pub fn CompiledRequest::render_path(
   self : CompiledRequest,
   path : String,

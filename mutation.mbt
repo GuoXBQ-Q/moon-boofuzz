@@ -445,6 +445,14 @@ pub fn CaseStream::next(self : CaseStream) -> MutationCase? raise ModelError {
 }
 
 ///|
+/// All mutated (path, mutation index) pairs of this case, outermost first.
+pub fn MutationCase::parts(self : MutationCase) -> Array[(String, Int)] {
+  let all = self.extra.copy()
+  all.push((self.field_path, self.mutation_index))
+  all
+}
+
+///|
 pub fn CaseStream::stop(self : CaseStream) -> Unit {
   self.state = Stopped
 }
