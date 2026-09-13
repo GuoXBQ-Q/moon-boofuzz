@@ -97,3 +97,29 @@ fn CompiledRequest::validate_checksums(
     visit_dependencies(i, edges, states, 0)
   }
 }
+
+///|
+/// Adler-32 (RFC 1950): two 16-bit sums modulo 65521, matching zlib.
+pub fn adler32(bytes : Bytes) -> UInt {
+  let mut a = 1U
+  let mut b = 0U
+  for byte in bytes {
+    a = (a + byte.to_uint()) % 65521U
+    b = (b + a) % 65521U
+  }
+  (b << 16) | a
+}
+
+///|
+/// CRC-32C (Castagnoli, poly 0x82F63B78 reflected), initial/final XOR
+/// 0xffffffff — the algorithm behind upstream's optional crc32c dependency.
+pub fn crc32c(bytes : Bytes) -> UInt {
+  let mut crc = 0xffffffffU
+  for byte in bytes {
+    crc = crc ^ byte.to_uint()
+    for _ in 0..<8 {
+      crc = if (crc & 1U) != 0U { (crc >> 1) ^ 0x82f63b78U } else { crc >> 1 }
+    }
+  }
+  crc ^ 0xffffffffU
+}

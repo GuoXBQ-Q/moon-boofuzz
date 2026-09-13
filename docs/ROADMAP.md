@@ -36,7 +36,19 @@
 |30|MT19937 + 多点替换基础|mt19937.mbt，mt19937_wbtest.mbt|
 |31|组合爆破 depth 1..N|mutation.mbt 组合流，oracle 差分|
 |32|会话变量与动态字段/动态重复|model.mbt Dynamic 节点，session_variables_test.mbt|
+|33|边回调（challenge-response）|session.mbt StepContext，runner/edge_callback_wbtest.mbt|
+|34|errno 语义分类|transport/classify.mbt|
+|35|执行开关（check/receive/ignore）|runner/config.mbt，runner.mbt|
+|36|连接重试（阈值/超时/恢复）|runner.mbt retry_dial_failure，runner_wbtest.mbt|
+|37|崩溃阈值（12/3）与索引跳过|runner.mbt next()|
+|38|断点续跑 run --start/--end|runner.mbt，cmd/boofuzz/main.mbt|
+|39|generate --id 按身份重生成|definition.mbt position_of_id，mutation.mbt count_at|
+|40|实时用例日志 --text-dump|cmd/boofuzz/main.mbt Monitor.after|
+|41|用例间步进 --sleep-between-ms|transport bf_sleep，runner.mbt|
+|42|adler32/crc32c 校验和|checksum.mbt，测试向量|
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio 只用 C 桥接系统调用；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 
-动态会话变量、边回调、组合爆破、覆盖率引导、并行执行和调试器留待后续版本。
+动态会话变量回调写入已随边回调落地。剩余留待后续版本：进程监视器
+（process/ 原生包）、md5/sha1/ipv4/udp 校验和、Unix/串口/原始帧/IPv6
+传输、SQLite 与 Web UI、覆盖率引导、并行执行和调试器。

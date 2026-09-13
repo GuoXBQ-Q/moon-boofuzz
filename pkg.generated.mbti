@@ -6,7 +6,11 @@ import {
 }
 
 // Values
+pub fn adler32(Bytes) -> UInt
+
 pub fn crc32(Bytes) -> UInt
+
+pub fn crc32c(Bytes) -> UInt
 
 // Errors
 pub suberror ModelError {
