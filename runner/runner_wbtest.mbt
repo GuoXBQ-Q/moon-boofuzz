@@ -120,7 +120,7 @@ test "dial failure retries within threshold then recovers" {
   let mut fails = 2
   let runner = Runner::with_dialer(
     runner_paths(),
-    fn() raise {
+    fn() raise @transport.TransportError {
       attempts.push(attempts.length() + 1)
       if fails > 0 {
         fails -= 1
@@ -149,7 +149,7 @@ test "dial failure stops at restart threshold" {
   let attempts : Array[Int] = []
   let runner = Runner::with_dialer(
     runner_paths(),
-    fn() raise {
+    fn() raise @transport.TransportError {
       attempts.push(attempts.length() + 1)
       raise @transport.TransportError::ConnectFailure(111)
     },

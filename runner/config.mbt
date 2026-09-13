@@ -24,13 +24,17 @@ pub struct ExecutionConfig {
   restart_threshold : Int
   restart_timeout_ms : Int?
   restart_sleep_ms : Int
+  sleep_between_ms : Int
+  crash_threshold_request : Int
+  crash_threshold_element : Int
 }
 
 ///|
 pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
   @records.require_keys(value, [
     "transport", "endpoint", "policies", "case_limit", "combinatorial", "max_depth",
-    "variables", "check_data_received", "receive_data_after_fuzz", "ignore_connection_reset",
+    "variables", "check_data_received", "receive_data_after_fuzz", "sleep_between_ms",
+    "crash_threshold_request", "crash_threshold_element", "ignore_connection_reset",
     "ignore_connection_aborted", "restart_threshold", "restart_timeout_ms", "restart_sleep_ms",
   ])
   guard value is { "transport": String(kind), "endpoint": endpoint_json, .. } else {
@@ -135,6 +139,9 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     restart_threshold: int_flag(value, "restart_threshold"),
     restart_timeout_ms: optional_positive(value, "restart_timeout_ms"),
     restart_sleep_ms: json_int(value, "restart_sleep_ms", 5000),
+    sleep_between_ms: json_int(value, "sleep_between_ms", 0),
+    crash_threshold_request: json_int(value, "crash_threshold_request", 12),
+    crash_threshold_element: json_int(value, "crash_threshold_element", 3),
   }
 }
 
@@ -208,12 +215,32 @@ pub fn ExecutionConfig::runner(
   limit? : Int,
   combinatorial? : Bool,
   max_depth? : Int,
+  start? : Int = 0,
+  end? : Int? = None,
+  sleep_between? : Int = 0,
+  crash_request? : Int = 12,
+  crash_element? : Int = 3,
 ) -> Runner raise {
   let use_combinatorial = combinatorial.unwrap_or(self.combinatorial)
   let restart_timeout_ms = self.restart_timeout_ms
   let max_depth = match max_depth {
     Some(depth) => Some(depth)
     None => self.max_depth
+  }
+  let sleep_ms = if sleep_between != 0 {
+    sleep_between
+  } else {
+    self.sleep_between_ms
+  }
+  let crash_req = if crash_request != 12 {
+    crash_request
+  } else {
+    self.crash_threshold_request
+  }
+  let crash_elem = if crash_element != 3 {
+    crash_element
+  } else {
+    self.crash_threshold_element
   }
   Runner::new(
     paths,
@@ -232,5 +259,10 @@ pub fn ExecutionConfig::runner(
     restart_threshold=self.restart_threshold,
     restart_timeout_ms?,
     restart_sleep_ms=self.restart_sleep_ms,
+    sleep_between_ms=sleep_ms,
+    crash_threshold_request=crash_req,
+    crash_threshold_element=crash_elem,
+    start~,
+    end~,
   )
 }

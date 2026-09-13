@@ -80,6 +80,7 @@ pub fn CompiledRequest::cases_with_variables(Self, Map[String, Bytes]?, start? :
 pub fn CompiledRequest::combinatorial_cases(Self, start? : Int, limit? : Int, max_depth? : Int) -> CaseStream raise ModelError
 pub fn CompiledRequest::combinatorial_cases_with_variables(Self, Map[String, Bytes]?, start? : Int, limit? : Int, max_depth? : Int) -> CaseStream raise ModelError
 pub fn CompiledRequest::compile(Block, max_bytes? : Int) -> Self raise ModelError
+pub fn CompiledRequest::count_at(Self, String) -> Int raise ModelError
 pub fn CompiledRequest::from_request(String, Request, max_bytes? : Int) -> Self raise ModelError
 pub fn CompiledRequest::name(Self) -> String
 pub fn CompiledRequest::parent_path(Self, String) -> String? raise ModelError

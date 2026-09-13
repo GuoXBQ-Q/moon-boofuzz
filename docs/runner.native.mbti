@@ -40,9 +40,19 @@ pub struct ExecutionConfig {
   combinatorial : Bool
   max_depth : Int?
   variables : Map[String, Bytes]
+  check_data_received : Bool
+  receive_data_after_fuzz : Bool
+  ignore_connection_reset : Bool
+  ignore_connection_aborted : Bool
+  restart_threshold : Int
+  restart_timeout_ms : Int?
+  restart_sleep_ms : Int
+  sleep_between_ms : Int
+  crash_threshold_request : Int
+  crash_threshold_element : Int
 }
 pub fn ExecutionConfig::parse(Json) -> Self raise
-pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int, combinatorial? : Bool, max_depth? : Int) -> Runner raise
+pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int, combinatorial? : Bool, max_depth? : Int, start? : Int, end? : Int?, sleep_between? : Int, crash_request? : Int, crash_element? : Int) -> Runner raise
 
 pub struct Monitor {
   before : (CaseContext) -> Unit raise
@@ -67,6 +77,8 @@ pub(all) enum Outcome {
   ResponseMismatch
   CallbackFailed(String)
   RecoveryFailed(String)
+  NothingReceived
+  ConnectionIgnored(String)
 } derive(Eq, @debug.Debug)
 pub fn Outcome::name(Self) -> String
 
@@ -95,17 +107,30 @@ pub struct Runner {
   monitor : Monitor
   config : Json
   variables : Map[String, Bytes]
+  check_data_received : Bool
+  receive_data_after_fuzz : Bool
+  ignore_connection_reset : Bool
+  ignore_connection_aborted : Bool
+  restart_threshold : Int
+  restart_timeout_ms : Int?
+  restart_sleep_ms : Int
+  sleep_between_ms : Int
+  crash_threshold_request : Int
+  crash_threshold_element : Int
+  end_index : Int?
+  mut request_failures : Int
+  element_failures : Map[String, Int]
   mut index : Int
   mut executed : Int
   mut state : @moon-boofuzz.EnumerationState
 }
 pub fn Runner::executed(Self) -> Int
-pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?) -> Self raise
+pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?, check_data_received? : Bool, receive_data_after_fuzz? : Bool, ignore_connection_reset? : Bool, ignore_connection_aborted? : Bool, restart_threshold? : Int, restart_timeout_ms? : Int, restart_sleep_ms? : Int, sleep_between_ms? : Int, crash_threshold_request? : Int, crash_threshold_element? : Int, start? : Int, end? : Int?) -> Self raise
 pub fn Runner::next(Self) -> CaseResult? raise @moon-boofuzz.ModelError
 pub fn Runner::record(Self, CaseResult) -> @records.CaseRecord
 pub fn Runner::state(Self) -> @moon-boofuzz.EnumerationState
 pub fn Runner::stop(Self) -> Unit
-pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?) -> Self raise
+pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?, check_data_received? : Bool, receive_data_after_fuzz? : Bool, ignore_connection_reset? : Bool, ignore_connection_aborted? : Bool, restart_threshold? : Int, restart_timeout_ms? : Int, restart_sleep_ms? : Int, sleep_between_ms? : Int, crash_threshold_request? : Int, crash_threshold_element? : Int, start? : Int, end? : Int?) -> Self raise
 
 pub(all) struct StepResult {
   request_name : String

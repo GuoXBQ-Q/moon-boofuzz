@@ -6,7 +6,11 @@ import {
 }
 
 // Values
+pub fn classify_socket_failure(Int) -> SocketFailure
+
 pub fn monotonic_ms() -> Int64
+
+pub fn sleep_ms(Int) -> Unit
 
 // Errors
 pub(all) suberror TransportError {
@@ -58,6 +62,15 @@ pub(all) enum Received {
 } derive(Eq, @debug.Debug)
 
 type Socket
+
+pub(all) enum SocketFailure {
+  Reset
+  Aborted
+  Refused
+  TimedOut
+  AddressInUse
+  Other
+} derive(Eq, @debug.Debug)
 
 // Type aliases
 

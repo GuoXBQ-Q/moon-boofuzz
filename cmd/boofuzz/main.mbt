@@ -52,7 +52,7 @@ fn state_name(state : @core.EnumerationState) -> String {
 fn dispatch(args : Array[String]) -> Int raise {
   if args.is_empty() || args == ["--help"] {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
@@ -72,9 +72,12 @@ fn dispatch(args : Array[String]) -> Int raise {
   let opts = options(
     flags,
     if command == "generate" {
-      ["--limit", "--start", "--combinatorial", "--max-depth"]
+      ["--limit", "--start", "--id", "--combinatorial", "--max-depth"]
     } else {
-      ["--limit", "--output", "--combinatorial", "--max-depth"]
+      [
+        "--limit", "--output", "--combinatorial", "--max-depth", "--start", "--end",
+        "--sleep-between-ms", "--text-dump",
+      ]
     },
   )
   let limit = int_option(opts, "--limit")
@@ -87,6 +90,17 @@ fn dispatch(args : Array[String]) -> Int raise {
       text == "true"
     })
   let max_depth = int_option(opts, "--max-depth")
+  let case_id : String? = opts.get("--id")
+  let text_dump : Bool? = opts
+    .get("--text-dump")
+    .map(text => {
+      guard text == "true" || text == "false" else {
+        raise InvalidArguments("--text-dump must be true or false")
+      }
+      text == "true"
+    })
+  let sleep_ms_value = int_option(opts, "--sleep-between-ms")
+  let end : Int? = int_option(opts, "--end")
   let definition = @definition.ProtocolDefinition::parse(
     @utf8.decode(@recordio.read_bytes(input)),
   )
@@ -110,7 +124,10 @@ fn dispatch(args : Array[String]) -> Int raise {
         println(row.stringify())
         true
       },
-      start=int_option(opts, "--start").unwrap_or(0),
+      start=match case_id {
+        Some(id) => definition.position_of_id(id)
+        None => int_option(opts, "--start").unwrap_or(0)
+      },
       limit=limit.unwrap_or(10000),
       combinatorial=combinatorial.unwrap_or(false),
       max_depth?,
@@ -126,10 +143,46 @@ fn dispatch(args : Array[String]) -> Int raise {
   let config = execution.unwrap_or_else(() => {
     raise InvalidArguments("run requires an execution configuration")
   })
+  let start = int_option(opts, "--start").unwrap_or(0)
+  let monitor = if text_dump.unwrap_or(false) {
+    @runner.Monitor::new(after=fn(result) {
+      println("Test Case: " + result.id)
+      for step in result.steps {
+        println("  sent " + step.sent.length().to_string() + " bytes")
+        if step.received.length() > 0 {
+          println("  received " + step.received.length().to_string() + " bytes")
+        }
+        if !step.completed {
+          println("  step incomplete")
+        }
+      }
+      println("  outcome: " + result.outcome.name())
+    })
+  } else {
+    @runner.Monitor::new()
+  }
   let runner = match limit {
     Some(n) =>
-      config.runner(definition.paths(), limit=n, combinatorial?, max_depth?)
-    None => config.runner(definition.paths(), combinatorial?, max_depth?)
+      config.runner(
+        definition.paths(),
+        limit=n,
+        combinatorial?,
+        max_depth?,
+        start~,
+        end~,
+        sleep_between=sleep_ms_value.unwrap_or(0),
+        monitor~,
+      )
+    None =>
+      config.runner(
+        definition.paths(),
+        combinatorial?,
+        max_depth?,
+        start~,
+        end~,
+        sleep_between=sleep_ms_value.unwrap_or(0),
+        monitor~,
+      )
   }
   let output = opts
     .get("--output")

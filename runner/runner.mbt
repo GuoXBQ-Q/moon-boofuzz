@@ -54,6 +54,12 @@ pub struct Runner {
   restart_threshold : Int
   restart_timeout_ms : Int?
   restart_sleep_ms : Int
+  sleep_between_ms : Int
+  crash_threshold_request : Int
+  crash_threshold_element : Int
+  end_index : Int?
+  mut request_failures : Int
+  element_failures : Map[String, Int]
   mut index : Int
   mut executed : Int
   mut state : @core.EnumerationState
@@ -78,6 +84,11 @@ pub fn Runner::with_dialer(
   restart_threshold? : Int = 0,
   restart_timeout_ms? : Int,
   restart_sleep_ms? : Int = 5000,
+  sleep_between_ms? : Int = 0,
+  crash_threshold_request? : Int = 12,
+  crash_threshold_element? : Int = 3,
+  start? : Int = 0,
+  end? : Int? = None,
 ) -> Runner raise {
   guard limit >= 0 &&
     receive_limit > 0 &&
@@ -109,7 +120,7 @@ pub fn Runner::with_dialer(
           max_depth?,
         )
       } else {
-        path.cases_with_variables(variables, limit=2147483647)
+        path.cases_with_variables(variables, start~, limit=2147483647)
       }
     }),
     dial,
@@ -136,6 +147,12 @@ pub fn Runner::with_dialer(
     restart_threshold,
     restart_timeout_ms,
     restart_sleep_ms,
+    sleep_between_ms,
+    crash_threshold_request,
+    crash_threshold_element,
+    request_failures: 0,
+    element_failures: Map([]),
+    end_index: end,
   }
 }
 
@@ -157,6 +174,11 @@ pub fn Runner::new(
   restart_threshold? : Int = 0,
   restart_timeout_ms? : Int,
   restart_sleep_ms? : Int = 5000,
+  sleep_between_ms? : Int = 0,
+  crash_threshold_request? : Int = 12,
+  crash_threshold_element? : Int = 3,
+  start? : Int = 0,
+  end? : Int? = None,
 ) -> Runner raise {
   for _, policy in policies {
     guard !udp || policy == NoResponse || policy == Datagram else {
@@ -190,6 +212,11 @@ pub fn Runner::new(
     restart_threshold=threshold,
     restart_timeout_ms?,
     restart_sleep_ms~,
+    sleep_between_ms~,
+    crash_threshold_request~,
+    crash_threshold_element~,
+    start~,
+    end~,
     receive_limit=endpoint.receive_limit(),
     receive_timeout_ms=endpoint.receive_timeout(),
   )
@@ -204,6 +231,15 @@ pub fn Runner::new(
       Some(depth) => config_map["max_depth"] = depth.to_json()
       None => ()
     }
+  }
+  if sleep_between_ms != 0 {
+    config_map["sleep_between_ms"] = sleep_between_ms.to_json()
+  }
+  if crash_threshold_request != 12 {
+    config_map["crash_threshold_request"] = crash_threshold_request.to_json()
+  }
+  if crash_threshold_element != 3 {
+    config_map["crash_threshold_element"] = crash_threshold_element.to_json()
   }
   { ..runner, config: Json::object(config_map), }
 }
@@ -411,6 +447,34 @@ pub fn Runner::next(self : Runner) -> CaseResult? raise @core.ModelError {
         case,
         result,
       )
+      // Crash thresholds mirror upstream: repeated failures for the same
+      // element (3) or request (12) skip remaining candidates instead of
+      // hammering a crashed target (session.py:569-632, 518c139).
+      let ignored = retry_result.outcome is ConnectionIgnored(_)
+      if retry_result.outcome != Passed && !ignored {
+        self.request_failures += 1
+        let element = retry_result.case.field_path
+        let current = self.element_failures.get(element).unwrap_or(0)
+        self.element_failures[element] = current + 1
+        if current + 1 >= self.crash_threshold_element {
+          let stream = self.streams[self.index]
+          while stream.next() is Some(next_case) {
+            if next_case.field_path != element {
+              break
+            }
+          }
+        }
+        if self.request_failures >= self.crash_threshold_request {
+          let stream = self.streams[self.index]
+          while stream.next() is Some(_) {
+
+          }
+          self.index += 1
+        }
+      }
+      if self.sleep_between_ms > 0 {
+        @transport.sleep_ms(self.sleep_between_ms)
+      }
       self.executed += 1
       return Some(retry_result)
     }

@@ -496,3 +496,13 @@ fn CompiledRequest::seq_count(self : CompiledRequest, seq : CaseSeq) -> Int64 {
 pub fn CompiledRequest::raw_mutation_count(self : CompiledRequest) -> Int64 {
   self.seq_count(self.seq)
 }
+
+///|
+/// Number of sequential cases contributed by the entry at `path` (the
+/// entry's own candidate count; group product replays are excluded).
+pub fn CompiledRequest::count_at(
+  self : CompiledRequest,
+  path : String,
+) -> Int raise ModelError {
+  self.entries[self.resolve(path)].kind.count()
+}

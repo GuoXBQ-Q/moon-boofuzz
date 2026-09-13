@@ -79,6 +79,57 @@ pub(all) struct GenerationResult {
 } derive(Debug, Eq)
 
 ///|
+/// Resolve a stable case identity ("v1:request.field:index") to the raw
+/// sequential start position that reproduces exactly that case.
+pub fn ProtocolDefinition::position_of_id(
+  self : ProtocolDefinition,
+  id : String,
+) -> Int raise {
+  guard id.has_prefix("v1:") else {
+    raise Invalid("case id must start with v1:")
+  }
+  let body = id[3:]
+  guard body.contains(":") else { raise Invalid("case id missing field index") }
+  let mut cut = body.length() - 1
+  while cut > 0 && body[cut] != ':' {
+    cut -= 1
+  }
+  let field_path = body[:cut].to_owned()
+  let index_text = body[cut + 1:].to_owned()
+  let index = parse_case_index(index_text)
+  let mut offset = 0
+  let mut found = false
+  for request in self.requests {
+    let mut entry_index = -1
+    for i, path in request.paths() {
+      if path == field_path {
+        entry_index = i
+      }
+    }
+    if entry_index >= 0 {
+      // Sum counts of every entry before the requested field.
+      let paths = request.paths()
+      for i in 0..<entry_index {
+        offset += request.count_at(paths[i])
+      }
+      offset += index
+      found = true
+      break
+    }
+    offset += request.raw_mutation_count().to_int()
+  }
+  guard found else { raise Invalid("unknown case field path: " + field_path) }
+  offset
+}
+
+///|
+fn parse_case_index(text : String) -> Int raise DefinitionError {
+  let value = decimal_u64(text)
+  guard value <= 2147483647UL else { raise Invalid("case index too large") }
+  value.to_int()
+}
+
+///|
 pub fn ProtocolDefinition::generate(
   self : ProtocolDefinition,
   emit : (GeneratedCase) -> Bool raise,
