@@ -17,13 +17,21 @@ pub struct ExecutionConfig {
   combinatorial : Bool
   max_depth : Int?
   variables : Map[String, Bytes]
+  check_data_received : Bool
+  receive_data_after_fuzz : Bool
+  ignore_connection_reset : Bool
+  ignore_connection_aborted : Bool
+  restart_threshold : Int
+  restart_timeout_ms : Int?
+  restart_sleep_ms : Int
 }
 
 ///|
 pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
   @records.require_keys(value, [
     "transport", "endpoint", "policies", "case_limit", "combinatorial", "max_depth",
-    "variables",
+    "variables", "check_data_received", "receive_data_after_fuzz", "ignore_connection_reset",
+    "ignore_connection_aborted", "restart_threshold", "restart_timeout_ms", "restart_sleep_ms",
   ])
   guard value is { "transport": String(kind), "endpoint": endpoint_json, .. } else {
     raise Invalid("execution config requires transport and endpoint")
@@ -120,18 +128,75 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     combinatorial,
     max_depth,
     variables,
+    check_data_received: boolean_json(value, "check_data_received"),
+    receive_data_after_fuzz: boolean_json(value, "receive_data_after_fuzz"),
+    ignore_connection_reset: boolean_json(value, "ignore_connection_reset"),
+    ignore_connection_aborted: boolean_json(value, "ignore_connection_aborted"),
+    restart_threshold: int_flag(value, "restart_threshold"),
+    restart_timeout_ms: optional_positive(value, "restart_timeout_ms"),
+    restart_sleep_ms: json_int(value, "restart_sleep_ms", 5000),
+  }
+}
+
+///|
+fn json_int(value : Json, name : String, default : Int) -> Int raise {
+  match value {
+    Object(fields) =>
+      match fields.get(name) {
+        Some(item) => {
+          let parsed : Int = @json.from_json(item)
+          parsed
+        }
+        None => default
+      }
+    _ => default
   }
 }
 
 ///|
 fn boolean_json(value : Json, name : String) -> Bool raise {
-  if value is { "combinatorial": flag, .. } {
-    let parsed : Bool = @json.from_json(flag)
-    parsed
-  } else if name == "combinatorial" {
-    false
-  } else {
-    false
+  match value {
+    Object(fields) =>
+      match fields.get(name) {
+        Some(flag) => {
+          let parsed : Bool = @json.from_json(flag)
+          parsed
+        }
+        None => false
+      }
+    _ => false
+  }
+}
+
+///|
+fn int_flag(value : Json, name : String) -> Int raise {
+  match value {
+    Object(fields) =>
+      match fields.get(name) {
+        Some(item) => {
+          let parsed : Int = @json.from_json(item)
+          guard parsed >= 0 else { raise Invalid("negative " + name) }
+          parsed
+        }
+        None => 0
+      }
+    _ => 0
+  }
+}
+
+///|
+fn optional_positive(value : Json, name : String) -> Int? raise {
+  match value {
+    Object(fields) =>
+      match fields.get(name) {
+        Some(item) => {
+          let parsed : Int = @json.from_json(item)
+          guard parsed > 0 else { raise Invalid(name + " must be positive") }
+          Some(parsed)
+        }
+        None => None
+      }
+    _ => None
   }
 }
 
@@ -145,6 +210,7 @@ pub fn ExecutionConfig::runner(
   max_depth? : Int,
 ) -> Runner raise {
   let use_combinatorial = combinatorial.unwrap_or(self.combinatorial)
+  let restart_timeout_ms = self.restart_timeout_ms
   let max_depth = match max_depth {
     Some(depth) => Some(depth)
     None => self.max_depth
@@ -159,5 +225,12 @@ pub fn ExecutionConfig::runner(
     combinatorial=use_combinatorial,
     max_depth?,
     variables=Some(self.variables),
+    check_data_received=self.check_data_received,
+    receive_data_after_fuzz=self.receive_data_after_fuzz,
+    ignore_connection_reset=self.ignore_connection_reset,
+    ignore_connection_aborted=self.ignore_connection_aborted,
+    restart_threshold=self.restart_threshold,
+    restart_timeout_ms?,
+    restart_sleep_ms=self.restart_sleep_ms,
   )
 }

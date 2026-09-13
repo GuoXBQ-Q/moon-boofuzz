@@ -233,3 +233,15 @@ MOONBIT_FFI_EXPORT int bf_udp_send_port(bf_socket *s, int port, const uint8_t *d
   address.sin_family = AF_INET; address.sin_addr.s_addr = htonl(INADDR_LOOPBACK); address.sin_port = htons((uint16_t)port);
   return (int)sendto(s->fd, (const char *)data, length, 0, (struct sockaddr *)&address, sizeof(address));
 }
+
+MOONBIT_FFI_EXPORT void
+bf_sleep(int ms) {
+#ifdef _WIN32
+  Sleep((DWORD)ms);
+#else
+  struct timespec ts;
+  ts.tv_sec = ms / 1000;
+  ts.tv_nsec = (long)(ms % 1000) * 1000000L;
+  nanosleep(&ts, NULL);
+#endif
+}

@@ -13,6 +13,8 @@ pub(all) enum Outcome {
   ResponseMismatch
   CallbackFailed(String)
   RecoveryFailed(String)
+  NothingReceived
+  ConnectionIgnored(String)
 } derive(Debug, Eq)
 
 ///|
@@ -45,6 +47,13 @@ pub struct Runner {
   monitor : Monitor
   config : Json
   variables : Map[String, Bytes]
+  check_data_received : Bool
+  receive_data_after_fuzz : Bool
+  ignore_connection_reset : Bool
+  ignore_connection_aborted : Bool
+  restart_threshold : Int
+  restart_timeout_ms : Int?
+  restart_sleep_ms : Int
   mut index : Int
   mut executed : Int
   mut state : @core.EnumerationState
@@ -62,6 +71,13 @@ pub fn Runner::with_dialer(
   combinatorial? : Bool = false,
   max_depth? : Int,
   variables? : Map[String, Bytes]? = None,
+  check_data_received? : Bool = false,
+  receive_data_after_fuzz? : Bool = false,
+  ignore_connection_reset? : Bool = false,
+  ignore_connection_aborted? : Bool = false,
+  restart_threshold? : Int = 0,
+  restart_timeout_ms? : Int,
+  restart_sleep_ms? : Int = 5000,
 ) -> Runner raise {
   guard limit >= 0 &&
     receive_limit > 0 &&
@@ -113,6 +129,13 @@ pub fn Runner::with_dialer(
     executed: 0,
     state: Running,
     variables: variables.unwrap_or(Map([])),
+    check_data_received,
+    receive_data_after_fuzz,
+    ignore_connection_reset,
+    ignore_connection_aborted,
+    restart_threshold,
+    restart_timeout_ms,
+    restart_sleep_ms,
   }
 }
 
@@ -127,6 +150,13 @@ pub fn Runner::new(
   combinatorial? : Bool = false,
   max_depth? : Int,
   variables? : Map[String, Bytes]? = None,
+  check_data_received? : Bool = false,
+  receive_data_after_fuzz? : Bool = false,
+  ignore_connection_reset? : Bool = false,
+  ignore_connection_aborted? : Bool = false,
+  restart_threshold? : Int = 0,
+  restart_timeout_ms? : Int,
+  restart_sleep_ms? : Int = 5000,
 ) -> Runner raise {
   for _, policy in policies {
     guard !udp || policy == NoResponse || policy == Datagram else {
@@ -143,6 +173,7 @@ pub fn Runner::new(
       @transport.Connection::tcp(endpoint)
     }
   }
+  let threshold : Int = restart_threshold
   let runner = Runner::with_dialer(
     paths,
     dial,
@@ -152,6 +183,13 @@ pub fn Runner::new(
     combinatorial~,
     max_depth?,
     variables~,
+    check_data_received~,
+    receive_data_after_fuzz~,
+    ignore_connection_reset~,
+    ignore_connection_aborted~,
+    restart_threshold=threshold,
+    restart_timeout_ms?,
+    restart_sleep_ms~,
     receive_limit=endpoint.receive_limit(),
     receive_timeout_ms=endpoint.receive_timeout(),
   )
@@ -201,6 +239,7 @@ fn Runner::execute(
         failed_step: Some(-1),
       }
   }
+  defer channel.close()
   defer channel.close()
   let received_all : Array[Bytes] = []
   let case_variables : Map[String, Bytes] = Map([])
@@ -320,6 +359,38 @@ fn Runner::execute(
 }
 
 ///|
+fn Runner::retry_dial_failure(
+  self : Runner,
+  path : @core.SessionPath,
+  case : @core.MutationCase,
+  result : CaseResult,
+) -> CaseResult raise @core.ModelError {
+  let mut current = result
+  let mut attempts = 0
+  while attempts < self.restart_threshold &&
+        current.failed_step == Some(-1) &&
+        (
+          current.outcome is ConnectFailed(_) ||
+          current.outcome is ConnectTimedOut
+        ) {
+    attempts += 1
+    let recovered : Bool = (self.monitor.recover)(current.snapshot()) catch {
+      _ => false
+    }
+    @transport.sleep_ms(self.restart_sleep_ms)
+    if !recovered {
+      return current
+    }
+    let retried = self.finish(self.execute(path, case))
+    if retried.failed_step != Some(-1) || !(retried.outcome is ConnectFailed(_)) {
+      return retried
+    }
+    current = retried
+  }
+  current
+}
+
+///|
 pub fn Runner::next(self : Runner) -> CaseResult? raise @core.ModelError {
   guard self.state == Running else { return None }
   if self.executed >= self.limit {
@@ -332,8 +403,16 @@ pub fn Runner::next(self : Runner) -> CaseResult? raise @core.ModelError {
   while self.index < self.paths.length() {
     if self.streams[self.index].next() is Some(case) {
       let result = self.finish(self.execute(self.paths[self.index], case))
+      // Upstream's _open_connection_keep_trying: a dial-only failure is
+      // retried after recovery, honoring the restart threshold
+      // (session.py:1475-1514, 518c139).
+      let retry_result = self.retry_dial_failure(
+        self.paths[self.index],
+        case,
+        result,
+      )
       self.executed += 1
-      return Some(result)
+      return Some(retry_result)
     }
     self.index += 1
   }

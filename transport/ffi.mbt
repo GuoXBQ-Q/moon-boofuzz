@@ -45,3 +45,13 @@ extern "c" fn socket_receive(
   bytes : FixedArray[Byte],
   length : Int,
 ) -> Int = "bf_recv"
+
+// Sleep for milliseconds; used for restart delays and case pacing.
+
+///|
+extern "c" fn bf_sleep(ms : Int) -> Unit = "bf_sleep"
+
+///|
+pub fn sleep_ms(ms : Int) -> Unit {
+  bf_sleep(ms)
+}

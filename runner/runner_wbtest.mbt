@@ -113,3 +113,51 @@ test "fixed and delimiter responses retain buffered tail and respect case limit"
   runner.stop()
   assert_eq(runner.state(), Stopped)
 }
+
+///|
+test "dial failure retries within threshold then recovers" {
+  let attempts : Array[Int] = []
+  let mut fails = 2
+  let runner = Runner::with_dialer(
+    runner_paths(),
+    fn() raise {
+      attempts.push(attempts.length() + 1)
+      if fails > 0 {
+        fails -= 1
+        raise @transport.TransportError::ConnectFailure(111)
+      }
+      let mock : Mock = {
+        sent: [],
+        responses: [],
+        fail_at: -1,
+        last_sent: 0,
+        closed: false,
+      }
+      mock
+    },
+    restart_threshold=3,
+    restart_sleep_ms=0,
+  )
+  let result = runner.next().unwrap()
+  assert_eq(result.outcome, Passed)
+  // Two failed dials plus the successful one.
+  assert_eq(attempts.length(), 3)
+}
+
+///|
+test "dial failure stops at restart threshold" {
+  let attempts : Array[Int] = []
+  let runner = Runner::with_dialer(
+    runner_paths(),
+    fn() raise {
+      attempts.push(attempts.length() + 1)
+      raise @transport.TransportError::ConnectFailure(111)
+    },
+    restart_threshold=2,
+    restart_sleep_ms=0,
+  )
+  let result = runner.next().unwrap()
+  assert_eq(result.outcome, ConnectFailed(111))
+  assert_eq(result.failed_step, Some(-1))
+  assert_eq(attempts.length(), 3)
+}

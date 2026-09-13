@@ -29,6 +29,8 @@ pub fn Outcome::name(self : Outcome) -> String {
     ResponseMismatch => "response_mismatch"
     CallbackFailed(_) => "callback_failed"
     RecoveryFailed(_) => "recovery_failed"
+    NothingReceived => "nothing_received"
+    ConnectionIgnored(_) => "connection_ignored"
   }
 }
 
