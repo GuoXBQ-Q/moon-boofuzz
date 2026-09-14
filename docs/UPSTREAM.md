@@ -28,6 +28,7 @@
 | 组合爆破 | sessions/session.py _generate_mutations_indefinitely | 深度循环/子串包含去重/累积 skip quirk 均对齐；MUTATION.md |
 | 会话变量与动态重复 | protocol_session*.py、Repeat(variable=) | 内外双路径语义与 KeyError 对齐；见 VARIABLES.md |
 | 进程监视器 | utils/process_monitor_local.py、utils/debugger_thread_simple.py | 无调试器子集：spawn/存活/故障/重启；见 PROCESS.md |
+| 校验和算法集 | blocks/checksum.py 的算法表与 md5/sha1 字交换 | crc32/crc32c/adler32/md5/sha1 已接入节点与 JSON；ipv4/udp 以独立函数提供（块引用伪首部未接入）；见 CHECKSUM.md |
 
 ## 1. Simple / Group
 

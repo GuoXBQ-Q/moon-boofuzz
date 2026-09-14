@@ -1,9 +1,13 @@
 # CRC32 fields
 
-`Node::checksum("crc", "request.body", endian=Little, mutations=[])` emits
-IEEE CRC32 with a four-byte result. With no explicit mutations the field emits upstream's six
-fuzzable byte boundaries (00*, 11*, ee*, ff*, ff*(n-1)+fe, 00*(n-1)+01);
-explicit `mutations` replace them. Other algorithms are not exposed. `crc32(bytes)` is also available.
+`Node::checksum("crc", "request.body", endian=Little, mutations=[],
+algorithm=Crc32)` emits a checksum over the target. Supported algorithms:
+`Crc32` (default), `Crc32c`, `Adler32`, `Md5` and `Sha1` — lengths 4/4/4/16/20
+bytes. With no explicit mutations the field emits upstream's six fuzzable
+byte boundaries at the algorithm's length (00*, 11*, ee*, ff*, ff*(n-1)+fe,
+00*(n-1)+01); explicit `mutations` replace them (32-bit family only —
+MD5/SHA-1 digests exceed 64 bits). MD5/SHA-1 render with upstream's
+32-bit word swap on big-endian nodes (checksum.py:171-189). `crc32(bytes)` is also available.
 Payload mutation recomputes checksums on each render. If the target contains
 the checksum, its own bytes are zero during calculation, as in upstream.
 

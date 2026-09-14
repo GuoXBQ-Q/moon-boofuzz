@@ -12,6 +12,14 @@ pub fn crc32(Bytes) -> UInt
 
 pub fn crc32c(Bytes) -> UInt
 
+pub fn ipv4_checksum(Bytes) -> UInt
+
+pub fn md5(Bytes) -> Bytes
+
+pub fn sha1(Bytes) -> Bytes
+
+pub fn udp_checksum(Bytes, Bytes, Bytes) -> UInt
+
 // Errors
 pub suberror ModelError {
   Invalid(String)
@@ -59,10 +67,19 @@ pub fn CaseStream::remaining_skip(Self) -> Int
 pub fn CaseStream::state(Self) -> EnumerationState
 pub fn CaseStream::stop(Self) -> Unit
 
+pub(all) enum ChecksumAlgorithm {
+  Crc32
+  Crc32c
+  Adler32
+  Md5
+  Sha1
+} derive(Eq, @debug.Debug)
+
 pub struct ChecksumSpec {
   target : String
   endian : Endian
   mutations : Array[Bytes]
+  algorithm : ChecksumAlgorithm
 }
 
 pub struct CombFrame {
@@ -159,7 +176,7 @@ pub(all) enum Node {
   Mirrored(String, String)
   Dynamic(String, String, Field)
 }
-pub fn Node::checksum(String, String, endian? : Endian, mutations? : Array[UInt], fuzzable? : Bool) -> Self
+pub fn Node::checksum(String, String, endian? : Endian, mutations? : Array[UInt], fuzzable? : Bool, algorithm? : ChecksumAlgorithm) -> Self raise ModelError
 pub fn Node::dynamic(String, String, Field) -> Self
 pub fn Node::mirror(String, String) -> Self
 pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int, variable? : String) -> Self

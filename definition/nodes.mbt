@@ -110,7 +110,7 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
   }
   if kind == "crc32" {
     @records.require_keys(value, [
-      "type", "name", "target", "endian", "mutations",
+      "type", "name", "target", "endian", "mutations", "algorithm",
     ])
     let values = unsigned_values(value).map(number => {
       guard number <= 0xffffffffUL else {
@@ -118,11 +118,21 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
       }
       number.to_uint()
     })
+    let algorithm : @core.ChecksumAlgorithm = match
+      text(value, "algorithm", "crc32") {
+      "crc32" => Crc32
+      "crc32c" => Crc32c
+      "adler32" => Adler32
+      "md5" => Md5
+      "sha1" => Sha1
+      other => raise Invalid("unsupported checksum algorithm: " + other)
+    }
     return @core.Node::checksum(
       name,
       @json.from_json(required(value, "target")),
       endian=endian(value),
       mutations=values,
+      algorithm~,
     )
   }
   if kind == "mirror" {

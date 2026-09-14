@@ -326,7 +326,7 @@ fn CompiledRequest::render_node(
         vars,
         active=nested,
       )
-      encode_integer(crc32(bytes).to_uint64(), 32, spec.endian)
+      spec.algorithm.render(bytes, spec.endian)
     }
     ComputedSize(spec) => self.size_value(spec, replacements, vars)
     Mirror(target) => {

@@ -71,7 +71,7 @@ fn CompiledRequest::measure(
           }
       }
     ComputedSize(spec) => spec.length
-    ComputedChecksum(_) => 4
+    ComputedChecksum(spec) => spec.algorithm.length()
     Mirror(target) => {
       guard !active.contains(index) else { return 0 }
       let nested = active.copy()
