@@ -27,6 +27,7 @@
 | Group+Block 笛卡尔 | blocks/block.py mutations 的 group 乘积 | 枚举顺序与用例数 n*(1+g) 一致；见 MODEL.md |
 | 组合爆破 | sessions/session.py _generate_mutations_indefinitely | 深度循环/子串包含去重/累积 skip quirk 均对齐；MUTATION.md |
 | 会话变量与动态重复 | protocol_session*.py、Repeat(variable=) | 内外双路径语义与 KeyError 对齐；见 VARIABLES.md |
+| 进程监视器 | utils/process_monitor_local.py、utils/debugger_thread_simple.py | 无调试器子集：spawn/存活/故障/重启；见 PROCESS.md |
 
 ## 1. Simple / Group
 

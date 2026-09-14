@@ -4,6 +4,7 @@ import {
   "GuoXBQ-Q/moon-boofuzz/records",
   "GuoXBQ-Q/moon-boofuzz/recordio",
   "GuoXBQ-Q/moon-boofuzz/runner",
+  "GuoXBQ-Q/moon-boofuzz/process",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
 }

@@ -89,3 +89,34 @@ fn Runner::finish(self : Runner, result : CaseResult) -> CaseResult {
   }
   final_result
 }
+
+///|
+/// Chain two monitors: both before/after/fault callbacks run in order,
+/// `check` requires both to accept, and `recover` requires both to succeed.
+/// Used to pair the process monitor with user callbacks.
+pub fn Monitor::combine(first : Monitor, second : Monitor) -> Monitor {
+  Monitor::new(
+    before=fn(context) raise {
+      (first.before)(context)
+      (second.before)(context)
+    },
+    after=fn(result) raise {
+      (first.after)(result)
+      (second.after)(result)
+    },
+    fault=fn(result) raise {
+      (first.fault)(result)
+      (second.fault)(result)
+    },
+    recover=fn(result) {
+      let ok_first = (first.recover)(result) catch { _ => false }
+      let ok_second = (second.recover)(result) catch { _ => false }
+      ok_first && ok_second
+    },
+    check=fn(name, bytes) {
+      let ok_first = (first.check)(name, bytes) catch { _ => false }
+      let ok_second = (second.check)(name, bytes) catch { _ => false }
+      ok_first && ok_second
+    },
+  )
+}

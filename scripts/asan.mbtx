@@ -11,7 +11,7 @@ async fn main {
   let saved : Array[(String, String)] = []
   defer { for pair in saved { @fs.write_file(pair.0, pair.1) } }
   let command = ["test", "--target", "native", "--target-dir", root + "/_build/asan", "--deny-warn"]
-  for pkg_name in ["transport", "recordio"] {
+  for pkg_name in ["transport", "recordio", "process"] {
     let path = root + "/" + pkg_name + "/moon.pkg"
     if @fs.exists(path) {
       let original = (@fs.read_file(path)).text()

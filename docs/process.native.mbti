@@ -1,0 +1,54 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/process"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz/runner",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/ref",
+}
+
+// Values
+pub fn is_windows() -> Bool
+
+// Errors
+pub suberror ProcessError {
+  SpawnFailure(Int)
+  PollFailure(Int)
+  KillFailure(Int)
+} derive(@debug.Debug)
+
+// Types and methods
+type Proc
+
+pub struct Process {
+  handle : Proc
+  mut exited : Bool
+  mut exit_code : Int
+}
+pub fn Process::alive(Self) -> Bool raise ProcessError
+pub fn Process::exit_code(Self) -> Int
+pub fn Process::kill(Self) -> Unit raise ProcessError
+pub fn Process::pid(Self) -> Int
+pub fn Process::spawn(String) -> Self raise ProcessError
+pub fn Process::status(Self) -> ProcessStatus raise ProcessError
+pub fn Process::wait(Self, timeout_ms? : Int) -> Int? raise ProcessError
+
+pub struct ProcessMonitor {
+  monitor : @runner.Monitor
+  process : @ref.Ref[Process?]
+  synopsis : @ref.Ref[String]
+  command : String
+  start_delay_ms : Int
+  stop_delay_ms : Int
+}
+pub fn ProcessMonitor::new(String, start_delay_ms? : Int, stop_delay_ms? : Int) -> Self
+
+pub struct ProcessStatus {
+  exited : Bool
+  exit_code : Int
+  pid : Int
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+
+// Traits

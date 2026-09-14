@@ -27,6 +27,9 @@ pub struct ExecutionConfig {
   sleep_between_ms : Int
   crash_threshold_request : Int
   crash_threshold_element : Int
+  target_command : String?
+  target_start_delay_ms : Int
+  target_stop_delay_ms : Int
 }
 
 ///|
@@ -35,7 +38,8 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     "transport", "endpoint", "policies", "case_limit", "combinatorial", "max_depth",
     "variables", "check_data_received", "receive_data_after_fuzz", "sleep_between_ms",
     "crash_threshold_request", "crash_threshold_element", "ignore_connection_reset",
-    "ignore_connection_aborted", "restart_threshold", "restart_timeout_ms", "restart_sleep_ms",
+    "target_command", "target_start_delay_ms", "target_stop_delay_ms", "ignore_connection_aborted",
+    "restart_threshold", "restart_timeout_ms", "restart_sleep_ms",
   ])
   guard value is { "transport": String(kind), "endpoint": endpoint_json, .. } else {
     raise Invalid("execution config requires transport and endpoint")
@@ -142,6 +146,27 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     sleep_between_ms: json_int(value, "sleep_between_ms", 0),
     crash_threshold_request: json_int(value, "crash_threshold_request", 12),
     crash_threshold_element: json_int(value, "crash_threshold_element", 3),
+    target_command: optional_text(value, "target_command"),
+    target_start_delay_ms: json_int(value, "target_start_delay_ms", 1000),
+    target_stop_delay_ms: json_int(value, "target_stop_delay_ms", 500),
+  }
+}
+
+///|
+fn optional_text(value : Json, name : String) -> String? raise {
+  match value {
+    Object(fields) =>
+      match fields.get(name) {
+        Some(item) => {
+          let parsed : String = @json.from_json(item)
+          guard !parsed.is_empty() else {
+            raise Invalid(name + " must not be empty")
+          }
+          Some(parsed)
+        }
+        None => None
+      }
+    _ => None
   }
 }
 

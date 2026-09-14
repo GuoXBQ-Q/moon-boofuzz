@@ -46,9 +46,10 @@
 |40|实时用例日志 --text-dump|cmd/boofuzz/main.mbt Monitor.after|
 |41|用例间步进 --sleep-between-ms|transport bf_sleep，runner.mbt|
 |42|adler32/crc32c 校验和|checksum.mbt，测试向量|
+|43|进程监视器|process/ C 桥 + ProcessMonitor，process_wbtest.mbt、monitor_wbtest.mbt|
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio 只用 C 桥接系统调用；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 
-动态会话变量回调写入已随边回调落地。剩余留待后续版本：进程监视器
-（process/ 原生包）、md5/sha1/ipv4/udp 校验和、Unix/串口/原始帧/IPv6
-传输、SQLite 与 Web UI、覆盖率引导、并行执行和调试器。
+进程监视器已随 process/ 原生包落地。剩余留待后续版本：md5/sha1/
+ipv4/udp 校验和、Unix/串口/原始帧/IPv6 传输、SQLite 与 Web UI、
+覆盖率引导、并行执行和调试器。

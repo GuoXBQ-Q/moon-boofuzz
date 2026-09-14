@@ -52,7 +52,7 @@ fn state_name(state : @core.EnumerationState) -> String {
 fn dispatch(args : Array[String]) -> Int raise {
   if args.is_empty() || args == ["--help"] {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
@@ -76,7 +76,7 @@ fn dispatch(args : Array[String]) -> Int raise {
     } else {
       [
         "--limit", "--output", "--combinatorial", "--max-depth", "--start", "--end",
-        "--sleep-between-ms", "--text-dump",
+        "--sleep-between-ms", "--text-dump", "--target-cmd",
       ]
     },
   )
@@ -91,6 +91,7 @@ fn dispatch(args : Array[String]) -> Int raise {
     })
   let max_depth = int_option(opts, "--max-depth")
   let case_id : String? = opts.get("--id")
+  let target_cmd : String? = opts.get("--target-cmd")
   let text_dump : Bool? = opts
     .get("--text-dump")
     .map(text => {
@@ -144,22 +145,46 @@ fn dispatch(args : Array[String]) -> Int raise {
     raise InvalidArguments("run requires an execution configuration")
   })
   let start = int_option(opts, "--start").unwrap_or(0)
-  let monitor = if text_dump.unwrap_or(false) {
-    @runner.Monitor::new(after=fn(result) {
-      println("Test Case: " + result.id)
-      for step in result.steps {
-        println("  sent " + step.sent.length().to_string() + " bytes")
-        if step.received.length() > 0 {
-          println("  received " + step.received.length().to_string() + " bytes")
+  let text_monitor = if text_dump.unwrap_or(false) {
+    Some(
+      @runner.Monitor::new(after=fn(result) {
+        println("Test Case: " + result.id)
+        for step in result.steps {
+          println("  sent " + step.sent.length().to_string() + " bytes")
+          if step.received.length() > 0 {
+            println(
+              "  received " + step.received.length().to_string() + " bytes",
+            )
+          }
+          if !step.completed {
+            println("  step incomplete")
+          }
         }
-        if !step.completed {
-          println("  step incomplete")
-        }
-      }
-      println("  outcome: " + result.outcome.name())
-    })
+        println("  outcome: " + result.outcome.name())
+      }),
+    )
   } else {
-    @runner.Monitor::new()
+    None
+  }
+  // Target lifecycle: the CLI flag wins over the JSON execution config; both
+  // produce a process monitor owning spawn, fault detection and restarts.
+  let process_monitor : @runner.Monitor? = match target_cmd {
+    Some(command) => Some(@process.ProcessMonitor::new(command).monitor)
+    None =>
+      match execution {
+        Some(config) =>
+          match config.target_command {
+            Some(command) => Some(@process.ProcessMonitor::new(command).monitor)
+            None => None
+          }
+        None => None
+      }
+  }
+  let monitor = match (text_monitor, process_monitor) {
+    (Some(text), Some(process)) => @runner.Monitor::combine(text, process)
+    (Some(text), None) => text
+    (None, Some(process)) => process
+    (None, None) => @runner.Monitor::new()
   }
   let runner = match limit {
     Some(n) =>

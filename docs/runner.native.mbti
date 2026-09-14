@@ -50,6 +50,9 @@ pub struct ExecutionConfig {
   sleep_between_ms : Int
   crash_threshold_request : Int
   crash_threshold_element : Int
+  target_command : String?
+  target_start_delay_ms : Int
+  target_stop_delay_ms : Int
 }
 pub fn ExecutionConfig::parse(Json) -> Self raise
 pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int, combinatorial? : Bool, max_depth? : Int, start? : Int, end? : Int?, sleep_between? : Int, crash_request? : Int, crash_element? : Int) -> Runner raise
@@ -61,6 +64,7 @@ pub struct Monitor {
   recover : (CaseResult) -> Bool raise
   check : (String, Bytes) -> Bool raise
 }
+pub fn Monitor::combine(Self, Self) -> Self
 pub fn Monitor::new(before? : (CaseContext) -> Unit raise, after? : (CaseResult) -> Unit raise, fault? : (CaseResult) -> Unit raise, recover? : (CaseResult) -> Bool raise, check? : (String, Bytes) -> Bool raise) -> Self
 
 pub(all) enum Outcome {
