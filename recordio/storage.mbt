@@ -87,3 +87,15 @@ pub fn capture(runner : @runner.Runner, writer : Writer) -> Int raise {
   }
   count
 }
+
+///|
+/// Create/truncate a file with raw bytes — the escape hatch for non-JSONL
+/// outputs such as CSV reports.
+pub fn write_file_raw(path : String, bytes : Bytes) -> Unit raise StorageError {
+  let handle = create_file(@utf8.encode(path) + b"\x00")
+  errdefer close_file(handle)
+  guard write_file(handle, bytes, bytes.length()) == 0 else {
+    raise WriteFailure(file_error(handle))
+  }
+  close_file(handle)
+}

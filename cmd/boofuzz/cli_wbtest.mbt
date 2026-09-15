@@ -174,3 +174,63 @@ test "CLI rejects malformed definitions before any connection" {
     },
   )
 }
+
+///|
+test "run with csv-out writes a report row per case" {
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "packet",
+        "children": [
+          {
+            "type": "simple",
+            "name": "value",
+            "value_hex": "6869",
+            "values_hex": ["6f6b", "6c6f6e67"],
+          },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "udp",
+      "endpoint": { "host": "127.0.0.1", "port": 1 },
+      "policies": {},
+      "case_limit": 2,
+    },
+  }
+  let definition_path = fixture_path()
+  save_definition(definition_path, definition)
+  defer fixture_remove(definition_path)
+  let records_path = fixture_path()
+  defer fixture_remove(records_path)
+  let csv_path = fixture_path()
+  defer fixture_remove(csv_path)
+  // No live target: both cases fail to connect but records are still written.
+  let exit = dispatch([
+    "run",
+    @utf8.decode(definition_path),
+    "--output",
+    @utf8.decode(records_path),
+    "--csv-out",
+    @utf8.decode(csv_path),
+  ])
+  assert_eq(exit, 0)
+  let csv = @utf8.decode(@recordio.read_bytes(@utf8.decode(csv_path)))
+  let rows : Array[String] = []
+  for part in csv.split("\n") {
+    rows.push(part.to_owned())
+  }
+  assert_eq(
+    rows[0],
+    "case_id,ordinal,request_name,field_path,mutation_index,outcome,failed_step,sent_hex,received_hex",
+  )
+  assert_true(rows[1].contains("packet"))
+  // UDP sends succeed without a listener and the none policy completes the
+  // step, so the case outcome is passed.
+  assert_true(rows[1].contains("passed"))
+  assert_eq(
+    @records.parse_jsonl_bytes(@recordio.read_bytes(@utf8.decode(records_path))).records.length(),
+    2,
+  )
+}

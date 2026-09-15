@@ -76,7 +76,7 @@ fn dispatch(args : Array[String]) -> Int raise {
     } else {
       [
         "--limit", "--output", "--combinatorial", "--max-depth", "--start", "--end",
-        "--sleep-between-ms", "--text-dump", "--target-cmd",
+        "--sleep-between-ms", "--text-dump", "--target-cmd", "--csv-out",
       ]
     },
   )
@@ -92,6 +92,7 @@ fn dispatch(args : Array[String]) -> Int raise {
   let max_depth = int_option(opts, "--max-depth")
   let case_id : String? = opts.get("--id")
   let target_cmd : String? = opts.get("--target-cmd")
+  let csv_out : String? = opts.get("--csv-out")
   let text_dump : Bool? = opts
     .get("--text-dump")
     .map(text => {
@@ -232,6 +233,19 @@ fn dispatch(args : Array[String]) -> Int raise {
   let writer = @recordio.Writer::open(output)
   defer writer.close()
   let count = @recordio.capture(runner, writer)
+  writer.close()
+  match csv_out {
+    Some(csv) => {
+      let rows = write_csv_report(csv, output)
+      let csv_summary : Json = {
+        "kind": "csv_report",
+        "path": csv,
+        "rows": rows,
+      }
+      println(csv_summary.stringify())
+    }
+    None => ()
+  }
   let summary : Json = {
     "kind": "run_summary",
     "executed": count,
