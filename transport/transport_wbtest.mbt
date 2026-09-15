@@ -98,15 +98,8 @@ test "TCP unavailable listener fails within deadline and validates options" {
       _ => false
     },
   )
-  assert_true(
-    try {
-      ignore(Endpoint::new("::1", 80))
-      false
-    } catch {
-      InvalidConfiguration(_) => true
-      _ => false
-    },
-  )
+  // IPv6 literals are valid endpoints now; "::1" must be accepted.
+  ignore(Endpoint::new("::1", 80))
   assert_true(
     try {
       ignore(Endpoint::new("x", 80, send_timeout_ms=0))
@@ -116,4 +109,34 @@ test "TCP unavailable listener fails within deadline and validates options" {
       _ => false
     },
   )
+}
+
+///|
+#borrow(socket)
+extern "c" fn listen6_local(socket : Socket) -> Int = "bf_listen6"
+
+///|
+test "TCP IPv6 loopback connects and exchanges bytes" {
+  let listener = socket_new()
+  defer socket_close(listener)
+  let port = listen6_local(listener)
+  assert_true(port > 0)
+  let endpoint = Endpoint::new("::1", port, receive_timeout_ms=30)
+  let client = Connection::tcp(endpoint)
+  defer client.close()
+  assert_eq(socket_wait(listener, 0, 1000), 1)
+  let peer_socket = socket_new()
+  let peer : Connection = {
+    socket: peer_socket,
+    endpoint,
+    closed: false,
+    last_sent: 0,
+    udp: false,
+  }
+  defer peer.close()
+  assert_eq(accept_local(listener, peer_socket), 0)
+  client.send(b"V6\xff")
+  assert_eq(peer.receive(), Data(b"V6\xff"))
+  peer.send(b"ok")
+  assert_eq(client.receive(), Data(b"ok"))
 }

@@ -110,15 +110,23 @@ MOONBIT_FFI_EXPORT int bf_connect(bf_socket *s, const char *host, int port, int 
   if (s->error) return -1;
   struct addrinfo hints, *list = NULL; memset(&hints, 0, sizeof(hints));
   s->udp = udp;
-  hints.ai_family = AF_INET; hints.ai_socktype = udp ? SOCK_DGRAM : SOCK_STREAM;
+  hints.ai_family = AF_UNSPEC; hints.ai_socktype = udp ? SOCK_DGRAM : SOCK_STREAM;
   char service[8]; snprintf(service, sizeof(service), "%d", port);
   int resolved = getaddrinfo(host, service, &hints, &list);
   if (resolved != 0) { s->error = resolved; return -1; }
   int result = -1; int64_t deadline = bf_now() + timeout;
   for (struct addrinfo *address = list; address; address = address->ai_next) {
-    uint32_t ip = ntohl(((struct sockaddr_in *)address->ai_addr)->sin_addr.s_addr);
-    if (udp && (ip == 0 || ip >= 0xe0000000U)) { result = -3; continue; }
-    s->fd = socket(AF_INET, udp ? SOCK_DGRAM : SOCK_STREAM, 0);
+    if (udp) {
+      /* Unicast only: reject unspecified and multicast targets. */
+      if (address->ai_family == AF_INET6) {
+        struct sockaddr_in6 *six = (struct sockaddr_in6 *)address->ai_addr;
+        if (IN6_IS_ADDR_UNSPECIFIED(&six->sin6_addr) || IN6_IS_ADDR_MULTICAST(&six->sin6_addr)) { result = -3; continue; }
+      } else {
+        uint32_t ip = ntohl(((struct sockaddr_in *)address->ai_addr)->sin_addr.s_addr);
+        if (ip == 0 || ip >= 0xe0000000U) { result = -3; continue; }
+      }
+    }
+    s->fd = socket(address->ai_family, udp ? SOCK_DGRAM : SOCK_STREAM, 0);
     if (s->fd == BF_INVALID) { s->error = bf_errno(); continue; }
     if (bf_nonblock(s->fd) != 0) { s->error = bf_errno(); bf_reset(s); continue; }
     if (connect(s->fd, address->ai_addr, (int)address->ai_addrlen) == 0) { result = 0; break; }
@@ -192,6 +200,66 @@ MOONBIT_FFI_EXPORT int bf_accept(bf_socket *listener, bf_socket *client) {
   client->fd = accept(listener->fd, NULL, NULL);
   if (client->fd == BF_INVALID || bf_nonblock(client->fd) != 0) { client->error = bf_errno(); bf_close(client); return -1; }
   return 0;
+}
+
+MOONBIT_FFI_EXPORT int bf_listen6(bf_socket *s) {
+  if (s->error) return -1;
+  s->fd = socket(AF_INET6, SOCK_STREAM, 0);
+  if (s->fd == BF_INVALID) { s->error = bf_errno(); return -1; }
+#ifdef _WIN32
+  int v6only = 1;
+  setsockopt(s->fd, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&v6only, sizeof(v6only));
+#endif
+  struct sockaddr_in6 address; memset(&address, 0, sizeof(address));
+  address.sin6_family = AF_INET6; address.sin6_addr = in6addr_loopback;
+  if (bind(s->fd, (struct sockaddr *)&address, sizeof(address)) != 0 || listen(s->fd, 8) != 0 || bf_nonblock(s->fd) != 0) { s->error = bf_errno(); bf_close(s); return -1; }
+#ifdef _WIN32
+  int length = sizeof(address);
+#else
+  socklen_t length = sizeof(address);
+#endif
+  if (getsockname(s->fd, (struct sockaddr *)&address, &length) != 0) { s->error = bf_errno(); bf_close(s); return -1; }
+  return ntohs(address.sin6_port);
+}
+
+MOONBIT_FFI_EXPORT int bf_port6(bf_socket *s) {
+  struct sockaddr_in6 address;
+#ifdef _WIN32
+  int length = sizeof(address);
+#else
+  socklen_t length = sizeof(address);
+#endif
+  if (getsockname(s->fd, (struct sockaddr *)&address, &length) != 0) return -1;
+  return ntohs(address.sin6_port);
+}
+
+MOONBIT_FFI_EXPORT int bf_bind_udp6(bf_socket *s) {
+  if (s->error) return -1;
+  s->udp = 1; s->fd = socket(AF_INET6, SOCK_DGRAM, 0);
+  if (s->fd == BF_INVALID) return -1;
+  struct sockaddr_in6 address; memset(&address, 0, sizeof(address));
+  address.sin6_family = AF_INET6; address.sin6_addr = in6addr_loopback;
+  if (bind(s->fd, (struct sockaddr *)&address, sizeof(address)) != 0 || bf_nonblock(s->fd) != 0) { bf_close(s); return -1; }
+  return bf_port6(s);
+}
+
+MOONBIT_FFI_EXPORT int bf_udp6_receive_peer(bf_socket *s, uint8_t *data, int length) {
+  struct sockaddr_in6 source;
+#ifdef _WIN32
+  int size = sizeof(source);
+#else
+  socklen_t size = sizeof(source);
+#endif
+  int n = (int)recvfrom(s->fd, (char *)data, length, 0, (struct sockaddr *)&source, &size);
+  if (n < 0) return -1;
+  if (connect(s->fd, (struct sockaddr *)&source, size) != 0) return -1;
+  return n;
+}
+
+MOONBIT_FFI_EXPORT int bf_udp6_send_port(bf_socket *s, int port, const uint8_t *data, int length) {
+  struct sockaddr_in6 address; memset(&address, 0, sizeof(address));
+  address.sin6_family = AF_INET6; address.sin6_addr = in6addr_loopback; address.sin6_port = htons((uint16_t)port);
+  return (int)sendto(s->fd, (const char *)data, length, 0, (struct sockaddr *)&address, sizeof(address));
 }
 
 MOONBIT_FFI_EXPORT int bf_port(bf_socket *s) {

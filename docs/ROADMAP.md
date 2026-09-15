@@ -48,6 +48,7 @@
 |42|adler32/crc32c 校验和|checksum.mbt，测试向量|
 |43|进程监视器|process/ C 桥 + ProcessMonitor，process_wbtest.mbt、monitor_wbtest.mbt|
 |44|校验和算法集（crc32c/adler32/md5/sha1）|checksum.mbt，checksums_test.mbt 参考向量|
+|45|IPv6（TCP+UDP 双栈）|transport/socket.c AF_UNSPEC，transport_wbtest.mbt、udp_wbtest.mbt|
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio 只用 C 桥接系统调用；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 

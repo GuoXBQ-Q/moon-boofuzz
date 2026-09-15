@@ -42,10 +42,9 @@ pub fn Endpoint::new(
 ) -> Endpoint raise TransportError {
   guard !host.is_empty() &&
     !host.contains("\u0000") &&
-    !host.contains(":") &&
     port > 0 &&
     port <= 65535 else {
-    raise InvalidConfiguration("expected hostname/IPv4 and port 1..65535")
+    raise InvalidConfiguration("expected hostname/IPv4/IPv6 and port 1..65535")
   }
   guard connect_timeout_ms > 0 &&
     send_timeout_ms > 0 &&

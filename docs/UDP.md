@@ -1,6 +1,6 @@
 # UDP datagrams
 
-`Connection::udp(endpoint)` uses a connected unicast IPv4 socket. Every
+`Connection::udp(endpoint)` uses a connected unicast IPv4/IPv6 socket. Every
 `send(bytes)` is one datagram, including zero-length input. Unlike TCP, it never
 splits a request into chunks. Payloads over 65,507 bytes are rejected before
 sending. Connected sockets discard datagrams from other source endpoints.

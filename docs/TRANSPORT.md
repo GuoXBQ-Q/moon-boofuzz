@@ -11,7 +11,7 @@ after a partial failure. It does not claim the peer received or processed them.
 
 Connection, send and receive timeouts default to 5000 ms. Each operation uses
 a monotonic deadline, including partial sends and interrupted readiness waits.
-Hostname/IPv4 is supported; IPv6 and TLS are not. The system `getaddrinfo`
+Hostname, IPv4 and IPv6 literals are supported; TLS is not. The system `getaddrinfo`
 resolver runs before the TCP connect deadline; OS name-resolution timing is
 not controlled by this synchronous socket API. Use IPv4 when requiring a
 strict end-to-end connection deadline. Receive defaults to 64 KiB and allows
