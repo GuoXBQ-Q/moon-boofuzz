@@ -9,7 +9,7 @@ priv struct WireEndpoint {
 } derive(@json.FromJson)
 
 ///|
-pub struct ExecutionConfig {
+pub(all) struct ExecutionConfig {
   endpoint : @transport.Endpoint
   udp : Bool
   policies : Map[String, ReadPolicy]
@@ -30,6 +30,7 @@ pub struct ExecutionConfig {
   target_command : String?
   target_start_delay_ms : Int
   target_stop_delay_ms : Int
+  file_path : String?
 }
 
 ///|
@@ -38,28 +39,52 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     "transport", "endpoint", "policies", "case_limit", "combinatorial", "max_depth",
     "variables", "check_data_received", "receive_data_after_fuzz", "sleep_between_ms",
     "crash_threshold_request", "crash_threshold_element", "ignore_connection_reset",
-    "target_command", "target_start_delay_ms", "target_stop_delay_ms", "ignore_connection_aborted",
+    "target_command", "target_start_delay_ms", "target_stop_delay_ms", "path", "ignore_connection_aborted",
     "restart_threshold", "restart_timeout_ms", "restart_sleep_ms",
   ])
-  guard value is { "transport": String(kind), "endpoint": endpoint_json, .. } else {
+  guard value is { "transport": String(kind), .. } else {
     raise Invalid("execution config requires transport and endpoint")
   }
-  guard kind == "tcp" || kind == "udp" else {
+  guard kind == "tcp" || kind == "udp" || kind == "file" else {
     raise Invalid("unsupported recorded transport: " + kind)
   }
-  @records.require_keys(endpoint_json, [
-    "host", "port", "connect_timeout_ms", "send_timeout_ms", "receive_timeout_ms",
-    "max_receive",
-  ])
-  let wire : WireEndpoint = @json.from_json(endpoint_json)
-  let endpoint = @transport.Endpoint::new(
-    wire.host,
-    wire.port,
-    connect_timeout_ms=wire.connect_timeout_ms.unwrap_or(5000),
-    send_timeout_ms=wire.send_timeout_ms.unwrap_or(5000),
-    receive_timeout_ms=wire.receive_timeout_ms.unwrap_or(5000),
-    max_receive=wire.max_receive.unwrap_or(65536),
-  )
+  let file_path : String? = if kind == "file" {
+    // File transport writes one numbered file per message; only the
+    // NoResponse policy is meaningful.
+    let path : String = match value {
+      Object(fields) =>
+        match fields.get("path") {
+          Some(item) => @json.from_json(item)
+          None => raise Invalid("file transport requires path")
+        }
+      _ => raise Invalid("file transport requires path")
+    }
+    guard !path.is_empty() else { raise Invalid("file path must not be empty") }
+    Some(path)
+  } else {
+    None
+  }
+  let endpoint = if kind == "file" {
+    // Placeholder; the file dialer never dials it.
+    @transport.Endpoint::new("file", 1)
+  } else {
+    guard value is { "endpoint": endpoint_json, .. } else {
+      raise Invalid("execution config requires transport and endpoint")
+    }
+    @records.require_keys(endpoint_json, [
+      "host", "port", "connect_timeout_ms", "send_timeout_ms", "receive_timeout_ms",
+      "max_receive",
+    ])
+    let wire : WireEndpoint = @json.from_json(endpoint_json)
+    @transport.Endpoint::new(
+      wire.host,
+      wire.port,
+      connect_timeout_ms=wire.connect_timeout_ms.unwrap_or(5000),
+      send_timeout_ms=wire.send_timeout_ms.unwrap_or(5000),
+      receive_timeout_ms=wire.receive_timeout_ms.unwrap_or(5000),
+      max_receive=wire.max_receive.unwrap_or(65536),
+    )
+  }
   let limit : Int = if value is { "case_limit": limit, .. } {
     @json.from_json(limit)
   } else {
@@ -107,6 +132,9 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
       guard kind != "tcp" || parsed != Datagram else {
         raise Invalid("TCP cannot use datagram policy")
       }
+      guard kind != "file" || parsed == NoResponse else {
+        raise Invalid("file transport requires none read policies")
+      }
       policies[name] = parsed
     }
   }
@@ -149,6 +177,7 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     target_command: optional_text(value, "target_command"),
     target_start_delay_ms: json_int(value, "target_start_delay_ms", 1000),
     target_stop_delay_ms: json_int(value, "target_stop_delay_ms", 500),
+    file_path,
   }
 }
 
@@ -230,6 +259,12 @@ fn optional_positive(value : Json, name : String) -> Int? raise {
       }
     _ => None
   }
+}
+
+///|
+/// Directory prefix for file transports; None for tcp/udp.
+pub fn ExecutionConfig::file_path(self : ExecutionConfig) -> String? {
+  self.file_path
 }
 
 ///|

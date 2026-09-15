@@ -32,7 +32,7 @@ pub(all) struct CaseResult {
   failed_step : Int?
 } derive(@debug.Debug)
 
-pub struct ExecutionConfig {
+pub(all) struct ExecutionConfig {
   endpoint : @transport.Endpoint
   udp : Bool
   policies : Map[String, ReadPolicy]
@@ -53,7 +53,9 @@ pub struct ExecutionConfig {
   target_command : String?
   target_start_delay_ms : Int
   target_stop_delay_ms : Int
+  file_path : String?
 }
+pub fn ExecutionConfig::file_path(Self) -> String?
 pub fn ExecutionConfig::parse(Json) -> Self raise
 pub fn ExecutionConfig::runner(Self, Array[@moon-boofuzz.SessionPath], monitor? : Monitor, limit? : Int, combinatorial? : Bool, max_depth? : Int, start? : Int, end? : Int?, sleep_between? : Int, crash_request? : Int, crash_element? : Int) -> Runner raise
 

@@ -1,6 +1,8 @@
 import {
+  "GuoXBQ-Q/moon-boofuzz" @core,
   "GuoXBQ-Q/moon-boofuzz/records",
   "GuoXBQ-Q/moon-boofuzz/runner",
+  "GuoXBQ-Q/moon-boofuzz/transport",
   "moonbitlang/core/encoding/utf8",
 }
 

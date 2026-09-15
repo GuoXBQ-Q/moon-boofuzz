@@ -186,28 +186,43 @@ fn dispatch(args : Array[String]) -> Int raise {
     (None, Some(process)) => process
     (None, None) => @runner.Monitor::new()
   }
-  let runner = match limit {
-    Some(n) =>
-      config.runner(
-        definition.paths(),
-        limit=n,
-        combinatorial?,
-        max_depth?,
-        start~,
-        end~,
-        sleep_between=sleep_ms_value.unwrap_or(0),
-        monitor~,
-      )
-    None =>
-      config.runner(
-        definition.paths(),
-        combinatorial?,
-        max_depth?,
-        start~,
-        end~,
-        sleep_between=sleep_ms_value.unwrap_or(0),
-        monitor~,
-      )
+  let runner = if config.file_path() is Some(_) {
+    // File transport: each case writes its messages as numbered files.
+    @recordio.file_runner(
+      config,
+      definition.paths(),
+      monitor~,
+      limit=limit.unwrap_or(config.limit),
+      combinatorial=combinatorial.unwrap_or(false),
+      max_depth?,
+      start~,
+      end~,
+      sleep_between=sleep_ms_value.unwrap_or(0),
+    )
+  } else {
+    match limit {
+      Some(n) =>
+        config.runner(
+          definition.paths(),
+          limit=n,
+          combinatorial?,
+          max_depth?,
+          start~,
+          end~,
+          sleep_between=sleep_ms_value.unwrap_or(0),
+          monitor~,
+        )
+      None =>
+        config.runner(
+          definition.paths(),
+          combinatorial?,
+          max_depth?,
+          start~,
+          end~,
+          sleep_between=sleep_ms_value.unwrap_or(0),
+          monitor~,
+        )
+    }
   }
   let output = opts
     .get("--output")

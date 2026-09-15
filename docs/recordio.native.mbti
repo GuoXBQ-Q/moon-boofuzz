@@ -2,13 +2,17 @@
 package "GuoXBQ-Q/moon-boofuzz/recordio"
 
 import {
+  "GuoXBQ-Q/moon-boofuzz",
   "GuoXBQ-Q/moon-boofuzz/records",
   "GuoXBQ-Q/moon-boofuzz/runner",
   "moonbitlang/core/debug",
+  "moonbitlang/core/ref",
 }
 
 // Values
 pub fn capture(@runner.Runner, Writer) -> Int raise
+
+pub fn file_runner(@runner.ExecutionConfig, Array[@moon-boofuzz.SessionPath], monitor? : @runner.Monitor, limit~ : Int, combinatorial? : Bool, max_depth? : Int, start? : Int, end? : Int?, sleep_between? : Int) -> @runner.Runner raise
 
 pub fn print_error(String) -> Unit
 
@@ -25,6 +29,14 @@ pub(all) suberror StorageError {
 } derive(@debug.Debug)
 
 // Types and methods
+pub struct FileChannel {
+  directory : String
+  prefix : String
+  counter : @ref.Ref[Int]
+  mut last_sent : Int
+}
+pub fn FileChannel::open(directory~ : String, prefix? : String, counter? : @ref.Ref[Int]) -> Self raise StorageError
+
 type FileHandle
 
 pub struct Writer {

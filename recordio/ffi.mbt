@@ -24,3 +24,11 @@ extern "c" fn write_file(file : FileHandle, bytes : Bytes, length : Int) -> Int 
 ///|
 #borrow(file)
 extern "c" fn read_file(file : FileHandle, maximum : Int) -> Bytes = "bf_file_read"
+
+///|
+#borrow(path)
+extern "c" fn make_directory(path : Bytes) -> Int = "bf_file_mkdir"
+
+///|
+#borrow(path)
+extern "c" fn create_file(path : Bytes) -> FileHandle = "bf_file_create"

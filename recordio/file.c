@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 MOONBIT_FFI_EXPORT void bf_print_error(const uint8_t *bytes, int length) {
   fwrite(bytes, 1, (size_t)length, stderr); fflush(stderr);
@@ -52,6 +53,25 @@ MOONBIT_FFI_EXPORT bf_file *bf_file_open(const char *path, int write) {
   }
   return f;
 }
+/* Create/truncate for raw byte payloads (file transport case files). */
+MOONBIT_FFI_EXPORT bf_file *bf_file_create(const char *path) {
+  bf_file *f = moonbit_make_external_object(bf_file_finalize, sizeof(bf_file));
+#ifdef _WIN32
+  int n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, NULL, 0);
+  if (!n) { f->error = EINVAL; return f; }
+  wchar_t *wide = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+  if (!wide) { f->error = ENOMEM; return f; }
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+  f->file = _wfopen(wide, L"wb");
+  free(wide);
+#else
+  f->file = fopen(path, "wb");
+#endif
+  f->error = f->file ? 0 : errno;
+  if (f->error) bf_file_finalize(f);
+  return f;
+}
+
 MOONBIT_FFI_EXPORT int bf_file_error(bf_file *f) { return f->error; }
 MOONBIT_FFI_EXPORT void bf_file_close(bf_file *f) { bf_file_finalize(f); }
 
@@ -95,5 +115,22 @@ MOONBIT_FFI_EXPORT void bf_file_remove(const char *path) {
   MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n); _wremove(wide); free(wide);
 #else
   remove(path);
+#endif
+}
+
+MOONBIT_FFI_EXPORT int bf_file_mkdir(const char *path) {
+#ifdef _WIN32
+  int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+  if (!n) return -1;
+  wchar_t *wide = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+  if (!wide) return -1;
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, n);
+  int result = CreateDirectoryW(wide, NULL) ? 0 : -1;
+  free(wide);
+  if (result != 0 && GetLastError() != ERROR_ALREADY_EXISTS) return -1;
+  return 0;
+#else
+  if (mkdir(path, 0777) != 0 && errno != EEXIST) return -1;
+  return 0;
 #endif
 }

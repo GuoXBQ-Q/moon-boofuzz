@@ -49,9 +49,10 @@
 |43|进程监视器|process/ C 桥 + ProcessMonitor，process_wbtest.mbt、monitor_wbtest.mbt|
 |44|校验和算法集（crc32c/adler32/md5/sha1）|checksum.mbt，checksums_test.mbt 参考向量|
 |45|IPv6（TCP+UDP 双栈）|transport/socket.c AF_UNSPEC，transport_wbtest.mbt、udp_wbtest.mbt|
+|46|File 传输|recordio/file_channel.mbt（bf_file_create/mkdir），file_channel_wbtest.mbt|
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio 只用 C 桥接系统调用；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 
-进程监视器与校验和算法集已落地。剩余留待后续版本：ipv4/udp 校验和的
-块引用伪首部接线、Unix/串口/原始帧/IPv6 传输、SQLite 与 Web UI、
-覆盖率引导、并行执行和调试器。
+进程监视器、校验和算法集、IPv6 与 File 传输已落地。剩余留待后续版本：
+ipv4/udp 校验和的块引用伪首部接线、Unix/串口/原始帧传输、SQLite 与
+Web UI、覆盖率引导、并行执行和调试器。
