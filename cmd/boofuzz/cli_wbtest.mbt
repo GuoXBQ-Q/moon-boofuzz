@@ -405,11 +405,13 @@ test "run with --web-port binds the UI and completes the run" {
 
 ///|
 test "run udp_server waits for the peer request before answering" {
+  println("MARK udp-server test start")
   // A probe socket picks a free port for the fuzzer's server bind.
   let probe = fixture_new()
   let free_port = fixture_udp(probe)
   assert_true(free_port > 0)
   fixture_close(probe)
+  println("MARK udp-server probe done")
   let definition : Json = {
     "schema_version": 1,
     "requests": [
@@ -433,6 +435,7 @@ test "run udp_server waits for the peer request before answering" {
   save_definition(definition_path, definition)
   let records_path = fixture_path()
   defer fixture_remove(records_path)
+  println("MARK udp-server dispatch start")
   assert_eq(
     dispatch([
       "run",
@@ -442,6 +445,7 @@ test "run udp_server waits for the peer request before answering" {
     ]),
     0,
   )
+  println("MARK udp-server dispatch done")
   // No client sends a request: each case fails in the server-mode
   // pre-receive wait, recorded like a connect-stage failure with no steps.
   let records = @recordio.read_records(@utf8.decode(records_path))

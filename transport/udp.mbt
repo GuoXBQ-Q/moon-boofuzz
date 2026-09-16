@@ -40,12 +40,14 @@ pub fn Connection::udp(endpoint : Endpoint) -> Connection raise TransportError {
 pub fn Connection::udp_server(
   endpoint : Endpoint,
 ) -> Connection raise TransportError {
+  println("MARK udp_server bind")
   let socket = socket_new()
   errdefer socket_close(socket)
   let host = @utf8.encode(endpoint.host)
   if udp_server_bind(socket, host, host.length(), endpoint.port) != 0 {
     raise ConnectFailure(socket_error(socket))
   }
+  println("MARK udp_server bound")
   {
     socket,
     endpoint,

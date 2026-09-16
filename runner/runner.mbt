@@ -301,6 +301,7 @@ fn Runner::execute(
     // receive fails like upstream's BoofuzzError
     // (udp_socket_connection.py:114-116). The request bytes are consumed
     // and not recorded as case steps.
+    println("MARK udp-server pre-receive")
     let request = channel.receive(self.receive_limit, self.receive_timeout) catch {
       error =>
         return {
@@ -313,6 +314,7 @@ fn Runner::execute(
         }
     }
     ignore(request)
+    println("MARK udp-server pre-receive done")
   }
   let received_all : Array[Bytes] = []
   let case_variables : Map[String, Bytes] = Map([])
