@@ -29,6 +29,8 @@ pub struct Connection {
   mut closed : Bool
   mut last_sent : Int
   udp : Bool
+  server : Bool
+  broadcast : Bool
 }
 pub fn Connection::close(Self) -> Unit
 pub fn Connection::last_sent_len(Self) -> Int
@@ -36,6 +38,8 @@ pub fn Connection::receive(Self, max_bytes? : Int, timeout_ms? : Int) -> Receive
 pub fn Connection::send(Self, Bytes) -> Unit raise TransportError
 pub fn Connection::tcp(Endpoint) -> Self raise TransportError
 pub fn Connection::udp(Endpoint) -> Self raise TransportError
+pub fn Connection::udp_broadcast(Endpoint) -> Self raise TransportError
+pub fn Connection::udp_server(Endpoint) -> Self raise TransportError
 
 pub struct Endpoint {
   host : String

@@ -35,6 +35,8 @@ pub(all) struct CaseResult {
 pub(all) struct ExecutionConfig {
   endpoint : @transport.Endpoint
   udp : Bool
+  udp_server : Bool
+  udp_broadcast : Bool
   policies : Map[String, ReadPolicy]
   limit : Int
   combinatorial : Bool
@@ -124,6 +126,7 @@ pub struct Runner {
   crash_threshold_request : Int
   crash_threshold_element : Int
   end_index : Int?
+  udp_server : Bool
   mut request_failures : Int
   element_failures : Map[String, Int]
   mut index : Int
@@ -131,12 +134,12 @@ pub struct Runner {
   mut state : @moon-boofuzz.EnumerationState
 }
 pub fn Runner::executed(Self) -> Int
-pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?, check_data_received? : Bool, receive_data_after_fuzz? : Bool, ignore_connection_reset? : Bool, ignore_connection_aborted? : Bool, restart_threshold? : Int, restart_timeout_ms? : Int, restart_sleep_ms? : Int, sleep_between_ms? : Int, crash_threshold_request? : Int, crash_threshold_element? : Int, start? : Int, end? : Int?) -> Self raise
+pub fn Runner::new(Array[@moon-boofuzz.SessionPath], @transport.Endpoint, udp? : Bool, udp_server? : Bool, udp_broadcast? : Bool, policies? : Map[String, ReadPolicy], limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?, check_data_received? : Bool, receive_data_after_fuzz? : Bool, ignore_connection_reset? : Bool, ignore_connection_aborted? : Bool, restart_threshold? : Int, restart_timeout_ms? : Int, restart_sleep_ms? : Int, sleep_between_ms? : Int, crash_threshold_request? : Int, crash_threshold_element? : Int, start? : Int, end? : Int?) -> Self raise
 pub fn Runner::next(Self) -> CaseResult? raise @moon-boofuzz.ModelError
 pub fn Runner::record(Self, CaseResult) -> @records.CaseRecord
 pub fn Runner::state(Self) -> @moon-boofuzz.EnumerationState
 pub fn Runner::stop(Self) -> Unit
-pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?, check_data_received? : Bool, receive_data_after_fuzz? : Bool, ignore_connection_reset? : Bool, ignore_connection_aborted? : Bool, restart_threshold? : Int, restart_timeout_ms? : Int, restart_sleep_ms? : Int, sleep_between_ms? : Int, crash_threshold_request? : Int, crash_threshold_element? : Int, start? : Int, end? : Int?) -> Self raise
+pub fn Runner::with_dialer(Array[@moon-boofuzz.SessionPath], () -> &Channel raise @transport.TransportError, policies? : Map[String, ReadPolicy], receive_limit? : Int, receive_timeout_ms? : Int, limit? : Int, monitor? : Monitor, combinatorial? : Bool, max_depth? : Int, variables? : Map[String, Bytes]?, check_data_received? : Bool, receive_data_after_fuzz? : Bool, ignore_connection_reset? : Bool, ignore_connection_aborted? : Bool, restart_threshold? : Int, restart_timeout_ms? : Int, restart_sleep_ms? : Int, sleep_between_ms? : Int, crash_threshold_request? : Int, crash_threshold_element? : Int, start? : Int, end? : Int?, udp_server? : Bool) -> Self raise
 
 pub(all) struct StepResult {
   request_name : String

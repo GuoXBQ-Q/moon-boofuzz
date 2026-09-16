@@ -70,6 +70,8 @@ pub struct Connection {
   mut closed : Bool
   mut last_sent : Int
   udp : Bool
+  server : Bool
+  broadcast : Bool
 }
 
 ///|
@@ -84,7 +86,16 @@ pub fn Connection::tcp(endpoint : Endpoint) -> Connection raise TransportError {
       endpoint.connect_timeout_ms,
       0,
     ) {
-    0 => { socket, endpoint, closed: false, last_sent: 0, udp: false, }
+    0 =>
+      {
+        socket,
+        endpoint,
+        closed: false,
+        last_sent: 0,
+        udp: false,
+        server: false,
+        broadcast: false,
+      }
     -2 => raise Timeout(Connect)
     _ => raise ConnectFailure(socket_error(socket))
   }
@@ -136,6 +147,47 @@ pub fn Connection::send(
   self.last_sent = 0
   guard !self.closed else { raise SendFailure(-1) }
   let deadline = now_ms() + self.endpoint.send_timeout_ms.to_int64()
+  if self.udp && self.server {
+    guard bytes.length() <= 65507 else { raise DatagramTooLarge }
+    for ;; {
+      self.wait_ready(Send, deadline)
+      // -3 = no peer recorded yet: upstream raises BoofuzzError
+      // "recv() must be called before send with udp fuzzing servers"
+      // (udp_socket_connection.py:114-116).
+      let n = udp_send_to_peer(self.socket, bytes, bytes.length())
+      if n == -2 {
+        continue
+      }
+      guard n >= 0 else { raise SendFailure(socket_error(self.socket)) }
+      self.last_sent = n
+      return
+    }
+  }
+  if self.udp && self.broadcast {
+    guard bytes.length() <= 65507 else { raise DatagramTooLarge }
+    for ;; {
+      self.wait_ready(Send, deadline)
+      let n = udp_send_to_address(
+        self.socket,
+        @utf8.encode(self.endpoint.host),
+        self.endpoint.host.length(),
+        self.endpoint.port,
+        bytes,
+        bytes.length(),
+      )
+      if n == -2 {
+        continue
+      }
+      guard n == bytes.length() else {
+        if n == -4 {
+          raise InvalidConfiguration("broadcast target must be an IPv4 literal")
+        }
+        raise SendFailure(socket_error(self.socket))
+      }
+      self.last_sent = n
+      return
+    }
+  }
   if self.udp {
     guard bytes.length() <= 65507 else { raise DatagramTooLarge }
     for ;; {
@@ -192,6 +244,20 @@ pub fn Connection::receive(
     raise InvalidConfiguration("invalid receive timeout override")
   }
   let deadline = now_ms() + timeout.to_int64()
+  if self.udp && (self.server || self.broadcast) {
+    // Server and broadcast sockets recvfrom() unconnected: any source is
+    // accepted and the last peer is recorded for server replies
+    // (udp_socket_connection.py:73-79).
+    for ;; {
+      self.wait_ready(Receive, deadline)
+      let n = udp_receive_from(self.socket, buffer, limit)
+      if n == -2 {
+        continue
+      }
+      guard n >= 0 else { raise ReceiveFailure(socket_error(self.socket)) }
+      return Data(Bytes::makei(n, i => buffer[i]))
+    }
+  }
   for ;; {
     self.wait_ready(Receive, deadline)
     let n = socket_receive(self.socket, buffer, limit)

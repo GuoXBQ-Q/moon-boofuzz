@@ -35,6 +35,8 @@ test "file channel runs through the runner with none policies" {
   let config : @runner.ExecutionConfig = {
     endpoint: @transport.Endpoint::new("file", 1),
     udp: false,
+    udp_server: false,
+    udp_broadcast: false,
     policies: Map([]),
     limit: 10,
     combinatorial: false,

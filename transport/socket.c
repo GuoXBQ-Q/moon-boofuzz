@@ -38,7 +38,7 @@ typedef int bf_fd;
 #include <stdio.h>
 #include <string.h>
 
-typedef struct { bf_fd fd; int error; int started; int udp; } bf_socket;
+typedef struct { bf_fd fd; int error; int started; int udp; int have_peer; struct sockaddr_in peer; } bf_socket;
 
 static void bf_reset(void *ptr) {
   bf_socket *s = ptr;
@@ -55,7 +55,7 @@ static void bf_finalize(void *ptr) {
 
 MOONBIT_FFI_EXPORT bf_socket *bf_new(void) {
   bf_socket *s = moonbit_make_external_object(bf_finalize, sizeof(bf_socket));
-  s->fd = BF_INVALID; s->error = 0; s->started = 0; s->udp = 0;
+  s->fd = BF_INVALID; s->error = 0; s->started = 0; s->udp = 0; s->have_peer = 0; memset(&s->peer, 0, sizeof(s->peer));
 #ifdef _WIN32
   /* The matching cleanup is per object so no process-global refcount leaks. */
   WSADATA data;
@@ -312,4 +312,113 @@ bf_sleep(int ms) {
   ts.tv_nsec = (long)(ms % 1000) * 1000000L;
   nanosleep(&ts, NULL);
 #endif
+}
+
+/* ---- UDP server mode and broadcast (udp_socket_connection.py:36-133) ---- */
+
+static int bf_parse_ipv4(const char *text, struct sockaddr_in *address) {
+  memset(address, 0, sizeof(*address));
+  address->sin_family = AF_INET;
+#ifdef _WIN32
+  address->sin_addr.s_addr = inet_addr(text);
+  return address->sin_addr.s_addr != INADDR_NONE;
+#else
+  return inet_pton(AF_INET, text, &address->sin_addr) == 1;
+#endif
+}
+
+/* Bind a UDP socket to host:port with SO_REUSEADDR, the server-mode
+ * open() of udp_socket_connection.py:59-64. 0 = ok. */
+MOONBIT_FFI_EXPORT int bf_udp_server(bf_socket *s, const uint8_t *host, int host_length, int port) {
+  if (s->error) return -1;
+  char *name = malloc((size_t)host_length + 1);
+  if (name == NULL) { s->error = -1; return -1; }
+  memcpy(name, host, (size_t)host_length); name[host_length] = 0;
+  s->udp = 1;
+  s->fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (s->fd == BF_INVALID) { s->error = bf_errno(); free(name); return -1; }
+  struct sockaddr_in address;
+  if (!bf_parse_ipv4(name, &address)) { free(name); s->error = -1; bf_close_fd(s->fd); s->fd = BF_INVALID; return -1; }
+  free(name);
+  address.sin_port = htons((uint16_t)port);
+#ifdef _WIN32
+  int reuse = 1;
+#else
+  int reuse = 1;
+#endif
+  setsockopt(s->fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse));
+  if (bind(s->fd, (struct sockaddr *)&address, sizeof(address)) != 0 || bf_nonblock(s->fd) != 0) {
+    s->error = bf_errno(); bf_close_fd(s->fd); s->fd = BF_INVALID; return -1;
+  }
+  return 0;
+}
+
+/* Create the broadcast-mode datagram socket: SO_BROADCAST on an
+ * unconnected socket (udp_socket_connection.py:52, :65-67). 0 = ok. */
+MOONBIT_FFI_EXPORT int bf_udp_broadcast_enable(bf_socket *s) {
+  if (s->error) return -1;
+  s->udp = 1;
+  s->fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (s->fd == BF_INVALID) { s->error = bf_errno(); return -1; }
+  int enable = 1;
+  if (setsockopt(s->fd, SOL_SOCKET, SO_BROADCAST, (const char *)&enable, sizeof(enable)) != 0 ||
+      bf_nonblock(s->fd) != 0) {
+    s->error = bf_errno(); bf_close_fd(s->fd); s->fd = BF_INVALID; return -1;
+  }
+  return 0;
+}
+
+/* recvfrom() that records the last peer, udp_socket_connection.py:70-100.
+ * >0/0 = datagram length, -2 = would block, -1 = error. */
+MOONBIT_FFI_EXPORT int bf_udp_recvfrom(bf_socket *s, uint8_t *data, int length) {
+  struct sockaddr_in source;
+#ifdef _WIN32
+  int size = sizeof(source);
+#else
+  socklen_t size = sizeof(source);
+#endif
+  int n = (int)recvfrom(s->fd, (char *)data, length, 0, (struct sockaddr *)&source, &size);
+  if (n >= 0) {
+    s->peer = source;
+    s->have_peer = 1;
+    return n;
+  }
+  int err = bf_errno();
+  if (err == BF_AGAIN || err == BF_INTR || err == BF_PROGRESS) return -2;
+  s->error = err;
+  return -1;
+}
+
+/* sendto() to the last recorded peer; send() of server mode
+ * (udp_socket_connection.py:113-117). -3 = no peer recorded yet. */
+MOONBIT_FFI_EXPORT int bf_udp_send_peer(bf_socket *s, const uint8_t *data, int length) {
+  if (!s->have_peer) return -3;
+  int n = (int)sendto(s->fd, (const char *)data, length, 0, (struct sockaddr *)&s->peer, sizeof(s->peer));
+  if (n < 0) {
+    int err = bf_errno();
+    if (err == BF_AGAIN || err == BF_INTR || err == BF_PROGRESS) return -2;
+    s->error = err;
+    return -1;
+  }
+  return n;
+}
+
+/* Unconnected sendto() to any address — the broadcast send path
+ * (udp_socket_connection.py:118-121). -4 = bad IPv4 literal. */
+MOONBIT_FFI_EXPORT int bf_udp_send_address(bf_socket *s, const uint8_t *host, int host_length, int port, const uint8_t *data, int length) {
+  char *name = malloc((size_t)host_length + 1);
+  if (name == NULL) { s->error = -1; return -1; }
+  memcpy(name, host, (size_t)host_length); name[host_length] = 0;
+  struct sockaddr_in address;
+  if (!bf_parse_ipv4(name, &address)) { free(name); return -4; }
+  free(name);
+  address.sin_port = htons((uint16_t)port);
+  int n = (int)sendto(s->fd, (const char *)data, length, 0, (struct sockaddr *)&address, sizeof(address));
+  if (n < 0) {
+    int err = bf_errno();
+    if (err == BF_AGAIN || err == BF_INTR || err == BF_PROGRESS) return -2;
+    s->error = err;
+    return -1;
+  }
+  return n;
 }

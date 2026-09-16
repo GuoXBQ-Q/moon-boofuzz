@@ -54,9 +54,12 @@
 |48|SQLite 结果库（run --db）|db/（vendor SQLite 3.45.3 + C 桥 + DbLogger/DbReader），db_test.mbt、oracle_fixture_test.mbt|
 |49|keep-only-n 节流 --record-passes|db/logger.mbt num_log_cases、recordio/throttle.mbt ThrottledWriter，throttle_wbtest.mbt、cli_wbtest.mbt|
 |50|Web UI 与 open 子命令|web/（http.c 回环桥 + 路由 + 页面渲染），web_wbtest.mbt、cli_wbtest.mbt|
+|51|UDP server 模式|transport udp_server（bf_udp_server/recvfrom/send_peer），udp_wbtest.mbt、cli_wbtest.mbt|
+|52|UDP 广播|transport udp_broadcast（SO_BROADCAST + bf_udp_send_address），udp_wbtest.mbt|
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio/db/web 只用 C 桥接系统调用与内嵌 SQLite；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 
 进程监视器、校验和算法集、IPv6 与 File 传输、CSV 导出、SQLite 结果库、
---record-passes 节流与 Web UI/open 子命令已落地。剩余工作与进度跟踪见
-[PLAN.md](PLAN.md)：Unix/串口/原始帧传输，以及收尾核对。
+--record-passes 节流、Web UI/open 子命令以及 UDP server/广播模式已落地。
+Unix/Serial/Raw 传输经平台评估列为永久边界（见 PLAN.md）。收尾核对见
+[PLAN.md](PLAN.md)。

@@ -12,6 +12,8 @@ priv struct WireEndpoint {
 pub(all) struct ExecutionConfig {
   endpoint : @transport.Endpoint
   udp : Bool
+  udp_server : Bool
+  udp_broadcast : Bool
   policies : Map[String, ReadPolicy]
   limit : Int
   combinatorial : Bool
@@ -40,7 +42,8 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     "variables", "check_data_received", "receive_data_after_fuzz", "sleep_between_ms",
     "crash_threshold_request", "crash_threshold_element", "ignore_connection_reset",
     "target_command", "target_start_delay_ms", "target_stop_delay_ms", "path", "ignore_connection_aborted",
-    "restart_threshold", "restart_timeout_ms", "restart_sleep_ms",
+    "restart_threshold", "restart_timeout_ms", "restart_sleep_ms", "udp_server",
+    "udp_broadcast",
   ])
   guard value is { "transport": String(kind), .. } else {
     raise Invalid("execution config requires transport and endpoint")
@@ -156,9 +159,21 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
       variables[name] = @records.hex_decode(text)
     }
   }
+  // Server/broadcast modes are UDP-only and mutually exclusive
+  // (udp_socket_connection.py:36-45).
+  let raw_server = boolean_json(value, "udp_server")
+  let raw_broadcast = boolean_json(value, "udp_broadcast")
+  guard kind == "udp" || (!raw_server && !raw_broadcast) else {
+    raise Invalid("udp_server/udp_broadcast require the udp transport")
+  }
+  guard !raw_server || !raw_broadcast else {
+    raise Invalid("udp_server and udp_broadcast are mutually exclusive")
+  }
   {
     endpoint,
     udp: kind == "udp",
+    udp_server: raw_server,
+    udp_broadcast: raw_broadcast,
     policies,
     limit,
     combinatorial,
@@ -306,6 +321,8 @@ pub fn ExecutionConfig::runner(
     paths,
     self.endpoint,
     udp=self.udp,
+    udp_server=self.udp_server,
+    udp_broadcast=self.udp_broadcast,
     policies=self.policies,
     limit=limit.unwrap_or(self.limit),
     monitor~,

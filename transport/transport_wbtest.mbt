@@ -23,6 +23,8 @@ test "TCP loopback bounded partial reads full send timeout EOF and repeated clos
     closed: false,
     last_sent: 0,
     udp: false,
+    server: false,
+    broadcast: false,
   }
   defer peer.close()
   assert_eq(accept_local(listener, peer_socket), 0)
@@ -132,6 +134,8 @@ test "TCP IPv6 loopback connects and exchanges bytes" {
     closed: false,
     last_sent: 0,
     udp: false,
+    server: false,
+    broadcast: false,
   }
   defer peer.close()
   assert_eq(accept_local(listener, peer_socket), 0)

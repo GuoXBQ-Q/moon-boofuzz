@@ -52,6 +52,46 @@ extern "c" fn socket_receive(
 extern "c" fn bf_sleep(ms : Int) -> Unit = "bf_sleep"
 
 ///|
+#borrow(socket, host)
+extern "c" fn udp_server_bind(
+  socket : Socket,
+  host : Bytes,
+  host_length : Int,
+  port : Int,
+) -> Int = "bf_udp_server"
+
+///|
+#borrow(socket)
+extern "c" fn udp_broadcast_enable(socket : Socket) -> Int = "bf_udp_broadcast_enable"
+
+///|
+#borrow(socket, bytes)
+extern "c" fn udp_receive_from(
+  socket : Socket,
+  bytes : FixedArray[Byte],
+  length : Int,
+) -> Int = "bf_udp_recvfrom"
+
+///|
+#borrow(socket, bytes)
+extern "c" fn udp_send_to_peer(
+  socket : Socket,
+  bytes : Bytes,
+  length : Int,
+) -> Int = "bf_udp_send_peer"
+
+///|
+#borrow(socket, host, bytes)
+extern "c" fn udp_send_to_address(
+  socket : Socket,
+  host : Bytes,
+  host_length : Int,
+  port : Int,
+  bytes : Bytes,
+  length : Int,
+) -> Int = "bf_udp_send_address"
+
+///|
 pub fn sleep_ms(ms : Int) -> Unit {
   bf_sleep(ms)
 }

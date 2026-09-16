@@ -35,6 +35,7 @@
 | SQLite 结果库 | fuzz_logger_db.py | 表结构/写入队列/keep-only-n/512 截断/Reader 逐条对齐；vendor SQLite 3.45.3（公有领域）；见 DB.md |
 | --record-passes 节流 | fuzz_logger_db.py num_log_cases（CLI record_passes） | SQLite 侧 num_log_cases + JSONL 侧 ThrottledWriter 等价实现；见 DB.md |
 | Web UI 与 open | web/app.py、sessions/web_app.py、session_info.py、helpers.py 日志模板 | 回环 HTTP 服务、上游路由/JSON/日志行渲染/端口+1/暂停联动；open 支持 SQLite 与 JSONL；见 WEB.md |
+| UDP server 模式与广播 | connections/udp_socket_connection.py server/broadcast 路径 | bind+recvfrom 记录对端+sendto 回发、SO_BROADCAST 非连接发送；Runner 预接收适配；见 UDP.md |
 
 ## 1. Simple / Group
 

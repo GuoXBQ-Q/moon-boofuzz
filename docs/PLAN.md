@@ -79,16 +79,19 @@
 
 ### 阶段 5c：传输长尾（规模：中-大，可按项独立交付）
 
-- [ ] Unix socket（AF_UNIX 路径连接；Windows AF_UNIX 可用性需评估，
-  errno 处理同 TCP）
-- [ ] UDP 广播（SO_BROADCAST + sendto 路径——当前 connected-socket
-  架构需要扩展非连接发送）
-- [ ] UDP server 模式（recvfrom 记录对端 + 回发，对齐
-  udp_socket_connection.py:67-133）
-- [ ] Serial（Win32 COM / termios；`message_separator_time`、
-  `content_checker`、leftover bytes，对齐 serial_connection*.py）
-- [ ] Raw L2/L3（Linux AF_PACKET；确认 moon.pkg 平台约束能力）
-- [ ] 每项独立提交：C 桥 + wbtest + docs + ROADMAP 行
+- [x] UDP server 模式（bind + recvfrom 记录对端 + sendto 回发，对齐
+  udp_socket_connection.py:36-133；Runner 每例先预接收等待目标请求，
+  超时记 receive_timeout）
+- [x] UDP 广播（SO_BROADCAST + 非连接 sendto；JSON
+  `"udp_broadcast": true`）
+- [ ] Unix socket——**评估结论：不移植**。Windows 端 llvm-mingw 的
+  winsock2 头未声明 AF_UNIX（AFIX 路径仅在部分 SDK/Win10+ 可用且仅限
+  客户端语义），双平台 CI 无法统一构建与测试；与 pedrpc 同列永久边界
+- [ ] Serial——**评估结论：不移植**。pyserial 路径需要 termios /
+  Win32 COM 两套底层 + message_separator_time / content_checker 状态机
+  与硬件相关的行为，无法离线确定性测试；见"永久边界"
+- [ ] Raw L2/L3——**评估结论：不移植**。AF_PACKET 为 Linux 专有，
+  moon.pkg 无按 OS 的目标门控，纳入将破坏 Windows 构建；见"永久边界"
 
 ### 阶段 7：收尾（规模：中）
 
@@ -105,7 +108,10 @@
 pedrpc RPC 框架（监视器走进程内 Monitor）、pydbg 调试器与
 crash_binning、curses TUI（上游也不支持 Windows）、vmcontrol、
 scada/DNP3、NETCONF、TLS、pgraph 图渲染（GML/Graphviz）、Python `s_*`
-DSL（JSON/MoonBit API 为一等接口）、协议模板全集（legos）。
+DSL（JSON/MoonBit API 为一等接口）、协议模板全集（legos）、Unix 域
+socket（Windows 工具链无 AF_UNIX 头，双平台 CI 无法统一）、Serial 串口
+（termios/Win32 COM 硬件相关，无法离线确定性测试）、Raw L2/L3
+（AF_PACKET 仅 Linux，moon.pkg 无按 OS 门控）。
 
 ## 已知行为差异（有意保留，均有文档）
 

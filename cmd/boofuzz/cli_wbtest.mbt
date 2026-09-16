@@ -399,3 +399,53 @@ test "run with --web-port binds the UI and completes the run" {
     2,
   )
 }
+
+///|
+test "run udp_server waits for the peer request before answering" {
+  // A probe socket picks a free port for the fuzzer's server bind.
+  let probe = fixture_new()
+  let free_port = fixture_udp(probe)
+  assert_true(free_port > 0)
+  fixture_close(probe)
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "reply",
+        "children": [
+          { "type": "simple", "name": "data", "values_hex": ["6f6b", "6c6f"] },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "udp",
+      "endpoint": { "host": "127.0.0.1", "port": free_port },
+      "udp_server": true,
+      "policies": {},
+      "case_limit": 2,
+    },
+  }
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  save_definition(definition_path, definition)
+  let records_path = fixture_path()
+  defer fixture_remove(records_path)
+  assert_eq(
+    dispatch([
+      "run",
+      @utf8.decode(definition_path),
+      "--output",
+      @utf8.decode(records_path),
+    ]),
+    0,
+  )
+  // No client sends a request: each case fails in the server-mode
+  // pre-receive wait, recorded like a connect-stage failure with no steps.
+  let records = @recordio.read_records(@utf8.decode(records_path))
+  assert_eq(records.records.length(), 2)
+  for record in records.records {
+    assert_eq(record.outcome, "receive_timeout")
+    assert_eq(record.failed_step, Some(-1))
+    assert_eq(record.steps.length(), 0)
+  }
+}

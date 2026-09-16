@@ -58,6 +58,7 @@ pub struct Runner {
   crash_threshold_request : Int
   crash_threshold_element : Int
   end_index : Int?
+  udp_server : Bool
   mut request_failures : Int
   element_failures : Map[String, Int]
   mut index : Int
@@ -89,6 +90,7 @@ pub fn Runner::with_dialer(
   crash_threshold_element? : Int = 3,
   start? : Int = 0,
   end? : Int? = None,
+  udp_server? : Bool = false,
 ) -> Runner raise {
   guard limit >= 0 &&
     receive_limit > 0 &&
@@ -153,6 +155,7 @@ pub fn Runner::with_dialer(
     request_failures: 0,
     element_failures: Map([]),
     end_index: end,
+    udp_server,
   }
 }
 
@@ -161,6 +164,8 @@ pub fn Runner::new(
   paths : Array[@core.SessionPath],
   endpoint : @transport.Endpoint,
   udp? : Bool = false,
+  udp_server? : Bool = false,
+  udp_broadcast? : Bool = false,
   policies? : Map[String, ReadPolicy] = Map([]),
   limit? : Int = 10000,
   monitor? : Monitor = Monitor::new(),
@@ -189,7 +194,11 @@ pub fn Runner::new(
     }
   }
   let dial = fn() -> &Channel raise @transport.TransportError {
-    if udp {
+    if udp_server {
+      @transport.Connection::udp_server(endpoint)
+    } else if udp_broadcast {
+      @transport.Connection::udp_broadcast(endpoint)
+    } else if udp {
       @transport.Connection::udp(endpoint)
     } else {
       @transport.Connection::tcp(endpoint)
@@ -217,11 +226,20 @@ pub fn Runner::new(
     crash_threshold_element~,
     start~,
     end~,
+    udp_server~,
     receive_limit=endpoint.receive_limit(),
     receive_timeout_ms=endpoint.receive_timeout(),
   )
   let config_map : Map[String, Json] = Map([])
-  config_map["transport"] = if udp { "udp" } else { "tcp" }
+  config_map["transport"] = if udp_server {
+    "udp-server"
+  } else if udp_broadcast {
+    "udp-broadcast"
+  } else if udp {
+    "udp"
+  } else {
+    "tcp"
+  }
   config_map["endpoint"] = ToJson::to_json(endpoint)
   config_map["policies"] = policy_config(policies)
   config_map["case_limit"] = limit.to_json()
@@ -277,6 +295,25 @@ fn Runner::execute(
   }
   defer channel.close()
   defer channel.close()
+  if self.udp_server {
+    // Server-mode fuzzing answers a peer request with the mutated
+    // payload: wait for the request datagram first — send before any
+    // receive fails like upstream's BoofuzzError
+    // (udp_socket_connection.py:114-116). The request bytes are consumed
+    // and not recorded as case steps.
+    let request = channel.receive(self.receive_limit, self.receive_timeout) catch {
+      error =>
+        return {
+          id,
+          case,
+          path: names,
+          steps,
+          outcome: transport_outcome(error),
+          failed_step: Some(-1),
+        }
+    }
+    ignore(request)
+  }
   let received_all : Array[Bytes] = []
   let case_variables : Map[String, Bytes] = Map([])
   for name, value in self.variables {
