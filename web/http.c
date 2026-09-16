@@ -45,6 +45,21 @@ typedef struct {
   int started;
 } bf_http;
 
+/* Process-global WinSock init, shared with the rationale in socket.c. */
+static int g_bf_web_wsa_ready = 0;
+static void bf_web_wsa_init(int *error_slot) {
+#ifdef _WIN32
+  if (!g_bf_web_wsa_ready) {
+    WSADATA data;
+    int rc = WSAStartup(MAKEWORD(2, 2), &data);
+    if (rc == 0) { g_bf_web_wsa_ready = 1; }
+    else if (*error_slot == 0) { *error_slot = rc; }
+  }
+#else
+  (void)error_slot;
+#endif
+}
+
 static int bf_web_errno(void) {
 #ifdef _WIN32
   return WSAGetLastError();
@@ -63,7 +78,6 @@ static void bf_web_shutdown_fd(bf_http *s) {
     s->fd = -1;
   }
 #ifdef _WIN32
-  if (s->started) { WSACleanup(); s->started = 0; }
 #endif
 }
 
@@ -74,12 +88,7 @@ MOONBIT_FFI_EXPORT bf_http *bf_web_new(void) {
   s->fd = -1;
   s->error = 0;
   s->started = 0;
-#ifdef _WIN32
-  /* The matching cleanup is per object so no process-global refcount leaks. */
-  WSADATA data;
-  s->error = WSAStartup(MAKEWORD(2, 2), &data);
-  s->started = s->error == 0;
-#endif
+  bf_web_wsa_init(&s->error);
   return s;
 }
 

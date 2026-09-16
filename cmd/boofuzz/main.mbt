@@ -256,9 +256,7 @@ fn dispatch(args : Array[String]) -> Int raise {
   // mirroring upstream server_init before fuzz().
   let webui : @web.WebUi? = match web_port {
     Some(port) => {
-      println("MARK creating web ui")
       let ui = @web.WebUi::open(port~, limit=limit.unwrap_or(config.limit))
-      println("MARK web ui bound")
       println("Web interface can be found at http://localhost:\{ui.port()}")
       Some(ui)
     }

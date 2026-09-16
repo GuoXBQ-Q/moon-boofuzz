@@ -40,6 +40,23 @@ typedef int bf_fd;
 
 typedef struct { bf_fd fd; int error; int started; int udp; int have_peer; struct sockaddr_in peer; } bf_socket;
 
+/* WinSock is initialized once per process and never cleaned up: with
+ * parallel tests, finalizers on one thread must never tear down WinSock
+ * while another thread is using it (WSACleanup is process-global). */
+static int g_bf_wsa_ready = 0;
+static void bf_wsa_init(int *error_slot) {
+#ifdef _WIN32
+  if (!g_bf_wsa_ready) {
+    WSADATA data;
+    int rc = WSAStartup(MAKEWORD(2, 2), &data);
+    if (rc == 0) { g_bf_wsa_ready = 1; }
+    else if (*error_slot == 0) { *error_slot = rc; }
+  }
+#else
+  (void)error_slot;
+#endif
+}
+
 static void bf_reset(void *ptr) {
   bf_socket *s = ptr;
   if (s->fd != BF_INVALID) { bf_close_fd(s->fd); s->fd = BF_INVALID; }
@@ -48,20 +65,12 @@ static void bf_reset(void *ptr) {
 static void bf_finalize(void *ptr) {
   bf_socket *s = ptr;
   bf_reset(s);
-#ifdef _WIN32
-  if (s->started) { WSACleanup(); s->started = 0; }
-#endif
 }
 
 MOONBIT_FFI_EXPORT bf_socket *bf_new(void) {
   bf_socket *s = moonbit_make_external_object(bf_finalize, sizeof(bf_socket));
   s->fd = BF_INVALID; s->error = 0; s->started = 0; s->udp = 0; s->have_peer = 0; memset(&s->peer, 0, sizeof(s->peer));
-#ifdef _WIN32
-  /* The matching cleanup is per object so no process-global refcount leaks. */
-  WSADATA data;
-  s->error = WSAStartup(MAKEWORD(2, 2), &data);
-  s->started = s->error == 0;
-#endif
+  bf_wsa_init(&s->error);
   return s;
 }
 
