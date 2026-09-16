@@ -25,7 +25,7 @@
 | 5b-2 | File 传输 | ✅ 完成 | 074fcf7 |
 | 6a | CSV 导出（--csv-out） | ✅ 完成 | d3e479a |
 | 6b | SQLite 层 | ✅ 完成 | b7c9d94 |
-| 6c | Web UI + open 子命令 | ⬜ 未开始 | — |
+| 6c | Web UI + open 子命令 | ✅ 完成 | e455043 |
 | 6d | --record-passes 写入节流 | ✅ 完成 | b7c9d94 |
 | 5c | 传输长尾（Unix/Serial/Raw L2/L3/UDP 广播与 server） | ⬜ 未开始 | — |
 | 7 | 收尾 | ⬜ 未开始 | — |
@@ -51,19 +51,22 @@
 - [x] 测试：临时库往返、失败映射、512 截断 + 上游真实产物
   fixtures/db/oracle-run.db 读取差分
 
-### 阶段 6c：Web UI + open 子命令（规模：大）
+### 阶段 6c：Web UI + open 子命令（规模：大）✅ 完成
 
-- [ ] 基于 transport socket C 层手写最小 HTTP/1.1 服务（无新依赖）：
-  listen/accept/解析 GET/返回静态文本
-- [ ] 路由对齐上游 web/app.py：`/`（进度条 + 崩溃列表）、
+- [x] 手写最小 HTTP/1.1 服务（web/http.c，socket.c 模板，无新依赖）：
+  listen/accept/解析 GET/返回文本
+- [x] 路由对齐上游 web/app.py：`/`（进度条 + 崩溃列表）、
   `/test-case/<id>`、`/api/current-run`、`/api/test-case/<index>`、
-  `/togglepause`
-- [ ] pause 原子标志与 Runner::next 联动（每例前检查）
-- [ ] 端口占用自动 +1（对齐上游行为）
-- [ ] `moon-boofuzz open FILE`：离线打开结果库/JSONL 起本地查看服务
+  `/api/current-test-case`、`/togglepause`
+- [x] pause 标志与用例循环联动（每例前 WebUi::gate 服务请求并在暂停期
+  保持服务）
+- [x] 端口占用自动 +1（session.py build_webapp_thread 语义）
+- [x] `moon-boofuzz open FILE`：离线打开结果库/JSONL 起本地查看服务
   （等价 `boofuzz open`，session_info.py 只读视图）
-- [ ] 页面为轻量手写 HTML/JS（对应 Flask 模板的最小子集）
-- [ ] 测试：socket 层 HTTP 回环 wbtest（请求 /api/current-run 断言 JSON）
+- [x] 页面为轻量手写 HTML/CSS/JS（对应 Flask 模板的最小子集，内联）
+- [x] 测试：socket 层 HTTP 回环 wbtest（/api/current-run 断言 JSON、
+  302、404、端口 +1、OfflineSession 双后端、LiveSession observe/gate）、
+  CLI `run --web-port` 端到端
 
 ### 阶段 6d：--record-passes N（规模：小）✅ 完成
 
