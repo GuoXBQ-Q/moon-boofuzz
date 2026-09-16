@@ -16,3 +16,6 @@ import {
 supported_targets = "native"
 
 pkgtype(kind: "executable")
+
+// The empty options() is the injection anchor for scripts/asan.mbtx ASan flags.
+options()
