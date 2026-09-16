@@ -4,3 +4,6 @@ target/
 target
 .mooncakes/
 .moonagent/
+# packaging excludes: dev tooling and historical samples
+boofuzz-results/
+/scripts/*.mbtx

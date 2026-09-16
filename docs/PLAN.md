@@ -110,8 +110,10 @@ ASan 零报告。
 - [ ] 推送后确认 GitHub Actions 双平台（Windows MSVC / Linux）+ Wasm 与
   Native 全绿——待维护者执行 `git push` 后在 Actions 页面核对
 - [x] `moon package --list` 审查源码包内容：源码/测试/LICENSE/文档/
-  fixtures 齐全；scripts/*.mbtx（开发工具，依赖 moonbitlang/async）与
-  boofuzz-results 历史 .db 样本为既有打包内容，是否剔除由维护者决定
+  fixtures 齐全；`boofuzz-results` 历史 .db 样本已从仓库删除（无引用，
+  读取差分夹具由 `fixtures/db/oracle-run.db` 承担）；`scripts/*.mbtx`
+  开发工具保留在仓库但经 `.gitignore` 排除出源码包（moon 打包遵循
+  .gitignore）
 
 ## 永久边界（文档化，不移植）
 
