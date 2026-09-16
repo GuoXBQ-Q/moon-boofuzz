@@ -24,9 +24,9 @@
 | 5b-1 | IPv6 双栈传输 | ✅ 完成 | 9212c6d |
 | 5b-2 | File 传输 | ✅ 完成 | 074fcf7 |
 | 6a | CSV 导出（--csv-out） | ✅ 完成 | d3e479a |
-| 6b | SQLite 层 | ✅ 完成 | 见 6b/6d 提交 |
+| 6b | SQLite 层 | ✅ 完成 | b7c9d94 |
 | 6c | Web UI + open 子命令 | ⬜ 未开始 | — |
-| 6d | --record-passes 写入节流 | ✅ 完成 | 见 6b/6d 提交 |
+| 6d | --record-passes 写入节流 | ✅ 完成 | b7c9d94 |
 | 5c | 传输长尾（Unix/Serial/Raw L2/L3/UDP 广播与 server） | ⬜ 未开始 | — |
 | 7 | 收尾 | ⬜ 未开始 | — |
 
