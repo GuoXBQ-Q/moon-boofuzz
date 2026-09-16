@@ -19,3 +19,7 @@ length before allocation. The limit is adjustable when compiling the request.
 
 `fixtures/binary.json` covers empty, zero, non-UTF8, fixed length and zero size;
 regenerate `binary_fixture_test.mbt` with `scripts/fixtures.mbtx`.
+
+Source: `boofuzz/primitives/bytes.py` at the fixed revision (GPL-2.0-only);
+候选序列、长字符串替换与 padding 语义对齐该文件;fixtures 与差分脚本为
+本项目适配。

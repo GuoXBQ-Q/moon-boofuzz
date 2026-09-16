@@ -1,9 +1,9 @@
-# boofuzz 移植补齐计划（进行中）
+# boofuzz 移植补齐计划（已完成）
 
 目标：把 moon-boofuzz 从"明确功能子集"补齐到对 boofuzz 0.4.2
 （基线 `518c13904fc32e7f2cc88c9dec934e509062953e`）的更完整移植。
 本文档跟踪八阶段计划的进度；已完成项见 `ROADMAP.md` 功能清单
-（第 1–46 行）与 git 历史。
+（第 1–52 行）与 git 历史。
 
 纪律（贯穿所有阶段）：完全对齐上游行为（含 quirk，附上游 `文件:行号`
 引用）；差分测试用 `scripts/oracle.mbtx` 以 Python 为开发 oracle；
@@ -27,10 +27,11 @@
 | 6b | SQLite 层 | ✅ 完成 | b7c9d94 |
 | 6c | Web UI + open 子命令 | ✅ 完成 | e455043 |
 | 6d | --record-passes 写入节流 | ✅ 完成 | b7c9d94 |
-| 5c | 传输长尾（Unix/Serial/Raw L2/L3/UDP 广播与 server） | ⬜ 未开始 | — |
-| 7 | 收尾 | ⬜ 未开始 | — |
+| 5c | 传输长尾（UDP server/广播完成；Unix/Serial/Raw 评估为永久边界） | ✅ 完成 | 017cd0e |
+| 7 | 收尾（来源表/README/ACCEPTANCE/ASan/包审查；推送核对待维护者） | ✅ 基本完成 | 本次提交 |
 
-当前验证基线：Wasm 99 / Native 150 测试全绿，`verify.mbtx` 通过。
+当前验证基线：Wasm 99 / Native 160 测试全绿，`verify.mbtx` 通过，
+ASan 零报告。
 
 ## 剩余工作明细
 
@@ -95,13 +96,22 @@
 
 ### 阶段 7：收尾（规模：中）
 
-- [ ] `UPSTREAM.md` 来源表终核（对照全部 docs/ 的 Source 段）
-- [ ] `README.md` 边界节重写（已补齐的能力移出"首版不包含"清单）
-- [ ] `ACCEPTANCE.md` 表述与功能提交数对齐（ROADMAP 1–N 行）
-- [ ] ASan：`scripts/asan.mbtx` 跑 process/ 与 db/（gcc/clang 环境）
+- [x] `UPSTREAM.md` 来源表终核（对照全部 docs/ 的 Source 段）：DB/WEB/
+  UDP server-broadcast/CSV/节流均有表行；BINARY/TEXT 补正式 Source 段；
+  RECORDS.md 增补 CSV 与结果库说明并移除过时的"无 SQLite 依赖"表述
+- [x] `README.md` 边界节重写（已补齐能力移出"不包含"清单；仍不含
+  DSL/TLS/串口/Unix socket/Raw/多播等），CLI 表补 `--db`/
+  `--record-passes`/`--web-port`/`open`
+- [x] `ACCEPTANCE.md` 表述与功能提交数对齐（ROADMAP 第 1–52 行），ASan
+  范围与各阶段测试描述更新
+- [x] ASan：`scripts/asan.mbtx` 覆盖 transport/recordio/process/db/
+  cmd（llvm-mingw 实测零 AddressSanitizer 报告；注入先行修复依赖方
+  测试可执行文件的链接）
 - [ ] 推送后确认 GitHub Actions 双平台（Windows MSVC / Linux）+ Wasm 与
-  Native 全绿
-- [ ] `moon package --list` 审查源码包内容
+  Native 全绿——待维护者执行 `git push` 后在 Actions 页面核对
+- [x] `moon package --list` 审查源码包内容：源码/测试/LICENSE/文档/
+  fixtures 齐全；scripts/*.mbtx（开发工具，依赖 moonbitlang/async）与
+  boofuzz-results 历史 .db 样本为既有打包内容，是否剔除由维护者决定
 
 ## 永久边界（文档化，不移植）
 
@@ -117,7 +127,9 @@ socket（Windows 工具链无 AF_UNIX 头，双平台 CI 无法统一）、Seria
 
 - `num_mutations` 对禁用字段计 0（上游可能仍计数）——UPSTREAM.md
 - 条件隐藏块发射空载荷用例后已对齐上游；ordinal 无空洞
-- UDP 载荷超限拒绝而非截断（5c 若做 server 模式可一并复核）
+- UDP 载荷超限拒绝而非截断——UDP.md
+- Web UI 默认关闭（`run --web-port` 显式启用），上游默认 26000 常开；
+  服务在用例间隙而非独立线程——WEB.md
 - RandomData 的计数怪癖（fuzz_values 计入随机条数）未复现——PRIMITIVES.md
 - Float `num_mutations` 等于实际产出数（上游虚报 max_mutations）
 - 上游 Repeat(variable=) docstring 声称禁用 fuzzing 但实现未禁用，本移植

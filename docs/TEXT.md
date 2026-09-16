@@ -24,3 +24,7 @@ The ASCII subset matches upstream; non-ASCII delimiters use UTF-8 explicitly
 repeated byte sequences are expressed compactly with `.repeat`, not hashes.
 The fixture set compares empty, ASCII and multibyte String defaults, plus
 space/colon/empty Delim defaults, including complete candidate counts/order.
+
+Source: `boofuzz/primitives/string.py`、`boofuzz/primitives/delim.py` at
+the fixed revision (GPL-2.0-only);固定字符串库与确定性长字符串对齐上游,
+动态 UTF-8 子集与 `.repeat` 压缩表达为 MoonBit 适配。

@@ -13,7 +13,7 @@ async fn main {
   // Inject first so every package that a test executable may link (e.g.
   // cmd/boofuzz depending on db) carries ASan link flags, then test one
   // package per invocation to keep failure attribution clear.
-  let pkg_names = ["transport", "recordio", "process", "db", "cmd/boofuzz"]
+  let pkg_names = ["transport", "recordio", "process", "db", "web", "cmd/boofuzz"]
   for pkg_name in pkg_names {
     let path = root + "/" + pkg_name + "/moon.pkg"
     if @fs.exists(path) {

@@ -35,7 +35,8 @@ Windows 用户建议在 Visual Studio 的 Developer PowerShell 中执行 Native 
 | 命令 | 输入与用途 | 主要选项 |
 | --- | --- | --- |
 | `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N` |
-| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`，可选 `--limit N` |
+| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`、`--db FILE`、`--record-passes N`、`--csv-out FILE`、`--web-port N`、`--target-cmd CMD` |
+| `open` | 结果库/JSONL → 本地只读 Web 视图 | `--ui-port N`（默认 26000） |
 | `report` | JSONL 执行记录 → 分类计数、失败身份和行号 | `--max-bytes N` |
 | `replay` | JSONL 执行记录 → 按身份重放保存的字节 | 必填 `--id ID`，可选成对的 `--host HOST --port PORT`、`--max-bytes N` |
 
@@ -95,7 +96,9 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃。
 
-首版不包含 Python DSL、Web UI、TLS、IPv6、串口、原始帧、调试器、覆盖率引导、多字段组合或并行执行。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界见 [UPSTREAM.md](docs/UPSTREAM.md)。
+已在后续提交中补齐（不再是缺口）：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（`run --db`）、`--record-passes` 写入节流、Web UI 与 `open` 子命令、UDP 服务端模式与广播。
+
+仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界与评估结论见 [UPSTREAM.md](docs/UPSTREAM.md)、[PLAN.md](docs/PLAN.md)。
 
 ## 验证与发布准备
 
