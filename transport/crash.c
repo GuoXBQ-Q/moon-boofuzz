@@ -35,9 +35,9 @@ __attribute__((constructor)) static void bf_crash_register(void) {
   bf_crash_init();
 }
 #else
-static void bf_crash_register(void);
+static void bf_crash_init(void);
 #pragma section(".CRT$XCU", read)
-__declspec(allocate(".CRT$XCU")) static void (*bf_crash_register_ptr)(void) =
-  bf_crash_register;
+__declspec(allocate(".CRT$XCU")) static void (*bf_crash_register)(void) =
+  bf_crash_init;
 #endif
 #endif
