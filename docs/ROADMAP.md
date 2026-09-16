@@ -53,6 +53,6 @@
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio 只用 C 桥接系统调用；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
 
-进程监视器、校验和算法集、IPv6 与 File 传输已落地。剩余留待后续版本：
-ipv4/udp 校验和的块引用伪首部接线、Unix/串口/原始帧传输、SQLite 与
-Web UI、覆盖率引导、并行执行和调试器。
+进程监视器、校验和算法集、IPv6 与 File 传输已落地。剩余工作与进度
+跟踪见 [PLAN.md](PLAN.md)：SQLite 层、Web UI 与 open 子命令、
+--record-passes 写入节流、Unix/串口/原始帧传输，以及收尾核对。
