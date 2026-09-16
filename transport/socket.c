@@ -37,6 +37,7 @@ typedef int bf_fd;
 #include <moonbit.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 typedef struct { bf_fd fd; int error; int started; int udp; int have_peer; struct sockaddr_in peer; } bf_socket;
 

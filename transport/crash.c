@@ -2,6 +2,8 @@
  * CI diagnostics: on an unhandled exception (access violation etc.),
  * print the exception code, faulting address and owning module to stderr
  * before the process dies, so CI logs show where native crashes happen.
+ * The constructor trick is per compiler: __attribute__ for GCC/clang,
+ * .CRT$XCU allocation for MSVC.
  */
 #include <stdio.h>
 #ifdef _WIN32
@@ -24,7 +26,18 @@ static LONG WINAPI bf_crash_filter(EXCEPTION_POINTERS *info) {
   return EXCEPTION_CONTINUE_SEARCH;
 }
 
-__attribute__((constructor)) static void bf_crash_init(void) {
+static void bf_crash_init(void) {
   SetUnhandledExceptionFilter(bf_crash_filter);
 }
+
+#if defined(__GNUC__)
+__attribute__((constructor)) static void bf_crash_register(void) {
+  bf_crash_init();
+}
+#else
+static void bf_crash_register(void);
+#pragma section(".CRT$XCU", read)
+__declspec(allocate(".CRT$XCU")) static void (*bf_crash_register_ptr)(void) =
+  bf_crash_register;
+#endif
 #endif
