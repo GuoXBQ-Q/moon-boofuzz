@@ -1,0 +1,14 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz/db",
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "GuoXBQ-Q/moon-boofuzz/recordio",
+  "GuoXBQ-Q/moon-boofuzz/transport",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/ref",
+}
+
+supported_targets = "native"
+
+options(
+  "native-stub": [ "http.c" ],
+)

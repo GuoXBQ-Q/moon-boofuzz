@@ -50,9 +50,9 @@ fn state_name(state : @core.EnumerationState) -> String {
 
 ///|
 fn dispatch(args : Array[String]) -> Int raise {
-  if args.is_empty() || args == ["--help"] {
+  if args == ["--help"] || args.is_empty() {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false] [--csv-out FILE] [--db FILE] [--record-passes N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false] [--csv-out FILE] [--db FILE] [--record-passes N] [--web-port N]\nmoon-boofuzz open FILE [--ui-port N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
@@ -62,6 +62,10 @@ fn dispatch(args : Array[String]) -> Int raise {
   }
   guard args is [command, input, .. flags] else {
     raise InvalidArguments("expected a command and input path")
+  }
+  if command == "open" {
+    open_viewer(input, flags)
+    return 0
   }
   if command == "replay" || command == "report" {
     return replay_or_report(command, input, flags)
@@ -77,7 +81,7 @@ fn dispatch(args : Array[String]) -> Int raise {
       [
         "--limit", "--output", "--combinatorial", "--max-depth", "--start", "--end",
         "--sleep-between-ms", "--text-dump", "--target-cmd", "--csv-out", "--db",
-        "--record-passes",
+        "--record-passes", "--web-port",
       ]
     },
   )
@@ -96,6 +100,15 @@ fn dispatch(args : Array[String]) -> Int raise {
   let csv_out : String? = opts.get("--csv-out")
   let db_path : String? = opts.get("--db")
   let record_passes = int_option(opts, "--record-passes").unwrap_or(0)
+  let web_port : Int? = opts
+    .get("--web-port")
+    .map(name => {
+      let n = @definition.decimal_u64(name)
+      guard n <= 65535UL else {
+        raise InvalidArguments("--web-port must be a port number")
+      }
+      n.to_int()
+    })
   let text_dump : Bool? = opts
     .get("--text-dump")
     .map(text => {
@@ -239,18 +252,41 @@ fn dispatch(args : Array[String]) -> Int raise {
     Some(path) => Some(@db.DbLogger::open(path, num_log_cases=record_passes))
     None => None
   }
-  let count = match db_logger {
-    Some(logger) => {
+  // Live web UI: bound even before the first case so the URL is known,
+  // mirroring upstream server_init before fuzz().
+  let webui : @web.WebUi? = match web_port {
+    Some(port) => {
+      let ui = @web.WebUi::open(port~, limit=limit.unwrap_or(config.limit))
+      println("Web interface can be found at http://localhost:\{ui.port()}")
+      Some(ui)
+    }
+    None => None
+  }
+  let count = match (db_logger, webui) {
+    (Some(logger), ui) => {
       defer logger.close()
-      let executed = capture_all(runner, writer, Some(logger), record_passes)
+      let executed = capture_all(
+        runner,
+        writer,
+        Some(logger),
+        ui,
+        record_passes,
+      )
       // Final flush of any throttled queue entries, mirroring the
       // upstream session close sequence.
       logger.close_test()
       executed
     }
-    None => capture_all(runner, writer, None, record_passes)
+    (None, ui) => capture_all(runner, writer, None, ui, record_passes)
   }
   writer.close()
+  match webui {
+    Some(ui) =>
+      // Serve anything still queued, then expose the final state like
+      // keep_web_open; the process exits right after.
+      ui.serve()
+    None => ()
+  }
   match csv_out {
     Some(csv) => {
       let rows = write_csv_report(csv, output)

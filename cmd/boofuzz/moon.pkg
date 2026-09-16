@@ -6,6 +6,9 @@ import {
   "GuoXBQ-Q/moon-boofuzz/recordio",
   "GuoXBQ-Q/moon-boofuzz/runner",
   "GuoXBQ-Q/moon-boofuzz/process",
+  "GuoXBQ-Q/moon-boofuzz/transport",
+  "GuoXBQ-Q/moon-boofuzz/web",
+  "GuoXBQ-Q/moon-boofuzz/web",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
 }
@@ -13,5 +16,3 @@ import {
 supported_targets = "native"
 
 pkgtype(kind: "executable")
-
-options()

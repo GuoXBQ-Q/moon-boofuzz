@@ -358,3 +358,44 @@ test "run with --record-passes keeps only the first and last window" {
     [@db.VInt(0L), @db.VInt(2L), @db.VInt(3L)],
   )
 }
+
+///|
+test "run with --web-port binds the UI and completes the run" {
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "packet",
+        "children": [
+          { "type": "simple", "name": "value", "values_hex": ["01", "02"] },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "udp",
+      "endpoint": { "host": "127.0.0.1", "port": 1 },
+      "policies": {},
+      "case_limit": 2,
+    },
+  }
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  save_definition(definition_path, definition)
+  let records_path = fixture_path()
+  defer fixture_remove(records_path)
+  assert_eq(
+    dispatch([
+      "run",
+      @utf8.decode(definition_path),
+      "--output",
+      @utf8.decode(records_path),
+      "--web-port",
+      "0",
+    ]),
+    0,
+  )
+  assert_eq(
+    @recordio.read_records(@utf8.decode(records_path)).records.length(),
+    2,
+  )
+}
