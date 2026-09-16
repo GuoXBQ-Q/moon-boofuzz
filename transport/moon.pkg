@@ -5,5 +5,5 @@ import {
 supported_targets = "native"
 
 options(
-  "native-stub": [ "socket.c" ],
+  "native-stub": [ "socket.c", "crash.c" ],
 )
