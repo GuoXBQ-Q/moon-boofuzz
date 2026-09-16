@@ -105,10 +105,12 @@ ASan 零报告。
 - [x] `ACCEPTANCE.md` 表述与功能提交数对齐（ROADMAP 第 1–52 行），ASan
   范围与各阶段测试描述更新
 - [x] ASan：`scripts/asan.mbtx` 覆盖 transport/recordio/process/db/
-  cmd（llvm-mingw 实测零 AddressSanitizer 报告；注入先行修复依赖方
+  web/cmd（llvm-mingw 实测零 AddressSanitizer 报告；注入先行修复依赖方
   测试可执行文件的链接）
-- [ ] 推送后确认 GitHub Actions 双平台（Windows llvm-mingw / Linux）+ Wasm 与
-  Native 全绿——待维护者执行 `git push` 后在 Actions 页面核对
+- [x] 推送后确认 GitHub Actions 双平台全绿（Windows MSVC / Linux +
+  Wasm/Native，run ed93693）；Windows 端定位并修复 process 包 ECHILD
+  语义、socket.c 缺失 stdlib.h 导致的 MSVC int 截断 malloc（0xc0000005
+  根因），并补 ASan 锚点与崩溃诊断器
 - [x] `moon package --list` 审查源码包内容：源码/测试/LICENSE/文档/
   fixtures 齐全；`boofuzz-results` 历史 .db 样本已从仓库删除（无引用，
   读取差分夹具由 `fixtures/db/oracle-run.db` 承担）；`scripts/*.mbtx`

@@ -12,7 +12,7 @@ moon package --list
 moon package
 ```
 
-verify 包含 fmt/info、Wasm 和 Native check/build/test、格式检查，并保存 Native 库接口到 docs/*.native.mbti。GCC/Clang 下运行 scripts/asan.mbtx，覆盖网络、文件、进程、SQLite 与 Web 桥接。CI 使用 Windows（llvm-mingw）和 Linux，并在 Linux 执行 ASan。
+verify 包含 fmt/info、Wasm 和 Native check/build/test、格式检查，并保存 Native 库接口到 docs/*.native.mbti。GCC/Clang 下运行 scripts/asan.mbtx，覆盖网络、文件、进程、SQLite 与 Web 桥接。CI 使用 Windows（MSVC 编译 C 桥）和 Linux，并在 Linux 执行 ASan。
 
 ## 三个端到端场景
 
