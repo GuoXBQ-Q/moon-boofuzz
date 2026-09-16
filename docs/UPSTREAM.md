@@ -31,6 +31,9 @@
 | 校验和算法集 | blocks/checksum.py 的算法表与 md5/sha1 字交换 | crc32/crc32c/adler32/md5/sha1 已接入节点与 JSON；ipv4/udp 以独立函数提供（块引用伪首部未接入）；见 CHECKSUM.md |
 | IPv6 传输 | connections/base_socket_connection.py 的 getaddrinfo 双栈 | AF_UNSPEC 解析 + IPv6 单播校验；见 TRANSPORT.md、UDP.md |
 | File 传输 | connections/file_connection.py | 每消息一个编号文件（截断创建），NoResponse 策略；见 DEFINITIONS.md file 传输 |
+| CSV 导出 | fuzz_logger_csv.py | 行格式对齐（每用例一行 + 流量 hex）；见 RECORDS.md、cmd/boofuzz/csv_report.mbt |
+| SQLite 结果库 | fuzz_logger_db.py | 表结构/写入队列/keep-only-n/512 截断/Reader 逐条对齐；vendor SQLite 3.45.3（公有领域）；见 DB.md |
+| --record-passes 节流 | fuzz_logger_db.py num_log_cases（CLI record_passes） | SQLite 侧 num_log_cases + JSONL 侧 ThrottledWriter 等价实现；见 DB.md |
 
 ## 1. Simple / Group
 
@@ -70,6 +73,6 @@ developer `.mbtx` tooling; the production module has no new dependencies.
 
 ## 工具链和发布范围
 
-生产模块没有新增第三方模块依赖，没有内嵌网络运行时；Winsock/POSIX 和 C 标准文件 API 由系统提供。原本就依赖的 MoonBit 标准库和运行时使用 Apache-2.0，本次未把其源码或二进制复制到项目源码包。
+生产模块没有新增第三方模块依赖，没有内嵌网络运行时；Winsock/POSIX 和 C 标准文件 API 由系统提供。原本就依赖的 MoonBit 标准库和运行时使用 Apache-2.0，本次未把其源码或二进制复制到项目源码包。例外：`db/sqlite3.c`、`db/sqlite3.h` 是 SQLite 3.45.3 amalgamation 的未修改副本——SQLite 源码为公有领域，进入本仓库不引入额外许可义务，也不属于上游 boofuzz 的分发物。
 
 Apache-2.0 与 GPL-2.0-only 不能被笼统认定为兼容，参见 [Apache 许可 FAQ](https://www.apache.org/foundation/license-faq.html)。正式分发合并二进制前，需要确认工具链组件的系统库例外或其他授权适用条件，参见 [GNU GPLv2 FAQ](https://www.gnu.org/licenses/old-licenses/gpl-2.0-faq.html)。本次准备的是项目源码包；此记录不等于已经取得合并二进制的额外分发许可。

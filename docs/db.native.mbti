@@ -1,0 +1,117 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/db"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub const DATA_TRUNCATE_LENGTH : Int = 512
+
+pub fn remove_file(String) -> Unit
+
+pub fn temp_path() -> String
+
+// Errors
+pub(all) suberror DbError {
+  InvalidPath
+  OpenFailure(Int)
+  ExecFailure(Int)
+  PrepareFailure(Int)
+  BindFailure(Int)
+  StepFailure(Int)
+  NoSuchCase(Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub struct Db {
+  handle : DbHandle
+}
+pub fn Db::close(Self) -> Unit
+pub fn Db::exec(Self, String) -> Unit raise DbError
+pub fn Db::open(String) -> Self raise DbError
+pub fn Db::prepare(Self, String) -> Stmt raise DbError
+
+pub(all) struct DbCase {
+  name : String
+  index : Int
+  timestamp : String
+  steps : Array[DbStep]
+} derive(Eq, @debug.Debug)
+
+type DbHandle
+
+pub(all) enum DbLogEntry {
+  CasesEntry(String, Int, String)
+  StepsEntry(Int, String, String, Bytes, String, Bool)
+} derive(Eq, @debug.Debug)
+
+pub struct DbLogger {
+  db : Db
+  cases : Stmt
+  steps : Stmt
+  queue : Array[DbLogEntry]
+  mut current_index : Int
+  queue_max_len : Int
+  mut fail_detected : Bool
+  mut first_case : Bool
+  now : () -> String
+}
+pub fn DbLogger::close(Self) -> Unit
+pub fn DbLogger::close_test(Self) -> Unit raise
+pub fn DbLogger::close_test_case(Self) -> Unit raise
+pub fn DbLogger::log_check(Self, description~ : String) -> Unit
+pub fn DbLogger::log_error(Self, description~ : String) -> Unit raise
+pub fn DbLogger::log_fail(Self, description~ : String) -> Unit
+pub fn DbLogger::log_info(Self, description~ : String) -> Unit
+pub fn DbLogger::log_pass(Self, description~ : String) -> Unit
+pub fn DbLogger::log_record(Self, @records.CaseRecord) -> Unit raise
+pub fn DbLogger::log_recv(Self, data~ : Bytes) -> Unit
+pub fn DbLogger::log_send(Self, data~ : Bytes) -> Unit
+pub fn DbLogger::open(String, num_log_cases? : Int) -> Self raise DbError
+pub fn DbLogger::open_step(Self, description~ : String) -> Unit
+pub fn DbLogger::open_test_case(Self, name~ : String, index~ : Int) -> Unit
+pub fn DbLogger::open_with_clock(String, num_log_cases? : Int, now~ : () -> String) -> Self raise DbError
+
+pub struct DbReader {
+  db : Db
+}
+pub fn DbReader::close(Self) -> Unit
+pub fn DbReader::failure_map(Self) -> Map[Int, Array[String]] raise DbError
+pub fn DbReader::get_test_case_data(Self, Int) -> DbCase raise DbError
+pub fn DbReader::open(String) -> Self raise DbError
+pub fn DbReader::query(Self, String, params? : Array[DbValue]) -> Array[DbRow] raise DbError
+
+pub(all) struct DbRow {
+  values : Array[DbValue]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct DbStep {
+  step_type : String
+  description : String
+  data : Bytes
+  timestamp : String
+  truncated : Bool
+} derive(Eq, @debug.Debug)
+
+pub(all) enum DbValue {
+  VNull
+  VInt(Int64)
+  VFloat(Double)
+  VText(String)
+  VBlob(Bytes)
+} derive(Eq, @debug.Debug)
+
+pub struct Stmt {
+  handle : StmtHandle
+}
+pub fn Stmt::close(Self) -> Unit
+pub fn Stmt::query(Self, Array[DbValue]) -> Array[DbRow] raise DbError
+pub fn Stmt::run(Self, Array[DbValue]) -> Unit raise DbError
+
+type StmtHandle
+
+// Type aliases
+
+// Traits

@@ -41,6 +41,18 @@ pub fn FileChannel::open(directory~ : String, prefix? : String, counter? : @ref.
 
 type FileHandle
 
+pub struct ThrottledWriter {
+  writer : Writer
+  buffer : Array[@records.CaseRecord]
+  keep : Int
+  mut current_ordinal : Int
+  mut fail_detected : Bool
+  mut first_case : Bool
+}
+pub fn ThrottledWriter::append(Self, @records.CaseRecord) -> Unit raise
+pub fn ThrottledWriter::close_test(Self) -> Unit raise
+pub fn ThrottledWriter::new(Writer, keep~ : Int) -> Self
+
 pub struct Writer {
   file : FileHandle
 }

@@ -24,31 +24,32 @@
 | 5b-1 | IPv6 双栈传输 | ✅ 完成 | 9212c6d |
 | 5b-2 | File 传输 | ✅ 完成 | 074fcf7 |
 | 6a | CSV 导出（--csv-out） | ✅ 完成 | d3e479a |
-| 6b | SQLite 层 | ⬜ 未开始 | — |
+| 6b | SQLite 层 | ✅ 完成 | 见 6b/6d 提交 |
 | 6c | Web UI + open 子命令 | ⬜ 未开始 | — |
-| 6d | --record-passes 写入节流 | ⬜ 未开始 | — |
+| 6d | --record-passes 写入节流 | ✅ 完成 | 见 6b/6d 提交 |
 | 5c | 传输长尾（Unix/Serial/Raw L2/L3/UDP 广播与 server） | ⬜ 未开始 | — |
 | 7 | 收尾 | ⬜ 未开始 | — |
 
-当前验证基线：Wasm 99 / Native 137 测试全绿，`verify.mbtx` 通过。
+当前验证基线：Wasm 99 / Native 150 测试全绿，`verify.mbtx` 通过。
 
 ## 剩余工作明细
 
-### 阶段 6b：SQLite 层（规模：大）
+### 阶段 6b：SQLite 层（规模：大）✅ 完成
 
-- [ ] vendor sqlite3 amalgamation（公有领域，GPL-2 兼容）到 `db/sqlite3.c`
+- [x] vendor sqlite3 amalgamation（公有领域，GPL-2 兼容）到 `db/sqlite3.c`
   并在 `db/moon.pkg` 声明 native-stub；注册 `verify.mbtx` 接口快照与
-  `asan.mbtx` 列表
-- [ ] 最小 C 绑定：open/exec/prepare/step/column/close，句柄 finalizer
-  遵循 socket.c 模板（0/-1/-2 约定）
-- [ ] 表结构对齐上游 `cases(name,number,timestamp)` /
+  `asan.mbtx` 列表（SQLite 3.45.3 未修改副本，与上游 CI 产物同版本）
+- [x] 最小 C 绑定：open/exec/prepare/step/column/close，句柄 finalizer
+  遵循 socket.c 模板（0/-1/-2 约定；-2 = 有行可读）
+- [x] 表结构对齐上游 `cases(name,number,timestamp)` /
   `steps(test_case_index,type,description,data,timestamp,is_truncated)`
   （fuzz_logger_db.py:46-50），流量 512 字节截断
-- [ ] 写入端：`run --db FILE` 双写 JSONL + SQLite（与 6d 的
+- [x] 写入端：`run --db FILE` 双写 JSONL + SQLite（与 6d 的
   keep-only-n 节流共用逻辑）
-- [ ] 读取端：FuzzLoggerDbReader 等价（query / failure_map），供 open 与
+- [x] 读取端：FuzzLoggerDbReader 等价（query / failure_map），供 open 与
   Web UI 使用
-- [ ] 测试：临时库往返、失败映射、512 截断
+- [x] 测试：临时库往返、失败映射、512 截断 + 上游真实产物
+  fixtures/db/oracle-run.db 读取差分
 
 ### 阶段 6c：Web UI + open 子命令（规模：大）
 
@@ -64,13 +65,14 @@
 - [ ] 页面为轻量手写 HTML/JS（对应 Flask 模板的最小子集）
 - [ ] 测试：socket 层 HTTP 回环 wbtest（请求 /api/current-run 断言 JSON）
 
-### 阶段 6d：--record-passes N（规模：小）
+### 阶段 6d：--record-passes N（规模：小）✅ 完成
 
-- [ ] 通过用例进内存环形缓冲（最多 N 条），失败用例立即写 + 回填缓冲
-  （等价 `fuzz_db_keep_only_n_pass_cases`，fuzz_logger_db.py:206-225）
-- [ ] JSONL capture 路径加节流包装；默认全写（N=0 表示不节流）
-- [ ] CLI `--record-passes N`；测试：3 通过 + 1 失败 → 文件含失败 + 前 N
-  条通过
+- [x] 通过用例进内存环形缓冲（最多 N 条），失败用例立即写 + 回填缓冲
+  （等价 `fuzz_db_keep_only_n_pass_cases`，fuzz_logger_db.py:206-225；
+  JSONL 侧 `recordio/ThrottledWriter`，SQLite 侧 `num_log_cases`）
+- [x] JSONL capture 路径加节流包装；默认全写（N=0 表示不节流）
+- [x] CLI `--record-passes N`；测试：3 通过 + 1 失败 → 文件含失败 + 前 N
+  条通过（throttle_wbtest.mbt）+ CLI 端到端（cli_wbtest.mbt）
 
 ### 阶段 5c：传输长尾（规模：中-大，可按项独立交付）
 
@@ -111,3 +113,5 @@ DSL（JSON/MoonBit API 为一等接口）、协议模板全集（legos）。
 - Float `num_mutations` 等于实际产出数（上游虚报 max_mutations）
 - 上游 Repeat(variable=) docstring 声称禁用 fuzzing 但实现未禁用，本移植
   保留实现行为——VARIABLES.md
+- SQLite 步骤按 JSONL 记录重放：每步固定成对记录 send/receive（上游按
+  会话实际事件逐条记录），失败由 outcome 行表达——DB.md

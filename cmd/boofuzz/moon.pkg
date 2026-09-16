@@ -1,5 +1,6 @@
 import {
   "GuoXBQ-Q/moon-boofuzz" @core,
+  "GuoXBQ-Q/moon-boofuzz/db",
   "GuoXBQ-Q/moon-boofuzz/definition",
   "GuoXBQ-Q/moon-boofuzz/records",
   "GuoXBQ-Q/moon-boofuzz/recordio",

@@ -52,7 +52,7 @@ fn state_name(state : @core.EnumerationState) -> String {
 fn dispatch(args : Array[String]) -> Int raise {
   if args.is_empty() || args == ["--help"] {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false] [--csv-out FILE] [--db FILE] [--record-passes N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
@@ -76,7 +76,8 @@ fn dispatch(args : Array[String]) -> Int raise {
     } else {
       [
         "--limit", "--output", "--combinatorial", "--max-depth", "--start", "--end",
-        "--sleep-between-ms", "--text-dump", "--target-cmd", "--csv-out",
+        "--sleep-between-ms", "--text-dump", "--target-cmd", "--csv-out", "--db",
+        "--record-passes",
       ]
     },
   )
@@ -93,6 +94,8 @@ fn dispatch(args : Array[String]) -> Int raise {
   let case_id : String? = opts.get("--id")
   let target_cmd : String? = opts.get("--target-cmd")
   let csv_out : String? = opts.get("--csv-out")
+  let db_path : String? = opts.get("--db")
+  let record_passes = int_option(opts, "--record-passes").unwrap_or(0)
   let text_dump : Bool? = opts
     .get("--text-dump")
     .map(text => {
@@ -232,7 +235,21 @@ fn dispatch(args : Array[String]) -> Int raise {
     })
   let writer = @recordio.Writer::open(output)
   defer writer.close()
-  let count = @recordio.capture(runner, writer)
+  let db_logger = match db_path {
+    Some(path) => Some(@db.DbLogger::open(path, num_log_cases=record_passes))
+    None => None
+  }
+  let count = match db_logger {
+    Some(logger) => {
+      defer logger.close()
+      let executed = capture_all(runner, writer, Some(logger), record_passes)
+      // Final flush of any throttled queue entries, mirroring the
+      // upstream session close sequence.
+      logger.close_test()
+      executed
+    }
+    None => capture_all(runner, writer, None, record_passes)
+  }
   writer.close()
   match csv_out {
     Some(csv) => {
@@ -246,11 +263,22 @@ fn dispatch(args : Array[String]) -> Int raise {
     }
     None => ()
   }
-  let summary : Json = {
-    "kind": "run_summary",
-    "executed": count,
-    "state": state_name(runner.state()),
-    "records": output,
+  let summary : Json = match db_path {
+    Some(path) =>
+      {
+        "kind": "run_summary",
+        "executed": count,
+        "state": state_name(runner.state()),
+        "records": output,
+        "database": path,
+      }
+    None =>
+      {
+        "kind": "run_summary",
+        "executed": count,
+        "state": state_name(runner.state()),
+        "records": output,
+      }
   }
   println(summary.stringify())
   0

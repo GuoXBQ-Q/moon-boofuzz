@@ -234,3 +234,127 @@ test "run with csv-out writes a report row per case" {
     2,
   )
 }
+
+///|
+test "run with --db writes upstream-compatible SQLite results" {
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "packet",
+        "children": [
+          {
+            "type": "simple",
+            "name": "value",
+            "value_hex": "6869",
+            "values_hex": ["6f6b", "6c6f6e67"],
+          },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "udp",
+      "endpoint": { "host": "127.0.0.1", "port": 1 },
+      "policies": {},
+      "case_limit": 2,
+    },
+  }
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  save_definition(definition_path, definition)
+  let records_path = fixture_path()
+  defer fixture_remove(records_path)
+  let db_file = fixture_path()
+  defer fixture_remove(db_file)
+  assert_eq(
+    dispatch([
+      "run",
+      @utf8.decode(definition_path),
+      "--output",
+      @utf8.decode(records_path),
+      "--db",
+      @utf8.decode(db_file),
+    ]),
+    0,
+  )
+  let reader = @db.DbReader::open(@utf8.decode(db_file))
+  defer reader.close()
+  assert_eq(
+    reader.query("SELECT count(*) FROM cases")[0].values[0],
+    @db.VInt(2L),
+  )
+  let case0 = reader.get_test_case_data(0)
+  assert_eq(case0.name, "packet")
+  // step, send, receive, pass — the upstream log sequence per case.
+  assert_eq(case0.steps.length(), 4)
+  assert_eq(case0.steps[1].step_type, "send")
+  assert_eq(case0.steps[1].data, b"\x6f\x6b")
+  assert_eq(case0.steps[2].step_type, "receive")
+  assert_eq(case0.steps[3].step_type, "pass")
+  assert_eq(reader.failure_map().length(), 0)
+  // The JSONL side still carries the same two records.
+  assert_eq(
+    @recordio.read_records(@utf8.decode(records_path)).records.length(),
+    2,
+  )
+}
+
+///|
+test "run with --record-passes keeps only the first and last window" {
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "packet",
+        "children": [
+          {
+            "type": "simple",
+            "name": "value",
+            "value_hex": "01",
+            "values_hex": ["01", "02", "03", "04"],
+          },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "udp",
+      "endpoint": { "host": "127.0.0.1", "port": 1 },
+      "policies": {},
+      "case_limit": 4,
+    },
+  }
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  save_definition(definition_path, definition)
+  let records_path = fixture_path()
+  defer fixture_remove(records_path)
+  let db_file = fixture_path()
+  defer fixture_remove(db_file)
+  assert_eq(
+    dispatch([
+      "run",
+      @utf8.decode(definition_path),
+      "--output",
+      @utf8.decode(records_path),
+      "--db",
+      @utf8.decode(db_file),
+      "--record-passes",
+      "2",
+    ]),
+    0,
+  )
+  let expected : Array[Int] = [0, 2, 3]
+  let ordinals = @recordio.read_records(@utf8.decode(records_path)).records.map(record => {
+      record.ordinal
+    },
+  )
+  assert_eq(ordinals, expected)
+  let reader = @db.DbReader::open(@utf8.decode(db_file))
+  defer reader.close()
+  assert_eq(
+    reader
+    .query("SELECT number FROM cases ORDER BY number")
+    .map(row => row.values[0]),
+    [@db.VInt(0L), @db.VInt(2L), @db.VInt(3L)],
+  )
+}
