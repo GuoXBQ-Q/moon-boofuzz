@@ -361,6 +361,7 @@ test "run with --record-passes keeps only the first and last window" {
 
 ///|
 test "run with --web-port binds the UI and completes the run" {
+  println("MARK web-port test start")
   let definition : Json = {
     "schema_version": 1,
     "requests": [
@@ -394,10 +395,12 @@ test "run with --web-port binds the UI and completes the run" {
     ]),
     0,
   )
+  println("MARK web-port dispatch done")
   assert_eq(
     @recordio.read_records(@utf8.decode(records_path)).records.length(),
     2,
   )
+  println("MARK web-port test done")
 }
 
 ///|
