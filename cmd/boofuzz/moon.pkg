@@ -17,3 +17,7 @@ supported_targets = "native"
 pkgtype(kind: "executable")
 
 // Anchor block for scripts/asan.mbtx ASan flag injection.
+
+options(
+  "native-stub": [ ],
+)

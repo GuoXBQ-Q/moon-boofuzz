@@ -30,7 +30,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvm-mingw-20260616/llvm-mingw-20260616-ucrt-x86_64.zip" -OutFile "llvm-mingw.zip"
+          Invoke-WebRequest -Uri "https://github.com/mstorsjo/llvm-mingw/releases/download/20260616/llvm-mingw-20260616-ucrt-x86_64.zip" -OutFile "llvm-mingw.zip"
           Expand-Archive -Path "llvm-mingw.zip" -DestinationPath "C:\llvm-mingw"
           echo "C:\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin" >> $env:GITHUB_PATH
       - run: moon version --all

@@ -8,3 +8,7 @@ import {
 supported_targets = "native"
 
 // Anchor block for scripts/asan.mbtx ASan flag injection.
+
+options(
+  "native-stub": [ ],
+)
