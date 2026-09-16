@@ -10,18 +10,29 @@ async fn main {
   let root = if args.length() == 2 && !args[1].is_empty() { args[1] } else { @fs.realpath(".") }
   let saved : Array[(String, String)] = []
   defer { for pair in saved { @fs.write_file(pair.0, pair.1) } }
-  let command = ["test", "--target", "native", "--target-dir", root + "/_build/asan", "--deny-warn"]
-  for pkg_name in ["transport", "recordio", "process", "db"] {
+  // Inject first so every package that a test executable may link (e.g.
+  // cmd/boofuzz depending on db) carries ASan link flags, then test one
+  // package per invocation to keep failure attribution clear.
+  let pkg_names = ["transport", "recordio", "process", "db", "cmd/boofuzz"]
+  for pkg_name in pkg_names {
     let path = root + "/" + pkg_name + "/moon.pkg"
     if @fs.exists(path) {
       let original = (@fs.read_file(path)).text()
-      let config = original.replace(old="options(", new="options(link: { \"native\": { \"cc\": \"cc\", \"stub-cc\": \"cc\", \"cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"stub-cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\" } }, ")
-      guard config != original else { fail("could not locate native-stub options") }
+      let config = original.replace(old="options(", new="options(link: { \"native\": { \"cc\": \"cc\", \"stub-cc\": \"cc\", \"cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"stub-cc-flags\": \"-g -fsanitize=address -fno-omit-frame-pointer\", \"cc-link-flags\": \"-fsanitize=address\" } }, ")
+      guard config != original else { fail("could not locate options in " + pkg_name) }
       saved.push((path, original))
       @fs.write_file(path, config)
-      command.push("-p")
-      command.push(pkg_name)
     }
   }
-  @shell.Cmd("moon", command, cwd=root).run()
+  for pkg_name in pkg_names {
+    if @fs.exists(root + "/" + pkg_name + "/moon.pkg") {
+      @shell.Cmd(
+        "moon",
+        [
+          "test", "--target", "native", "--target-dir", root + "/_build/asan", "--deny-warn", "-p", pkg_name,
+        ],
+        cwd=root,
+      ).run()
+    }
+  }
 }
