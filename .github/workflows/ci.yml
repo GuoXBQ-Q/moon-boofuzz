@@ -26,8 +26,13 @@ jobs:
         run: |
           irm https://cli.moonbitlang.com/install/powershell.ps1 | iex
           "$env:USERPROFILE\.moon\bin" >> $env:GITHUB_PATH
-      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install llvm-mingw (Windows native toolchain)
         if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvm-mingw-20260616/llvm-mingw-20260616-ucrt-x86_64.zip" -OutFile "llvm-mingw.zip"
+          Expand-Archive -Path "llvm-mingw.zip" -DestinationPath "C:\llvm-mingw"
+          echo "C:\llvm-mingw\llvm-mingw-20260616-ucrt-x86_64\bin" >> $env:GITHUB_PATH
       - run: moon version --all
       - name: Initialize registry for standalone developer scripts
         run: moon update

@@ -334,7 +334,7 @@ test "OfflineSession serves JSONL and SQLite views" {
 }
 
 ///|
-fn roundtrip_view(view : &SessionView, path : String) -> String raise {
+fn[T : SessionView] roundtrip_view(view : T, path : String) -> String raise {
   let server = HttpServer::bind(port=0)
   defer web_socket_close(server.socket)
   let client = open_request(server.port(), path)

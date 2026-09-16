@@ -33,9 +33,11 @@ pub fn ProcessMonitor::new(
   let start : () -> Unit raise = fn() raise {
     let process = Process::spawn(command_copy)
     state.val = Some(process)
-    if start_copy > 0 {
-      @transport.sleep_ms(start_copy)
-    }
+    // POSIX spawns survive the process layer even for broken commands
+    // (/bin/sh -c exits 127 milliseconds later), so liveness is confirmed
+    // after a minimum settle window: a target that dies within it means
+    // failed startup, exactly what upstream start-up heartbeats detect.
+    @transport.sleep_ms(if start_copy < 100 { 100 } else { start_copy })
     guard process.alive() else {
       synopsis.val = "target exited during startup with code \{process.exit_code}"
       raise ProcessError::SpawnFailure(process.exit_code)

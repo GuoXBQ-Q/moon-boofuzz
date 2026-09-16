@@ -25,8 +25,8 @@ fn path_tail(path : String, prefix : String) -> String {
 ///|
 /// Dispatch one request against a session view. Non-GET requests and
 /// unknown paths 404.
-pub fn handle_request(
-  view : &SessionView,
+pub fn[T : SessionView] handle_request(
+  view : T,
   request : HttpRequest,
 ) -> HttpResponse raise {
   if request.verb != "GET" {
@@ -68,7 +68,7 @@ fn line_to_json(line : LogLine) -> Json {
 }
 
 ///|
-fn num_mutations_json(view : &SessionView) -> Json {
+fn[T : SessionView] num_mutations_json(view : T) -> Json {
   match SessionView::num_mutations(view) {
     Some(total) => Json::number(total.to_double(), repr="\{total}")
     None => Json::null()
@@ -79,7 +79,7 @@ fn num_mutations_json(view : &SessionView) -> Json {
 /// /api/current-run — the index_update payload
 /// (web/app.py:68-87). Element-level progress is served as null: the
 /// port keeps element state inside the model, not the session.
-pub fn api_current_run(view : &SessionView) -> HttpResponse raise {
+pub fn[T : SessionView] api_current_run(view : T) -> HttpResponse raise {
   let crashes : Array[Json] = []
   for index, reasons in SessionView::crashes(view) {
     crashes.push({
@@ -108,7 +108,10 @@ pub fn api_current_run(view : &SessionView) -> HttpResponse raise {
 ///|
 /// /api/test-case/<index> and /api/current-test-case
 /// (web/app.py:42-65). log_data is null for unknown indexes.
-pub fn api_test_case(view : &SessionView, index : Int) -> HttpResponse raise {
+pub fn[T : SessionView] api_test_case(
+  view : T,
+  index : Int,
+) -> HttpResponse raise {
   let payload : Json = try {
     let entries : Array[Json] = case_log_lines(
       SessionView::test_case_data(view, index),
@@ -128,7 +131,10 @@ pub fn api_test_case(view : &SessionView, index : Int) -> HttpResponse raise {
 ///|
 /// /test-case/<index> — server-rendered log view (the test-case.html
 /// equivalent; crash details stay out of the port).
-pub fn render_test_case(view : &SessionView, index : Int) -> HttpResponse raise {
+pub fn[T : SessionView] render_test_case(
+  view : T,
+  index : Int,
+) -> HttpResponse raise {
   let case_data = SessionView::test_case_data(view, index) catch {
     @db.NoSuchCase(_) => return HttpResponse::not_found()
     error => raise error
@@ -157,7 +163,7 @@ pub fn render_test_case(view : &SessionView, index : Int) -> HttpResponse raise 
 ///|
 /// / — the index page: progress bars, pause form and crash list with
 /// links into the per-case views (the index.html template subset).
-pub fn render_index(view : &SessionView) -> HttpResponse raise {
+pub fn[T : SessionView] render_index(view : T) -> HttpResponse raise {
   let total = SessionView::current_index(view)
   let num_mutations = SessionView::num_mutations(view)
   let progress = match num_mutations {

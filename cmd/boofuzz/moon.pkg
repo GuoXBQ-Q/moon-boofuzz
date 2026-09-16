@@ -8,7 +8,6 @@ import {
   "GuoXBQ-Q/moon-boofuzz/process",
   "GuoXBQ-Q/moon-boofuzz/transport",
   "GuoXBQ-Q/moon-boofuzz/web",
-  "GuoXBQ-Q/moon-boofuzz/web",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
 }
@@ -17,5 +16,4 @@ supported_targets = "native"
 
 pkgtype(kind: "executable")
 
-// The empty options() is the injection anchor for scripts/asan.mbtx ASan flags.
-options()
+// Anchor block for scripts/asan.mbtx ASan flag injection.

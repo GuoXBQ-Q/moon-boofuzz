@@ -112,6 +112,9 @@ MOONBIT_FFI_EXPORT int bf_proc_spawn(bf_proc *p, uint8_t *command, int length) {
 
 /* 0 = exited (exit code latched), -2 = still running, -1 = error. */
 MOONBIT_FFI_EXPORT int bf_proc_poll(bf_proc *p) {
+  /* Once reaped, the exit state is final: POSIX waitpid on a reaped child
+   * fails with ECHILD, so subsequent polls return the latched result. */
+  if (p->exited) { return 0; }
 #ifdef _WIN32
   DWORD result = WaitForSingleObject(p->process, 0);
   if (result == WAIT_OBJECT_0) {

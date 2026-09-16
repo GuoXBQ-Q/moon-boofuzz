@@ -107,7 +107,7 @@ ASan 零报告。
 - [x] ASan：`scripts/asan.mbtx` 覆盖 transport/recordio/process/db/
   cmd（llvm-mingw 实测零 AddressSanitizer 报告；注入先行修复依赖方
   测试可执行文件的链接）
-- [ ] 推送后确认 GitHub Actions 双平台（Windows MSVC / Linux）+ Wasm 与
+- [ ] 推送后确认 GitHub Actions 双平台（Windows llvm-mingw / Linux）+ Wasm 与
   Native 全绿——待维护者执行 `git push` 后在 Actions 页面核对
 - [x] `moon package --list` 审查源码包内容：源码/测试/LICENSE/文档/
   fixtures 齐全；`boofuzz-results` 历史 .db 样本已从仓库删除（无引用，

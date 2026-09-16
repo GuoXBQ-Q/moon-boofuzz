@@ -6,7 +6,7 @@ MoonBit 协议模糊测试核心：定义协议、生成单字段变异、执行
 
 ## 开始使用
 
-安装 [MoonBit](https://www.moonbitlang.com/download/)。Native 构建在 Windows 使用 MSVC 和 Windows SDK，在 Linux 使用 GCC/Clang。初始开发工具链为 moon 0.1.20260827、moonc v0.10.11。
+安装 [MoonBit](https://www.moonbitlang.com/download/)。Native 构建统一使用 llvm-mingw C 工具链（Windows 与 Linux 一致，CI 的 Windows 作业同样安装 llvm-mingw，不使用 MSVC）。初始开发工具链为 moon 0.1.20260915、moonc v0.10.13。
 
 ```sh
 git clone https://github.com/GuoXBQ-Q/moon-boofuzz.git
@@ -26,7 +26,7 @@ moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
 moon test --target native --deny-warn -p cmd/boofuzz
 ```
 
-Windows 用户建议在 Visual Studio 的 Developer PowerShell 中执行 Native 命令，让 `cl.exe` 和 Windows SDK 可被发现。仅安装 MoonBit 可以运行纯核心 Wasm 检查；网络 CLI 还需要 C 工具链。运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
+Windows 用户需要 llvm-mingw（下载 ucrt x86_64 压缩包，把 bin 加入 PATH），与 CI 一致。仅安装 MoonBit 可以运行纯核心 Wasm 检查；网络 CLI 还需要 C 工具链。运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
 
 第一次体验建议先执行上面的自动场景测试，再运行离线 `generate`，最后连接自己的服务。
 
@@ -102,7 +102,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 ## 验证与发布准备
 
-[GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows/MSVC、Linux、Wasm/Native 和 Linux ASan。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
+[GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows（llvm-mingw）、Linux、Wasm/Native 和 Linux ASan。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
 
 `moon package --list` 审查源码包内容，`moon package` 生成待发布源码包。发布前清单见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。报名申报书仍由本人撰写，本项目不代填或提交。
 

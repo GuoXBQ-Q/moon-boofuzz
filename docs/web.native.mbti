@@ -1,0 +1,108 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/web"
+
+import {
+  "GuoXBQ-Q/moon-boofuzz/db",
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/ref",
+}
+
+// Values
+pub fn[T : SessionView] api_current_run(T) -> HttpResponse raise
+
+pub fn[T : SessionView] api_test_case(T, Int) -> HttpResponse raise
+
+pub fn[T : SessionView] handle_request(T, HttpRequest) -> HttpResponse raise
+
+pub fn[T : SessionView] render_index(T) -> HttpResponse raise
+
+pub fn[T : SessionView] render_test_case(T, Int) -> HttpResponse raise
+
+// Errors
+pub(all) suberror WebError {
+  BindFailure(Int)
+  ServeFailure(Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct HttpRequest {
+  verb : String
+  path : String
+} derive(Eq, @debug.Debug)
+
+pub(all) struct HttpResponse {
+  status : Int
+  content_type : String
+  body : Bytes
+  headers : Array[String]
+} derive(@debug.Debug)
+pub fn HttpResponse::html(String) -> Self
+pub fn HttpResponse::json(String) -> Self
+pub fn HttpResponse::not_found() -> Self
+pub fn HttpResponse::redirect(String) -> Self
+
+pub struct HttpServer {
+  socket : WebSocket
+  bound_port : Int
+}
+pub fn HttpServer::bind(port~ : Int) -> Self raise WebError
+pub fn HttpServer::poll(Self, (HttpRequest) -> HttpResponse raise) -> HttpRequest? raise
+pub fn HttpServer::port(Self) -> Int
+pub fn HttpServer::serve_pending(Self, (HttpRequest) -> HttpResponse raise) -> Unit raise
+
+pub struct LiveSession {
+  paused : @ref.Ref[Bool]
+  executed : @ref.Ref[Int]
+  limit : Int
+  started_ms : Int64
+  failures : @ref.Ref[Map[Int, Array[String]]]
+  current_name : @ref.Ref[String]
+}
+pub fn LiveSession::new(limit~ : Int) -> Self
+pub fn LiveSession::observe(Self, @records.CaseRecord) -> Unit
+pub impl SessionView for LiveSession
+
+pub(all) struct LogLine {
+  css_class : String
+  log_line : String
+} derive(Eq, @debug.Debug)
+
+pub struct OfflineSession {
+  reader : @db.DbReader?
+  records : Array[@records.CaseRecord]
+  names : Map[Int, String]
+}
+pub fn OfflineSession::close(Self) -> Unit
+pub fn OfflineSession::open_database(String) -> Self raise
+pub fn OfflineSession::open_jsonl(String) -> Self raise
+pub impl SessionView for OfflineSession
+
+type WebSocket
+
+pub struct WebUi {
+  server : HttpServer
+  session : LiveSession
+}
+pub fn WebUi::gate(Self) -> Unit raise
+pub fn WebUi::open(port~ : Int, limit~ : Int) -> Self raise
+pub fn WebUi::port(Self) -> Int
+pub fn WebUi::serve(Self) -> Unit raise
+pub fn WebUi::session(Self) -> LiveSession
+
+// Type aliases
+
+// Traits
+pub trait SessionView {
+  fn is_paused(Self) -> Bool
+  fn toggle_pause(Self) -> Unit
+  fn current_index(Self) -> Int raise
+  fn num_mutations(Self) -> Int?
+  fn current_element(Self) -> String
+  fn current_case_name(Self) -> String
+  fn state(Self) -> String
+  fn runtime_seconds(Self) -> Double
+  fn exec_speed(Self) -> Double
+  fn crashes(Self) -> Map[Int, Array[String]] raise
+  fn test_case_data(Self, Int) -> @db.DbCase raise
+}
