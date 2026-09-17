@@ -1,0 +1,3 @@
+# Vendored SQLite amalgamation (upstream source, not project code)
+db/sqlite3.c linguist-vendored
+db/sqlite3.h linguist-vendored
