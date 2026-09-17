@@ -10,7 +10,7 @@ moon run --target native cmd/boofuzz -- replay _build/run-001.jsonl --id '["pack
 moon run --target native cmd/boofuzz -- replay _build/run-001.jsonl --id '["packet"]/v1:packet.data:0' --host 127.0.0.1 --port 9001
 ```
 
-将示例身份替换为报告中的实际 `case_id`。报告的 `failures[].line` 是日志行号，`failed_step` 从 0 开始，-1 表示连接阶段失败。回调故障不一定对应具体请求步骤。
+将示例身份替换为报告中的实际 `case_id`。报告的 `failures[].line` 是日志行号，`failed_step` 从 0 开始，-1 表示连接阶段失败。回调故障不一定对应具体请求步骤；`monitor_failed` 表示监视器（如 `--target-cmd` 进程监视器）检测到目标故障，属计入失败的类别（见 MONITORS.md 的完整分类）。
 
 | 命令结果 | 退出码 |
 | --- | --- |

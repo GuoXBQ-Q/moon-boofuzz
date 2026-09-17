@@ -39,10 +39,10 @@
 |33|边回调（challenge-response）|session.mbt StepContext，runner/edge_callback_wbtest.mbt|
 |34|errno 语义分类|transport/classify.mbt|
 |35|执行开关（check/receive/ignore）|runner/config.mbt，runner.mbt|
-|36|连接重试（阈值/超时/恢复）|runner.mbt retry_dial_failure，runner_wbtest.mbt|
+|36|连接重试（阈值/超时/恢复）|runner.mbt recover_and_retry，runner_wbtest.mbt|
 |37|崩溃阈值（12/3）与索引跳过|runner.mbt next()|
 |38|断点续跑 run --start/--end|runner.mbt，cmd/boofuzz/main.mbt|
-|39|generate --id 按身份重生成|definition.mbt position_of_id，mutation.mbt count_at|
+|39|generate --id 按身份重生成|definition.mbt position_of_id，mutation.mbt raw_prefix_before（含 Group 重放偏移）|
 |40|实时用例日志 --text-dump|cmd/boofuzz/main.mbt Monitor.after|
 |41|用例间步进 --sleep-between-ms|transport bf_sleep，runner.mbt|
 |42|adler32/crc32c 校验和|checksum.mbt，测试向量|
@@ -56,6 +56,7 @@
 |50|Web UI 与 open 子命令|web/（http.c 回环桥 + 路由 + 页面渲染），web_wbtest.mbt、cli_wbtest.mbt|
 |51|UDP server 模式|transport udp_server（bf_udp_server/recvfrom/send_peer），udp_wbtest.mbt、cli_wbtest.mbt|
 |52|UDP 广播|transport udp_broadcast（SO_BROADCAST + bf_udp_send_address），udp_wbtest.mbt|
+|53|复审修复二轮|监视器崩溃计入失败（MonitorSignal/MonitorFailed，runner+process）、Web 按连接隔离与 500（web/server.mbt）、float %f 精确十进制舍入（float.mbt，float_test.mbt）、--id 含 Group 重放偏移（mutation.mbt raw_prefix_before）、拨号阈值按重启计数（runner.mbt）；各对应 *_wbtest.mbt|
 
 纯核心、定义和记录格式不依赖网络。Native transport/recordio/db/web 只用 C 桥接系统调用与内嵌 SQLite；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接；拨号失败默认无限重试并在恢复后重连（阈值/超时可配，见 RUNNER.md），故障计数按请求/元素区分。
 

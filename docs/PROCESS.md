@@ -25,7 +25,9 @@ DebuggerThreadSimple 的 spawn 语义一致。C 层遵循 transport/socket.c 模
   （stop+start，对齐上游 pre_send 的 process_monitor_local.py），重启
   失败不中断用例，由后续发送暴露（摘要记入 synopsis）。
 - `after`：轮询目标——**运行期内任何退出都视为故障**（包括正常退出 0，
-  与上游 post_send 的存活语义一致），记入崩溃摘要并使该用例失败。
+  与上游 post_send 的存活语义一致），以 `MonitorSignal::TargetFailed`
+  上报：用例记录为计入失败的 `MonitorFailed`（含退出码），推进崩溃
+  阈值并触发恢复。
 - `recover`：停止（kill + 停止延迟 + 回收）后重新启动（启动延迟 +
   存活确认）；重启失败返回 false，执行器以 `RecoveryFailed` 停止。
 - `fault`：崩溃摘要保留在 `ProcessMonitor.synopsis`。
@@ -43,7 +45,8 @@ DebuggerThreadSimple 的 spawn 语义一致。C 层遵循 transport/socket.c 模
 ## 边界
 
 无调试器、无符号/崩溃地址分析（上游 pydbg 路径不移植）；崩溃归因是
-"目标进程已退出" + 退出码。进程是本地子进程，无 pedrpc 远程监视。
+"目标进程已退出" + 退出码，随用例的 `monitor_failed` outcome 与 detail
+进入 JSONL/SQLite/报告。进程是本地子进程，无 pedrpc 远程监视。
 C finalizer 对仍在运行的 POSIX 子进程做 best-effort SIGKILL 回收。
 
 Source: `boofuzz/utils/process_monitor_local.py`、
@@ -51,4 +54,5 @@ Source: `boofuzz/utils/process_monitor_local.py`、
 `boofuzz/monitors/base_monitor.py`（钩子语义）。进程桥与
 `Monitor::combine` 是 MoonBit 适配。
 `process/process_wbtest.mbt`、`process/monitor_wbtest.mbt` 覆盖
-spawn/退出码/kill/超时与监视器全生命周期（含恢复失败路径）。
+spawn/退出码/kill/超时与监视器全生命周期（含恢复失败路径与
+`MonitorSignal::TargetFailed` 信号类型）。

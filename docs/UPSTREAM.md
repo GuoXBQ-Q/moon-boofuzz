@@ -19,7 +19,7 @@
 | Size / CRC32 | blocks/size.py、checksum.py | 派生字段、自包含、显式错误值；请求级样本；见 SIZE.md、CHECKSUM.md |
 | 会话 | sessions/session.py、pgraph/graph.py | DAG、插入顺序、末端目标变异；见 SESSION.md |
 | TCP / UDP | connections/tcp_socket_connection.py、udp_socket_connection.py | 新写系统调用桥接；见 TRANSPORT.md、UDP.md |
-| 回调与执行 | monitors/base_monitor.py、sessions/session.py | 顺序隔离、类型化结果；拨号失败走 `_open_connection_keep_trying` 等价重试（默认无限，正阈值按失败拨号计数，放弃即记录用例并停止），故障阈值按请求/元素计数且拨号失败不计入；见 RUNNER.md、MONITORS.md |
+| 回调与执行 | monitors/base_monitor.py、sessions/session.py | 顺序隔离、类型化结果；拨号失败走 `_open_connection_keep_trying` 等价重试（默认无限，正阈值按已完成重启计数：阈值 N 允许 N 次重启与 N+1 次拨号，放弃即记录用例并停止），故障阈值按请求/元素计数且拨号失败不计入，监视器 `after` 抛 `MonitorSignal::TargetFailed`（进程监视器崩溃信号）按上游 post_send→log_fail 计入失败并触发恢复；见 RUNNER.md、MONITORS.md |
 | JSONL / 重放 / CLI | fuzz_logger.py、fuzz_logger_db.py 的记录概念 | 新格式和适配实现；见 RECORDS.md、REPLAY.md、DEFINITIONS.md |
 | Size 自动变异 / Checksum 边界 | blocks/size.py、blocks/checksum.py 的内嵌 BitField 委托与 6 条边界 | 已按上游实现；见 SIZE.md、CHECKSUM.md |
 | 条件运算符 / 隐藏块发射 | blocks/block.py dep_compare 与条件不满足渲染空块 | 全部运算符与发射语义对齐（操作数顺序保留上游 quirk）；见 CONDITIONS.md |

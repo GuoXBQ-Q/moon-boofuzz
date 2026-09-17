@@ -145,9 +145,11 @@ socket（Windows 工具链无 AF_UNIX 头，双平台 CI 无法统一）、Seria
   ——RUNNER.md
 - 元素级故障阈值不豁免 Group/Repeat 元素（上游对二者不触发元素耗尽）；
   监视器回调异常记录为 CallbackFailed 但不计阈值、不触发恢复（上游记
-  log_error 后继续传输）；接收超时、对端关闭与被忽略的连接重置同样
+  log_error 后继续传输），`after` 抛 `MonitorSignal::TargetFailed` 的
+  监视器故障信号例外——按上游 post_send→log_fail 以 `MonitorFailed`
+  计入失败并触发恢复；接收超时、对端关闭与被忽略的连接重置同样
   只记录不计故障，check_data_received 可将空读取升级为 NothingReceived
-  ——RUNNER.md、MONITORS.md
+  ——RUNNER.md、MONITORS.md、PROCESS.md
 - `--csv-out` 为独立的每用例一行导出格式，非上游 fuzz_logger_csv.py 的
   逐消息行格式；上游 receive 行截断 quirk（"recv"/"receive" 不匹配）逐字
   保留——RECORDS.md、DB.md

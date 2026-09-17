@@ -154,9 +154,9 @@ fn dispatch(args : Array[String]) -> Int raise {
           }
           let offset = definition.position_of_id(id)
           // Verify the position actually holds the requested id; the
-          // offset model assumes definition-order paths with no diamonds,
-          // so a mismatch means the definition differs from the one that
-          // produced the id.
+          // offset walks the same stream tree generate enumerates (group
+          // product replays included), so a mismatch means the definition
+          // differs from the one that produced the id.
           let actual = definition.case_id_at(offset)
           guard actual == Some(id) else {
             let found = actual.unwrap_or("end of stream")
