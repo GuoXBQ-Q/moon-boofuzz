@@ -79,13 +79,16 @@ pub fn ProcessMonitor::new(
     after=fn(_result) raise {
       // Any target exit during the run is a fault, exit code zero included:
       // upstream's post_send reports death regardless of how it happened.
+      // The signal is a MonitorSignal, not a ProcessError, so the runner
+      // records a counted MonitorFailed failure and restarts the target
+      // through fault/recover (upstream session.py:507-548, 569-632).
       match state.val {
         Some(process) => {
           let status = process.status()
           if status.exited {
             let text = "target process exited with code \{status.exit_code}"
             synopsis.val = text
-            raise ProcessError::PollFailure(status.exit_code)
+            raise @runner.MonitorSignal::TargetFailed(reason=text)
           }
         }
         None => ()

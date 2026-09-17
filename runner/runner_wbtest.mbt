@@ -145,23 +145,30 @@ test "dial failure retries within threshold then recovers" {
 }
 
 ///|
-test "dial failure counts failed dials and stops at the threshold" {
-  // Upstream counts failed dials including the first and re-raises out of
-  // the fuzz loop at the threshold, so threshold=2 allows exactly 2 dials.
+test "dial failure counts restarts and stops at the threshold" {
+  // Upstream checks unable_to_connect_count before restarting and
+  // increments it after (session.py:1486-1508), so threshold=2 allows 2
+  // restarts and exactly 3 dials before re-raising out of the fuzz loop.
   let attempts : Array[Int] = []
+  let mut restarts = 0
   let runner = Runner::with_dialer(
     runner_paths(),
     fn() raise @transport.TransportError {
       attempts.push(attempts.length() + 1)
       raise @transport.TransportError::ConnectFailure(111)
     },
+    monitor=Monitor::new(recover=_ => {
+      restarts += 1
+      true
+    }),
     restart_threshold=Some(2),
     restart_sleep_ms=0,
   )
   let result = runner.next().unwrap()
   assert_eq(result.outcome, ConnectFailed(111))
   assert_eq(result.failed_step, Some(-1))
-  assert_eq(attempts.length(), 2)
+  assert_eq(attempts.length(), 3)
+  assert_eq(restarts, 2)
   // Giving up ends the run: the failed case is recorded, then no more.
   assert_true(runner.next() is None)
   assert_eq(runner.state(), Stopped)

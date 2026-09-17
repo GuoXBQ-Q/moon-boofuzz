@@ -107,6 +107,7 @@ pub fn CompiledRequest::name(Self) -> String
 pub fn CompiledRequest::parent_path(Self, String) -> String? raise ModelError
 pub fn CompiledRequest::paths(Self) -> Array[String]
 pub fn CompiledRequest::raw_mutation_count(Self) -> Int64
+pub fn CompiledRequest::raw_prefix_before(Self, String) -> Int64 raise ModelError
 pub fn CompiledRequest::render(Self) -> Bytes raise ModelError
 pub fn CompiledRequest::render_case(Self, Array[(String, Int)], Map[String, Bytes]?) -> Bytes raise ModelError
 pub fn CompiledRequest::render_path(Self, String) -> Bytes raise ModelError

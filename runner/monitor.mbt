@@ -6,6 +6,16 @@ pub(all) struct CaseContext {
 } derive(Debug)
 
 ///|
+/// Raised by a monitor's `after` callback to report a passively detected
+/// target failure, like upstream's `post_send()` returning False
+/// (sessions/session.py:507-548, 518c139). The runner records the case as
+/// the counted failure `MonitorFailed` and runs fault/recover for it;
+/// every other `after` exception stays a non-counted `CallbackFailed`.
+pub(all) suberror MonitorSignal {
+  TargetFailed(reason~ : String)
+} derive(Debug)
+
+///|
 pub struct Monitor {
   before : (CaseContext) -> Unit raise
   after : (CaseResult) -> Unit raise
@@ -64,6 +74,7 @@ fn is_failure(outcome : Outcome) -> Bool {
     | ResponseMismatch
     | ConfigurationFailed(_)
     | DatagramTooLarge
+    | MonitorFailed(_)
     | RecoveryFailed(_)
     | NothingReceived => true
   }
@@ -73,6 +84,11 @@ fn is_failure(outcome : Outcome) -> Bool {
 fn Runner::finish(self : Runner, result : CaseResult) -> CaseResult {
   let mut final_result = result
   (self.monitor.after)(result.snapshot()) catch {
+    // A monitor-detected failure counts exactly like upstream's
+    // post_send False -> log_fail: it fails the case and drives the
+    // fault/recover path below.
+    MonitorSignal::TargetFailed(reason~) =>
+      final_result = { ..result, outcome: MonitorFailed(reason), }
     error =>
       final_result = {
         ..result,
@@ -83,13 +99,10 @@ fn Runner::finish(self : Runner, result : CaseResult) -> CaseResult {
   }
   if is_failure(final_result.outcome) {
     (self.monitor.fault)(final_result.snapshot()) catch {
-      error =>
-        final_result = {
-          ..final_result,
-          outcome: CallbackFailed(
-            "fault: \{Repr(error)}; prior: \{Repr(final_result.outcome)}",
-          ),
-        }
+      // Fault callback exceptions never un-classify an already counted
+      // failure; upstream restart handling runs regardless of logging
+      // errors (the message is dropped, the outcome is kept).
+      _ => ()
     }
     let recovered = (self.monitor.recover)(final_result.snapshot()) catch {
       error => {

@@ -74,8 +74,17 @@ pub fn HttpServer::poll(
     web_socket_close(client)
     raise ServeFailure(code)
   }
-  let request = read_request(client)
-  let response = handle(request)
+  // One bad connection (a silent port scanner, a malformed request, a peer
+  // that vanished mid-read) is dropped without taking the server down:
+  // upstream serves every request on its own tornado worker thread
+  // (sessions/web_app.py), so a stuck client can never end the fuzz run.
+  let request = read_request(client) catch {
+    _ => {
+      web_socket_close(client)
+      return None
+    }
+  }
+  let response = handle(request) catch { _ => HttpResponse::internal_error() }
   write_response(client, response)
   web_socket_close(client)
   Some(request)
@@ -121,6 +130,9 @@ fn read_request(client : WebSocket) -> HttpRequest raise WebError {
       continue
     }
   }
+  // A connection that never sent a request byte is not a GET / (an empty
+  // read used to render the index page); treat it as a dropped client.
+  guard received > 0 else { raise ServeFailure(-3) }
   parse_request_line(buffer, received)
 }
 
@@ -143,22 +155,23 @@ fn has_header_end(buffer : FixedArray[Byte], length : Int) -> Bool {
 }
 
 ///|
-fn parse_request_line(buffer : FixedArray[Byte], length : Int) -> HttpRequest {
+fn parse_request_line(
+  buffer : FixedArray[Byte],
+  length : Int,
+) -> HttpRequest raise WebError {
   let mut end = 0
   while end < length && buffer[end] != b'\r' && buffer[end] != b'\n' {
     end += 1
   }
+  // Without a usable "VERB PATH" request line the connection is garbage;
+  // answering it with the index page would mask broken clients.
+  guard end > 0 else { raise ServeFailure(-3) }
   let line = Bytes::makei(end, i => buffer[i])
   let text = @utf8.decode_lossy(line)
   let parts = text.split(" ").collect()
-  let verb = match parts.get(0) {
-    Some(m) => m.to_owned()
-    None => "GET"
-  }
-  let raw_path = match parts.get(1) {
-    Some(p) => p.to_owned()
-    None => "/"
-  }
+  guard parts.length() >= 2 else { raise ServeFailure(-3) }
+  let verb = parts[0].to_owned()
+  let raw_path = parts[1].to_owned()
   let path = match raw_path.find("?") {
     Some(index) if index > 0 => raw_path[0:index].to_owned()
     _ => raw_path
@@ -215,11 +228,23 @@ pub fn HttpResponse::not_found() -> HttpResponse {
 }
 
 ///|
+/// The answer to a raising route handler, like Flask's default error page.
+pub fn HttpResponse::internal_error() -> HttpResponse {
+  {
+    status: 500,
+    content_type: "text/plain; charset=utf-8",
+    body: @utf8.encode("500 internal server error"),
+    headers: [],
+  }
+}
+
+///|
 fn status_text(status : Int) -> String {
   match status {
     200 => "OK"
     302 => "Found"
     404 => "Not Found"
+    500 => "Internal Server Error"
     _ => "OK"
   }
 }

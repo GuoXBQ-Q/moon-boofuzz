@@ -12,6 +12,10 @@ import {
 pub fn replay(@records.CaseRecord, override_target? : (String, Int)) -> ReplayResult raise
 
 // Errors
+pub(all) suberror MonitorSignal {
+  TargetFailed(reason~ : String)
+} derive(@debug.Debug)
+
 pub suberror RunError {
   Invalid(String)
 } derive(@debug.Debug)
@@ -85,6 +89,7 @@ pub(all) enum Outcome {
   PeerClosed
   ResponseMismatch
   CallbackFailed(String)
+  MonitorFailed(String)
   RecoveryFailed(String)
   NothingReceived
   ConnectionIgnored(String)

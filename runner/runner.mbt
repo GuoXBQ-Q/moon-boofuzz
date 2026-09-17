@@ -12,6 +12,10 @@ pub(all) enum Outcome {
   PeerClosed
   ResponseMismatch
   CallbackFailed(String)
+  /// A monitor passively detected a target failure after the case ran
+  /// (upstream: monitor post_send returning False -> log_fail). Unlike
+  /// CallbackFailed this is a counted failure and drives fault/recover.
+  MonitorFailed(String)
   RecoveryFailed(String)
   NothingReceived
   ConnectionIgnored(String)
@@ -615,11 +619,13 @@ fn is_dial_failure(result : CaseResult) -> Bool {
 
 ///|
 /// Upstream's _open_connection_keep_trying: recover the target and retry
-/// the dial. With no threshold (the default) it retries indefinitely, and
-/// an explicit threshold counts failed dials including the first; an
+/// the dial. With no threshold (the default) it retries indefinitely. An
+/// explicit threshold counts completed *restarts*: upstream checks the
+/// counter before restarting and increments it after, so threshold N
+/// allows N restarts and N+1 dials (session.py:1486-1508, 518c139). An
 /// explicit restart_timeout bounds the whole loop. Giving up ends the run
-/// after this recorded case, like upstream re-raising out of the fuzz loop
-/// (session.py:1475-1514, 518c139).
+/// after this recorded case, like upstream re-raising out of the fuzz
+/// loop.
 fn Runner::recover_and_retry(
   self : Runner,
   path : @core.SessionPath,
@@ -628,13 +634,13 @@ fn Runner::recover_and_retry(
 ) -> CaseResult raise @core.ModelError {
   let started = @transport.monotonic_ms()
   let mut current = first
-  let mut failed_dials = 1
+  let mut restarts = 0
   while true {
     // Upstream's falsy check: a threshold of 0 means never give up, so
     // only a positive count ends the loop (session.py:1491).
     if self.restart_threshold is Some(threshold) &&
       threshold > 0 &&
-      failed_dials >= threshold {
+      restarts >= threshold {
       self.state = Stopped
       return current
     }
@@ -652,6 +658,9 @@ fn Runner::recover_and_retry(
       self.state = Stopped
       return current
     }
+    // Upstream increments unable_to_connect_count after the restart, so
+    // the give-up check above compares completed restarts, not dials.
+    restarts += 1
     if self.restart_sleep_ms > 0 {
       @transport.sleep_ms(self.restart_sleep_ms)
     }
@@ -659,7 +668,6 @@ fn Runner::recover_and_retry(
     if !is_dial_failure(retried) {
       return self.finish(retried)
     }
-    failed_dials += 1
     current = retried
   }
   current

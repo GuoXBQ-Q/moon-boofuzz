@@ -44,7 +44,7 @@ test "ipv4 and udp checksum reference vectors" {
   let header = b"\x45\x00\x00\x73\x00\x00\x40\x00\x40\x11\x00\x00\xc0\xa8\x00\x01\xc0\xa8\x00\xc7"
   assert_eq(ipv4_checksum(header), 0xb861U)
   // Pseudo-header (192.168.0.1 -> 192.168.0.199, proto 17, length 8) over
-  // a UDP header {sport 100, dport 0, len 8, csum 0} -> 0x7d69.
+  // a UDP header {sport 100, dport 0, len 8, csum 0} -> 0x7d61.
   let source = b"\xc0\xa8\x00\x01"
   let destination = b"\xc0\xa8\x00\xc7"
   let udp = b"\x00\x64\x00\x00\x00\x08\x00\x00"

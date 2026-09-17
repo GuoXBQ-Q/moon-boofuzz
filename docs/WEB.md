@@ -72,8 +72,11 @@ log-case/log-step/log-send/log-receive/log-fail/log-pass/log-error。
 与 gate;`cmd/boofuzz/cli_wbtest.mbt` 覆盖 `run --web-port` 端到端。
 
 边界:仅回环、单线程顺序服务(UI 请求在用例间隙被服务,长阻塞用例
-期间会延迟);无 HTTPS、无静态文件、无 Flask 模板全集;崩溃详情
-(procmon 摘要)不入库;test-case 详情页对未知或未持久化的用例渲染
+期间会延迟);单个坏连接(静默客户端读超时、畸形请求行、连上即关)
+被静默丢弃、路由处理器异常回 500,都不会中断服务或活动运行(对齐
+上游每请求独立 worker 线程的隔离性);无 HTTPS、无静态文件、无
+Flask 模板全集;启动失败的 procmon synopsis 不入库,目标崩溃的退出
+码随用例的 `monitor_failed` outcome 与 detail 记录;test-case 详情页对未知或未持久化的用例渲染
 提示页(200)而非 404,活动运行的崩溃链接保持可点击,对齐上游空页面
 行为。其余已知差异:端口占用自动 +1 最多尝试 100 次(上游不限);
 离线视图的 /togglepause 静默无效果(上游会 500);live 运行时长/速度

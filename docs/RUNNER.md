@@ -23,11 +23,15 @@ The factory must create a fresh channel; exceptions do not imply target crashes.
 A recorded outcome is a *counted failure* only when it matches upstream's
 BoofuzzFailure or monitor log_fail: send failures, send timeouts, receive
 failures, response mismatches, missing required data
-(`NothingReceived`), oversized datagrams and configuration errors. Ignored
+(`NothingReceived`), oversized datagrams, configuration errors and
+monitor-detected target failures (`MonitorFailed`, raised as
+`MonitorSignal::TargetFailed` from a monitor's `after` callback like
+upstream's `post_send()` returning False). Ignored
 connection issues (`ConnectionIgnored`), receive timeouts, clean closes
 (`PeerClosed`) and monitor callback errors (`CallbackFailed`) are recorded
 for the report but do not count toward the crash thresholds and do not
-trigger target recovery. A send reset/abort on the fuzzed node is ignored
+trigger target recovery; a raising `fault` callback never re-classifies an
+already counted failure. A send reset/abort on the fuzzed node is ignored
 by default (`ignore_connection_issues_when_sending_fuzz_data=true`, the
 upstream default); prefix nodes honor `ignore_connection_reset` and
 `ignore_connection_aborted` (default false). A receive reset/abort is
@@ -43,7 +47,9 @@ reconnect path: the runner asks the monitor to recover the target, waits
 `restart_sleep_ms` (default 5000) and retries, without running the post-case
 failure machinery. `restart_threshold=None` (the default, and an explicit 0)
 retries indefinitely like upstream's falsy check; an explicit positive
-threshold counts failed dials including the first, and `restart_timeout_ms`
+threshold counts completed restarts — upstream checks its counter before
+restarting and increments it after — so threshold N allows N restarts and
+N+1 dials, and `restart_timeout_ms`
 bounds the whole loop. Giving up ends the run after recording the failed
 case (`state()` becomes `Stopped`), matching upstream re-raising out of the
 fuzz loop. Dial failures never count toward the crash thresholds.
@@ -54,7 +60,10 @@ element's remaining candidates and keeps the next element's first case;
 reaching the path threshold exhausts only that path, and other paths keep
 fuzzing. Monitor callbacks that raise are recorded as `CallbackFailed` but
 are not counted failures and trigger no recovery; upstream logs callback
-exceptions and keeps transmitting (see MONITORS.md).
+exceptions and keeps transmitting. A monitor's `after` raising
+`MonitorSignal::TargetFailed` (how the process monitor reports target
+crashes) is different: it is the counted failure `MonitorFailed` and runs
+fault/recover like any counted failure (see MONITORS.md).
 
 ## Start and end coordinates
 

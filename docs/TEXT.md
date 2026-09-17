@@ -15,8 +15,9 @@ an explicit wire-byte limit and reports excess instead of truncating UTF-8.
 `default_value().length()` therefore measures wire bytes, not characters.
 
 `Field::delimiter(":")` implements repetition, replacement and deletion.
-The ASCII subset matches upstream; non-ASCII delimiters use UTF-8 explicitly
-(upstream's helper uses Latin-1). `fuzzable=false` disables both field types.
+The ASCII subset matches upstream; non-ASCII delimiters use UTF-8, the
+same encoding upstream's `str_to_bytes` helper applies by default.
+`fuzzable=false` disables both field types.
 
 `string_library.mbt` is extracted with `scripts/string-library.mbtx`.
 `fixtures/text.json` generates `text_fixture_test.mbt` using

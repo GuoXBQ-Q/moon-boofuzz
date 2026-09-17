@@ -28,6 +28,7 @@ pub fn Outcome::name(self : Outcome) -> String {
     PeerClosed => "peer_closed"
     ResponseMismatch => "response_mismatch"
     CallbackFailed(_) => "callback_failed"
+    MonitorFailed(_) => "monitor_failed"
     RecoveryFailed(_) => "recovery_failed"
     NothingReceived => "nothing_received"
     ConnectionIgnored(_) => "connection_ignored"

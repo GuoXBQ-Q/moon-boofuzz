@@ -506,3 +506,56 @@ pub fn CompiledRequest::count_at(
 ) -> Int raise ModelError {
   self.entries[self.resolve(path)].kind.count()
 }
+
+///|
+/// Raw sequential case count emitted before the entry at `path` renders its
+/// first plain case, walking the same tree the stream enumerates: unlike
+/// count_at this includes group product replays of preceding grouped
+/// blocks, so the result is a real stream position. Returns -1 when the
+/// entry emits no plain cases at all (disabled or non-mutating entry).
+pub fn CompiledRequest::raw_prefix_before(
+  self : CompiledRequest,
+  path : String,
+) -> Int64 raise ModelError {
+  let target = self.resolve(path)
+  let found : Ref[Bool] = Ref(false)
+  let prefix = self.raw_prefix_walk(self.seq, target, found)
+  if found.val {
+    prefix
+  } else {
+    -1L
+  }
+}
+
+///|
+fn CompiledRequest::raw_prefix_walk(
+  self : CompiledRequest,
+  seq : CaseSeq,
+  target : Int,
+  found : Ref[Bool],
+) -> Int64 {
+  if found.val {
+    return 0L
+  }
+  match seq {
+    Plain(entry) =>
+      if entry == target {
+        found.val = true
+        0L
+      } else {
+        self.entries[entry].kind.count().to_int64()
+      }
+    Sequence(children) => {
+      let mut total = 0L
+      for child in children {
+        total += self.raw_prefix_walk(child, target, found)
+      }
+      total
+    }
+    Product(group, inner) =>
+      // The replay of the plain pass that ran as this node's preceding
+      // sibling; if the target is inside that subtree, the sibling walk
+      // already found it, so the replays only ever add their full count.
+      self.entries[group].kind.count().to_int64() * self.seq_count(inner)
+  }
+}

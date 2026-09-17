@@ -112,12 +112,19 @@ pub fn ProtocolDefinition::position_of_id(
       }
     }
     if entry_index >= 0 {
-      // Sum counts of every entry before the requested field.
-      let paths = request.paths()
-      for i in 0..<entry_index {
-        offset += request.count_at(paths[i])
+      // The raw stream position includes group product replays emitted by
+      // preceding grouped blocks, so the prefix comes from the same tree
+      // the stream enumerates, not from per-entry candidate counts.
+      let prefix = request.raw_prefix_before(field_path)
+      guard prefix >= 0L else {
+        raise Invalid("case field path has no resumable cases: " + field_path)
       }
-      offset += index
+      let position = prefix + index.to_int64()
+      // Positions are 32-bit; refuse silent truncation of huge counts.
+      guard position <= 2147483647L else {
+        raise Invalid("request case count exceeds the 32-bit position range")
+      }
+      offset += position.to_int()
       found = true
       break
     }

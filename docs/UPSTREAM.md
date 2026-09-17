@@ -15,7 +15,7 @@
 | Bytes | primitives/bytes.py | 基础候选、魔术值、替换和长度处理；单字节 padding；见 BINARY.md |
 | String / Delim | primitives/string.py、delim.py | 固定字符串库、确定性长字符串；动态 UTF-8 子集；见 TEXT.md |
 | 命名块/变异流 | blocks/request.py、fuzzable_block.py | 不可变编译模型和惰性序列为 MoonBit 适配；见 MODEL.md、MUTATION.md |
-| 条件/重复/对齐 | blocks/block.py、repeat.py、aligned.py | 条件子集、静态重复、整组对齐；见 CONDITIONS.md、REPEAT.md、ALIGNED.md |
+| 条件/重复/对齐 | blocks/block.py、repeat.py、aligned.py | 条件子集、重复计数变异与变量驱动重复、整组对齐；见 CONDITIONS.md、REPEAT.md、ALIGNED.md |
 | Size / CRC32 | blocks/size.py、checksum.py | 派生字段、自包含、显式错误值；请求级样本；见 SIZE.md、CHECKSUM.md |
 | 会话 | sessions/session.py、pgraph/graph.py | DAG、插入顺序、末端目标变异；见 SESSION.md |
 | TCP / UDP | connections/tcp_socket_connection.py、udp_socket_connection.py | 新写系统调用桥接；见 TRANSPORT.md、UDP.md |
@@ -31,7 +31,7 @@
 | 校验和算法集 | blocks/checksum.py 的算法表与 md5/sha1 字交换 | crc32/crc32c/adler32/md5/sha1 已接入节点与 JSON；ipv4/udp 以独立函数提供（块引用伪首部未接入）；见 CHECKSUM.md |
 | IPv6 传输（移植扩展） | 上游 TCP/UDP 实为 AF_INET 单栈（tcp/udp_socket_connection.py）；本移植的 AF_UNSPEC 解析 + IPv6 单播校验为文档化扩展，非上游行为；见 TRANSPORT.md、UDP.md |
 | File 传输 | connections/file_connection.py | 每消息一个编号文件（截断创建），NoResponse 策略；见 DEFINITIONS.md file 传输 |
-| CSV 导出 | fuzz_logger_csv.py | 行格式对齐（每用例一行 + 流量 hex）；见 RECORDS.md、cmd/boofuzz/csv_report.mbt |
+| CSV 导出 | fuzz_logger_csv.py | 新格式：每用例一行的执行后导出（非上游逐消息行格式）；见 RECORDS.md、cmd/boofuzz/csv_report.mbt |
 | SQLite 结果库 | fuzz_logger_db.py | 表结构/写入队列/keep-only-n/512 截断/Reader 逐条对齐；vendor SQLite 3.45.3（公有领域）；见 DB.md |
 | --record-passes 节流 | fuzz_logger_db.py num_log_cases（CLI record_passes） | SQLite 侧 num_log_cases + JSONL 侧 ThrottledWriter 等价实现；见 DB.md |
 | Web UI 与 open | web/app.py、sessions/web_app.py、session_info.py、helpers.py 日志模板 | 回环 HTTP 服务、上游路由/JSON/日志行渲染/端口+1/暂停联动；open 支持 SQLite 与 JSONL；见 WEB.md |

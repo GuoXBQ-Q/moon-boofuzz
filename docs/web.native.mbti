@@ -38,6 +38,7 @@ pub(all) struct HttpResponse {
   headers : Array[String]
 } derive(@debug.Debug)
 pub fn HttpResponse::html(String) -> Self
+pub fn HttpResponse::internal_error() -> Self
 pub fn HttpResponse::json(String) -> Self
 pub fn HttpResponse::not_found() -> Self
 pub fn HttpResponse::redirect(String) -> Self

@@ -99,8 +99,8 @@ pub fn CaseRecord::validate(self : CaseRecord) -> Unit raise RecordError {
   guard [
     "passed", "connect_failed", "send_failed", "receive_failed", "connect_timeout",
     "send_timeout", "receive_timeout", "configuration_failed", "datagram_too_large",
-    "peer_closed", "response_mismatch", "callback_failed", "recovery_failed", "nothing_received",
-    "connection_ignored",
+    "peer_closed", "response_mismatch", "callback_failed", "monitor_failed", "recovery_failed",
+    "nothing_received", "connection_ignored",
   ].contains(self.outcome) else {
     raise Invalid("unknown outcome")
   }

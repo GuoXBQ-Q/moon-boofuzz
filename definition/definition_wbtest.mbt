@@ -208,3 +208,51 @@ test "case_id_at verifies id resolution and group ids are rejected" {
     },
   )
 }
+
+///|
+test "position_of_id counts group product replays in raw offsets" {
+  // Layout: [group op (1 candidate after default removal), grouped block
+  // body{x: 2 candidates}, leaf y (2 candidates)] streams as op, x:0, x:1,
+  // two op*body product replays, then y — so y:0 sits at raw position 5,
+  // not at the plain-count sum 3 the old offset arithmetic produced.
+  let source : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "r",
+        "children": [
+          { "type": "group", "name": "op", "values_hex": ["41", "42"] },
+          {
+            "type": "block",
+            "name": "body",
+            "group": "r.op",
+            "children": [
+              { "type": "simple", "name": "x", "values_hex": ["31", "32"] },
+            ],
+          },
+          { "type": "simple", "name": "y", "values_hex": ["34", "35"] },
+        ],
+      },
+    ],
+  }
+  let protocol = ProtocolDefinition::parse(source.stringify())
+  assert_eq(protocol.requests()[0].raw_mutation_count(), 7L)
+  assert_eq(protocol.case_id_at(5), Some("[\"r\"]/v1:r.y:0"))
+  let offset = protocol.position_of_id("v1:r.y:0")
+  assert_eq(offset, 5)
+  assert_eq(protocol.case_id_at(offset), Some("[\"r\"]/v1:r.y:0"))
+  // Fields inside the grouped block start after the plain group pass,
+  // before any replay.
+  let inner = protocol.position_of_id("v1:r.body.x:1")
+  assert_eq(inner, 2)
+  assert_eq(protocol.case_id_at(inner), Some("[\"r\"]/v1:r.body.x:1"))
+  // The product replay itself keeps its '+' id and stays rejected.
+  assert_true(
+    try {
+      ignore(protocol.position_of_id("v1:r.op:0+r.body.x:0"))
+      false
+    } catch {
+      _ => true
+    },
+  )
+}

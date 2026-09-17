@@ -24,7 +24,11 @@ test "process monitor spawns restarts and reports crashes" {
   ignore(process.wait(timeout_ms=10000))
   let mut raised = false
   (monitor.monitor.after)(placeholder_result()) catch {
-    _ => raised = true
+    @runner.MonitorSignal::TargetFailed(reason~) => {
+      raised = true
+      assert_true(reason.contains("exited"))
+    }
+    _ => ()
   }
   assert_true(raised)
   assert_true(monitor.synopsis.val.contains("exited"))

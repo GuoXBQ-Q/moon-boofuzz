@@ -27,9 +27,15 @@ step 模式每条候选先抽长度再逐字节抽取；step 模式长度固定�
 max_mutations=1000, seed=None, encode_as_ieee_754=false, endian=Big, ...)`
 复现上游序列：首条变异是按 `s_format` 格式化的默认值，其后为
 `uniform(f_min, f_max)`，相邻去重时随机数照常消耗。格式化仅支持
-`%.Nf`（定点、舍入到偶），编码支持 UTF-8 文本与 IEEE 754 binary32
+CPython 的 `"%.Nf"` 子集（`"f"` 为默认 6 位、`".f"` 为 0 位、`".Nf"` 为
+N 位，N 上限 1,000,000），对 double 的精确二进制值做一次十进制舍入
+（half-to-even），与 CPython `"%f"` 输出逐字节一致（如 `"%.1f" % 0.05`
+为 `"0.1"`）；带点的数字之外的形式（宽度/标志/`e`/`g` 等）显式拒绝。
+默认值按上游 `str(default_value)` 渲染（如 `2.5`），不经 `s_format`。
+编码支持 UTF-8 文本与 IEEE 754 binary32
 （含大小端）。上游 `seed=None` 依赖进程级全局随机数；本移植固定使用
-种子 0 以保证候选身份稳定，需要变化时显式传 `seed`。上游
+种子 0 以保证候选身份稳定，需要变化时显式传 `seed`；`seed` 取非负
+整数（上游允许负数与 str/bytes 种子）。上游
 `num_mutations` 恒报 `max_mutations` 而去重后实际产出更少；本移植的
 `num_mutations` 等于实际产出的候选数。
 

@@ -370,3 +370,39 @@ test "LiveSession observes cases and gates on pause" {
   assert_true(page.contains("\"current_test_case_name\":\"udp_request\""))
   assert_true(page.contains("\"reasons\":[\"SendTimedOut\"]"))
 }
+
+///|
+test "silent malformed and closed connections never stop serving" {
+  // One bad connection must not raise out of poll (which would end a live
+  // fuzz run through the gate loop); each is dropped and the server keeps
+  // answering later requests, like upstream's per-request worker threads.
+  let server = HttpServer::bind(port=0)
+  defer web_socket_close(server.socket)
+  // A silent client (port scan / health check) hits the read timeout and
+  // is dropped; poll reports nothing pending instead of raising.
+  let silent = web_socket_new()
+  assert_true(web_connect(silent, server.port()) == 0)
+  assert_true(server.poll(_ => HttpResponse::html("x")) is None)
+  web_socket_close(silent)
+  // A client that connects and closes without sending a byte is dropped
+  // the same way; an empty read is no longer answered with the index page.
+  let closed = web_socket_new()
+  assert_true(web_connect(closed, server.port()) == 0)
+  web_socket_close(closed)
+  assert_true(server.poll(_ => HttpResponse::html("x")) is None)
+  // A raising handler answers 500 instead of escaping the serving loop.
+  let client = open_request(server.port(), "/")
+  for ;; {
+    match server.poll(_ => fail("route handler failed")) {
+      Some(_) => break
+      None => continue
+    }
+  }
+  let response = drain(client)
+  assert_true(response.contains("500"))
+  assert_true(response.contains("500 internal server error"))
+  // The server still serves a normal request afterwards.
+  let view : FakeSession = { paused: @ref.Ref(false), }
+  let page = roundtrip(server, view, "/api/current-run")
+  assert_true(page.contains("\"session_info\""))
+}

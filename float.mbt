@@ -2,7 +2,9 @@
 // Port of boofuzz/primitives/float.py at 518c13904fc32e7f2cc88c9dec934e509062953e.
 // Upstream with seed=None relies on the process-global RNG (not reproducible);
 // the port fixes the sequence seed at 0 in that case so indexed candidate
-// access stays positionally stable. Only the "%.Nf" format subset is supported.
+// access stays positionally stable. Only the CPython "%.Nf" format subset is
+// supported ("f" defaults to six digits like "%f"), rendered with exact
+// decimal rounding of the double, matching CPython printf output.
 
 ///|
 /// Float candidates: the first mutation is the default value formatted with
@@ -64,17 +66,30 @@ pub fn Field::float(
 }
 
 ///|
-/// Accept only Python "%[.N]f" specifiers (with or without a leading dot).
+/// Accept only Python "%[.N]f" specifiers: bare "f" (CPython's "%f" default
+/// precision of 6), ".f" (precision 0) and ".Nf". Digits without a leading
+/// dot are width/flag characters in CPython, never precision, so they are
+/// rejected instead of misread.
 fn parse_float_precision(s_format : String) -> Int raise ModelError {
-  let body = if s_format.has_prefix(".") { s_format[1:] } else { s_format }
-  guard body.has_suffix("f") else { raise Invalid("float format must be %.Nf") }
+  guard s_format.has_suffix("f") else {
+    raise Invalid("float format must be %.Nf")
+  }
+  if !s_format.has_prefix(".") {
+    guard s_format == "f" else { raise Invalid("float format must be %.Nf") }
+    return 6
+  }
   let mut precision = 0
-  for i in 0..<(body.length() - 1) {
-    let code = body[i].to_int() - 48
+  for i in 1..<(s_format.length() - 1) {
+    let code = s_format[i].to_int() - 48
     guard code >= 0 && code <= 9 else {
       raise Invalid("float format must be %.Nf")
     }
     precision = precision * 10 + code
+    // Keep absurd precision specs from ballooning the exact-arithmetic
+    // workload; CPython has no limit but a fuzz payload never needs it.
+    guard precision <= 1_000_000 else {
+      raise Invalid("float format precision too large")
+    }
   }
   precision
 }
@@ -114,9 +129,12 @@ fn python_str_double(value : Double) -> String {
 }
 
 ///|
-/// "%.Nf" fixed-point formatting with CPython printf semantics (round
-/// half-to-even on the scaled value). Values are expected in the ranges
-/// reachable from typical f_min/f_max; exponent-style output is not produced.
+/// "%.Nf" fixed-point formatting with CPython printf semantics: the exact
+/// binary value of the double is rounded to N decimal digits exactly once,
+/// round-half-to-even on the exact value. Midpoints such as 0.05 with
+/// "%.1f" therefore render like CPython ("0.1": the double is strictly
+/// above the decimal midpoint) instead of double rounding through a scaled
+/// double, which would print "0.0".
 fn format_fixed_point(value : Double, precision : Int) -> String {
   let bits = value.reinterpret_as_uint64()
   let zeros = if precision > 0 { "." + "0".repeat(precision) } else { "" }
@@ -124,31 +142,51 @@ fn format_fixed_point(value : Double, precision : Int) -> String {
     return if bits >> 63 == 1UL { "-0" + zeros } else { "0" + zeros }
   }
   if ((bits >> 52) & 0x7ffUL) == 0x7ffUL {
+    if bits << 12 != 0UL {
+      return if bits >> 63 == 1UL { "-nan" } else { "nan" }
+    }
     return if bits >> 63 == 1UL { "-inf" } else { "inf" }
   }
   let negative = bits >> 63 == 1UL
   let magnitude = if negative { -value } else { value }
-  let mut scale = 1.0
+  // magnitude = m * 2^k with m a 53-bit integer (subnormals keep their
+  // raw fraction and the minimum exponent).
+  let raw = magnitude.reinterpret_as_uint64()
+  let biased = ((raw >> 52) & 0x7ffUL).to_int()
+  let (m, k) = if biased == 0 {
+    (raw & 0xfffffffffffffUL, -1074)
+  } else {
+    ((raw & 0xfffffffffffffUL) | 0x10000000000000UL, biased - 1075)
+  }
+  // digits = round_half_even(m * 10^N * 2^k), computed exactly.
+  let scaled = big_from_u64(m)
   for _ in 0..<precision {
-    scale = scale * 10.0
+    big_mul_small(scaled, 10U)
   }
-  let scaled = magnitude * scale
-  let floored = scaled.floor()
-  let fraction = scaled - floored
-  let mut rounded = floored.to_int64()
-  if fraction > 0.5 || (fraction == 0.5 && rounded % 2L != 0L) {
-    rounded += 1L
+  if k >= 0 {
+    big_shl(scaled, k)
+  } else {
+    let j = -k
+    // Divisor 2^j: r > half iff any bit below j-1 is set; r == half iff
+    // bit j-1 is set and no lower bit is. Ties round to even, so the tie
+    // bit alone rounds up only when the quotient (bit j of the scaled
+    // value) is odd.
+    let round_up = big_bit(scaled, j - 1) &&
+      (big_any_bit_below(scaled, j - 1) || big_bit(scaled, j))
+    big_shr(scaled, j)
+    if round_up {
+      big_add_one(scaled)
+    }
   }
-  let digits = rounded.to_string()
+  let digits = big_to_decimal(scaled)
   let body = if precision == 0 {
     digits
   } else {
-    let padding = if digits.length() <= precision {
-      "0".repeat(precision + 1 - digits.length())
+    let padded = if digits.length() <= precision {
+      "0".repeat(precision + 1 - digits.length()) + digits
     } else {
-      ""
+      digits
     }
-    let padded = padding + digits
     let cut = padded.length() - precision
     padded[:cut].to_owned() + "." + padded[cut:].to_owned()
   }
@@ -157,6 +195,157 @@ fn format_fixed_point(value : Double, precision : Int) -> String {
   } else {
     body
   }
+}
+
+///|
+/// Little-endian base-2^32 limb scratch values for the exact %.Nf
+/// rounding above; magnitudes stay under ~1200 bits, so small arrays
+/// cover every double.
+fn big_from_u64(v : UInt64) -> Array[UInt] {
+  [v.to_uint(), (v >> 32).to_uint()]
+}
+
+///|
+fn big_mul_small(a : Array[UInt], m : UInt) -> Unit {
+  let mut carry : UInt64 = 0UL
+  for i in 0..<a.length() {
+    let t = a[i].to_uint64() * m.to_uint64() + carry
+    a[i] = t.to_uint()
+    carry = t >> 32
+  }
+  if carry != 0UL {
+    a.push(carry.to_uint())
+  }
+}
+
+///|
+fn big_bit(a : Array[UInt], i : Int) -> Bool {
+  let limb = i / 32
+  if limb >= a.length() {
+    return false
+  }
+  ((a[limb] >> (i % 32)) & 1U) == 1U
+}
+
+///|
+/// Whether any bit strictly below position i is set.
+fn big_any_bit_below(a : Array[UInt], i : Int) -> Bool {
+  let limb = i / 32
+  for j in 0..<limb {
+    if j < a.length() && a[j] != 0U {
+      return true
+    }
+  }
+  if limb < a.length() {
+    let mask = (1U << (i % 32)) - 1U
+    if (a[limb] & mask) != 0U {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn big_shl(a : Array[UInt], bits : Int) -> Unit {
+  if bits == 0 {
+    return
+  }
+  let words = bits / 32
+  let off = bits % 32
+  let n = a.length()
+  for _ in 0..<(words + 1) {
+    a.push(0U)
+  }
+  let total = a.length()
+  if off == 0 {
+    for i = total - 1; i >= 0; i = i - 1 {
+      a[i] = if i - words >= 0 && i - words < n { a[i - words] } else { 0U }
+    }
+    return
+  }
+  // Written right to left so the sources are never overwritten first.
+  for i = total - 1; i >= 0; i = i - 1 {
+    let src = i - words
+    let mut v : UInt64 = 0UL
+    if src >= 1 && src - 1 < n {
+      v = a[src - 1].to_uint64() >> (32 - off)
+    }
+    if src >= 0 && src < n {
+      v = v | (a[src].to_uint64() << off)
+    }
+    a[i] = v.to_uint()
+  }
+}
+
+///|
+fn big_shr(a : Array[UInt], bits : Int) -> Unit {
+  let words = bits / 32
+  let off = bits % 32
+  let n = a.length()
+  if words >= n {
+    for i in 0..<n {
+      a[i] = 0U
+    }
+    return
+  }
+  if off == 0 {
+    for i in 0..<(n - words) {
+      a[i] = a[i + words]
+    }
+  } else {
+    for i in 0..<(n - words) {
+      let mut v = (a[i + words].to_uint64() >> off).to_uint()
+      if i + words + 1 < n {
+        v = v | (a[i + words + 1].to_uint64() << (32 - off)).to_uint()
+      }
+      a[i] = v
+    }
+  }
+  for i in (n - words)..<n {
+    a[i] = 0U
+  }
+}
+
+///|
+fn big_add_one(a : Array[UInt]) -> Unit {
+  for i in 0..<a.length() {
+    let t = a[i].to_uint64() + 1UL
+    a[i] = t.to_uint()
+    if t <= 0xffffffffUL {
+      return
+    }
+  }
+  a.push(1U)
+}
+
+///|
+/// Decimal digits of the limb value, via repeated division by 10^9.
+fn big_to_decimal(a : Array[UInt]) -> String {
+  let mut n = a.length()
+  while n > 1 && a[n - 1] == 0U {
+    n -= 1
+  }
+  if n == 1 && a[0] == 0U {
+    return "0"
+  }
+  let groups : Array[String] = []
+  while n > 1 || a[n - 1] != 0U {
+    let mut rem : UInt64 = 0UL
+    for i = n - 1; i >= 0; i = i - 1 {
+      let cur = (rem << 32) | a[i].to_uint64()
+      a[i] = (cur / 1000000000UL).to_uint()
+      rem = cur % 1000000000UL
+    }
+    groups.push(rem.to_string())
+    while n > 1 && a[n - 1] == 0U {
+      n -= 1
+    }
+  }
+  let mut text = groups[groups.length() - 1]
+  for i = groups.length() - 2; i >= 0; i = i - 1 {
+    text = text + "0".repeat(9 - groups[i].length()) + groups[i]
+  }
+  text
 }
 
 ///|
