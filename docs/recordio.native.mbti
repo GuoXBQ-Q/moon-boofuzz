@@ -12,7 +12,7 @@ import {
 // Values
 pub fn capture(@runner.Runner, Writer) -> Int raise
 
-pub fn file_runner(@runner.ExecutionConfig, Array[@moon-boofuzz.SessionPath], monitor? : @runner.Monitor, limit~ : Int, combinatorial? : Bool, max_depth? : Int, start? : Int, end? : Int?, sleep_between? : Int) -> @runner.Runner raise
+pub fn file_runner(@runner.ExecutionConfig, Array[@moon-boofuzz.SessionPath], monitor? : @runner.Monitor, limit~ : Int, combinatorial? : Bool, max_depth? : Int, start? : Int, end? : Int?, sleep_between? : Int?) -> @runner.Runner raise
 
 pub fn print_error(String) -> Unit
 

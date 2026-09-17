@@ -41,6 +41,11 @@ transmit，session.py:754-794），收到 `StepContext`：
 `SessionPath::transitions` 按请求携带各边回调；目标载荷在发送时用
 `render_case(parts, vars)` 重新渲染（等价上游 render-at-send）。
 
+作用域差异（有意保留）：本移植整条用例共享一张变量表，早边回调的
+写入对后续所有步骤可见；上游为每条边新建 `ProtocolSession`，写入仅
+对同一节点可见，后续节点引用未写变量会 KeyError。纯 JSON 定义不含
+边回调，该差异只影响 MoonBit 会话。
+
 ## 边界
 
 回调本身不可抛错（返回 Bytes?）；JSON 定义无法注入回调。

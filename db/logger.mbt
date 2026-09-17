@@ -105,12 +105,13 @@ fn schema_present(db : Db) -> Bool raise DbError {
 
 ///|
 fn truncate_entry(entry : DbLogEntry) -> DbLogEntry {
-  // Upstream _truncate_send_recv (fuzz_logger_db.py:227-230): only send and
-  // receive rows shrink, and only while the case has not failed.
+  // Upstream _truncate_send_recv (fuzz_logger_db.py:227-230) tests the type
+  // against "recv" while log_recv queues "receive", so in practice only
+  // send rows shrink (and only while the case has not failed). The quirk
+  // is preserved verbatim so databases stay byte-comparable.
   match entry {
     StepsEntry(index, kind, description, data, stamp, _) =>
-      if (kind == "send" || kind == "receive") &&
-        data.length() > DATA_TRUNCATE_LENGTH {
+      if kind == "send" && data.length() > DATA_TRUNCATE_LENGTH {
         StepsEntry(
           index,
           kind,

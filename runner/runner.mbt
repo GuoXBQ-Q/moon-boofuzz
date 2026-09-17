@@ -38,7 +38,9 @@ pub(all) struct CaseResult {
 ///|
 pub struct Runner {
   paths : Array[@core.SessionPath]
-  streams : Array[@core.CaseStream]
+  /// Case streams are built lazily so a global start offset can carry
+  /// across paths exactly like ProtocolDefinition::generate.
+  streams : Array[@core.CaseStream?]
   dial : () -> &Channel raise @transport.TransportError
   policies : Map[String, ReadPolicy]
   receive_limit : Int
@@ -47,11 +49,17 @@ pub struct Runner {
   monitor : Monitor
   config : Json
   variables : Map[String, Bytes]
+  stream_variables : Map[String, Bytes]?
+  combinatorial : Bool
+  max_depth : Int?
   check_data_received : Bool
   receive_data_after_fuzz : Bool
   ignore_connection_reset : Bool
   ignore_connection_aborted : Bool
-  restart_threshold : Int
+  ignore_connection_issues_when_sending_fuzz_data : Bool
+  /// Failed-dial give-up count; None (the default) retries indefinitely
+  /// like upstream's restart_threshold=None (session.py:1475-1514).
+  restart_threshold : Int?
   restart_timeout_ms : Int?
   restart_sleep_ms : Int
   sleep_between_ms : Int
@@ -59,8 +67,17 @@ pub struct Runner {
   crash_threshold_element : Int
   end_index : Int?
   udp_server : Bool
-  mut request_failures : Int
+  /// Failures per path, keyed like upstream's crashing_primitives[fuzz_node].
+  path_failures : Array[Int]
   element_failures : Map[String, Int]
+  /// Lookahead buffer so element drains stop at the next element's first
+  /// case instead of discarding it.
+  mut pending : @core.MutationCase?
+  /// Global start offset not yet consumed by a lazy stream.
+  mut skip : Int
+  /// Global case ordinal (skipped + executed + drained), the coordinate of
+  /// --start/--end, as upstream's total_mutant_index (session.py:1073-1091).
+  mut position : Int
   mut index : Int
   mut executed : Int
   mut state : @core.EnumerationState
@@ -82,7 +99,8 @@ pub fn Runner::with_dialer(
   receive_data_after_fuzz? : Bool = false,
   ignore_connection_reset? : Bool = false,
   ignore_connection_aborted? : Bool = false,
-  restart_threshold? : Int = 0,
+  ignore_connection_issues_when_sending_fuzz_data? : Bool = true,
+  restart_threshold? : Int? = None,
   restart_timeout_ms? : Int,
   restart_sleep_ms? : Int = 5000,
   sleep_between_ms? : Int = 0,
@@ -114,17 +132,7 @@ pub fn Runner::with_dialer(
   }
   {
     paths: paths.copy(),
-    streams: paths.map(path => {
-      if combinatorial {
-        path.combinatorial_cases_with_variables(
-          variables,
-          limit=2147483647,
-          max_depth?,
-        )
-      } else {
-        path.cases_with_variables(variables, start~, limit=2147483647)
-      }
-    }),
+    streams: Array::make(paths.length(), None),
     dial,
     policies: saved,
     receive_limit,
@@ -142,18 +150,25 @@ pub fn Runner::with_dialer(
     executed: 0,
     state: Running,
     variables: variables.unwrap_or(Map([])),
+    stream_variables: variables,
+    combinatorial,
+    max_depth,
     check_data_received,
     receive_data_after_fuzz,
     ignore_connection_reset,
     ignore_connection_aborted,
+    ignore_connection_issues_when_sending_fuzz_data,
     restart_threshold,
     restart_timeout_ms,
     restart_sleep_ms,
     sleep_between_ms,
     crash_threshold_request,
     crash_threshold_element,
-    request_failures: 0,
+    path_failures: Array::make(paths.length(), 0),
     element_failures: Map([]),
+    pending: None,
+    skip: start,
+    position: start,
     end_index: end,
     udp_server,
   }
@@ -176,7 +191,8 @@ pub fn Runner::new(
   receive_data_after_fuzz? : Bool = false,
   ignore_connection_reset? : Bool = false,
   ignore_connection_aborted? : Bool = false,
-  restart_threshold? : Int = 0,
+  ignore_connection_issues_when_sending_fuzz_data? : Bool = true,
+  restart_threshold? : Int? = None,
   restart_timeout_ms? : Int,
   restart_sleep_ms? : Int = 5000,
   sleep_between_ms? : Int = 0,
@@ -204,7 +220,6 @@ pub fn Runner::new(
       @transport.Connection::tcp(endpoint)
     }
   }
-  let threshold : Int = restart_threshold
   let runner = Runner::with_dialer(
     paths,
     dial,
@@ -218,7 +233,8 @@ pub fn Runner::new(
     receive_data_after_fuzz~,
     ignore_connection_reset~,
     ignore_connection_aborted~,
-    restart_threshold=threshold,
+    ignore_connection_issues_when_sending_fuzz_data~,
+    restart_threshold~,
     restart_timeout_ms?,
     restart_sleep_ms~,
     sleep_between_ms~,
@@ -294,7 +310,6 @@ fn Runner::execute(
       }
   }
   defer channel.close()
-  defer channel.close()
   if self.udp_server {
     // Server-mode fuzzing answers a peer request with the mutated
     // payload: wait for the request datagram first — send before any
@@ -349,22 +364,162 @@ fn Runner::execute(
       None => rendered
     }
     let received = Ref(b"")
-    let complete = try {
+    let policy = self.policies.get(names[index]).unwrap_or(NoResponse)
+    let fuzz_node = index == count - 1
+    // Send stage. Connection resets/aborts are governed by the ignore
+    // flags: the fuzzed node by ignore_connection_issues_when_sending_
+    // fuzz_data, prefix nodes by ignore_connection_reset/aborted
+    // (session.py:838-874, 518c139). An ignored issue records the case as
+    // ConnectionIgnored, which is not a counted failure.
+    let send_error : @transport.TransportError? = try {
       channel.send(bytes)
-      read_response(
-        channel,
-        self.policies.get(names[index]).unwrap_or(NoResponse),
-        pending,
-        received,
-        self.receive_limit,
-        self.receive_timeout,
-      )
+      None
     } catch {
-      error => {
-        let count = channel.last_sent_len().max(0).min(bytes.length())
+      error => Some(error)
+    }
+    if send_error is Some(error) {
+      let sent = channel.last_sent_len().max(0).min(bytes.length())
+      steps.push({
+        request_name: names[index],
+        sent: bytes[:sent].to_owned(),
+        received: b"",
+        completed: false,
+      })
+      let ignored = match error {
+        @transport.TransportError::SendFailure(code) =>
+          match @transport.classify_socket_failure(code) {
+            Reset =>
+              if fuzz_node {
+                self.ignore_connection_issues_when_sending_fuzz_data
+              } else {
+                self.ignore_connection_reset
+              }
+            Aborted =>
+              if fuzz_node {
+                self.ignore_connection_issues_when_sending_fuzz_data
+              } else {
+                self.ignore_connection_aborted
+              }
+            _ => false
+          }
+        _ => false
+      }
+      return {
+        id,
+        case,
+        path: names,
+        steps,
+        outcome: if ignored {
+          ConnectionIgnored("send reset/aborted at step \{index}")
+        } else {
+          transport_outcome(error)
+        },
+        failed_step: Some(index),
+      }
+    }
+    // Receive stage. A receive timeout maps to empty data, a clean close to
+    // an empty read, and a reset/abort is ignored unless
+    // check_data_received upgrades it — none of them is a counted failure,
+    // matching upstream's transmit functions (session.py:815-903, 518c139).
+    let read : ReadOutcome = try {
+      if policy == NoResponse {
+        if fuzz_node && self.receive_data_after_fuzz {
+          // Upstream attempts a recv after the fuzzed node only when
+          // receive_data_after_fuzz is set (session.py:883).
+          match channel.receive(self.receive_limit, self.receive_timeout) {
+            Data(bytes) => {
+              received.val = bytes
+              Complete
+            }
+            Closed => Closed
+          }
+        } else {
+          Complete
+        }
+      } else if read_response(
+          channel,
+          policy,
+          pending,
+          received,
+          self.receive_limit,
+          self.receive_timeout,
+        ) {
+        Complete
+      } else {
+        Closed
+      }
+    } catch {
+      error =>
+        match error {
+          @transport.TransportError::Timeout(Receive) => TimedOut
+          @transport.TransportError::ReceiveFailure(code) =>
+            match @transport.classify_socket_failure(code) {
+              Reset | Aborted => ResetAborted(code)
+              _ => Failed(error)
+            }
+          _ => Failed(error)
+        }
+    }
+    let step_result = fn(outcome : Outcome) -> CaseResult {
+      { id, case, path: names, steps, outcome, failed_step: Some(index), }
+    }
+    let read_outcome = fn(default : Outcome) -> Outcome {
+      // check_data_received upgrades an empty read to a failure, like
+      // upstream's "Nothing received from target." (session.py:822-828).
+      if self.check_data_received && received.val.is_empty() {
+        NothingReceived
+      } else {
+        default
+      }
+    }
+    match read {
+      Complete => ()
+      TimedOut => {
         steps.push({
           request_name: names[index],
-          sent: bytes[:count].to_owned(),
+          sent: bytes,
+          received: received.val,
+          completed: false,
+        })
+        return step_result(read_outcome(ReceiveTimedOut))
+      }
+      Closed => {
+        steps.push({
+          request_name: names[index],
+          sent: bytes,
+          received: received.val,
+          completed: false,
+        })
+        return step_result(read_outcome(PeerClosed))
+      }
+      ResetAborted(code) => {
+        steps.push({
+          request_name: names[index],
+          sent: bytes,
+          received: received.val,
+          completed: false,
+        })
+        return step_result(
+          read_outcome(
+            ConnectionIgnored("receive reset (\{code}) at step \{index}"),
+          ),
+        )
+      }
+      Failed(error) => {
+        steps.push({
+          request_name: names[index],
+          sent: bytes,
+          received: received.val,
+          completed: false,
+        })
+        return step_result(transport_outcome(error))
+      }
+    }
+    let accepted = (self.monitor.check)(names[index], received.val) catch {
+      error => {
+        steps.push({
+          request_name: names[index],
+          sent: bytes,
           received: received.val,
           completed: false,
         })
@@ -373,50 +528,18 @@ fn Runner::execute(
           case,
           path: names,
           steps,
-          outcome: transport_outcome(error),
+          outcome: CallbackFailed("response check: \{Repr(error)}"),
           failed_step: Some(index),
         }
       }
-    }
-    let accepted = if complete {
-      (self.monitor.check)(names[index], received.val) catch {
-        error => {
-          steps.push({
-            request_name: names[index],
-            sent: bytes,
-            received: received.val,
-            completed: false,
-          })
-          return {
-            id,
-            case,
-            path: names,
-            steps,
-            outcome: CallbackFailed("response check: \{Repr(error)}"),
-            failed_step: Some(index),
-          }
-        }
-      }
-    } else {
-      false
     }
     steps.push({
       request_name: names[index],
       sent: bytes,
       received: received.val,
-      completed: complete && accepted,
+      completed: accepted,
     })
     received_all.push(received.val)
-    if !complete {
-      return {
-        id,
-        case,
-        path: names,
-        steps,
-        outcome: PeerClosed,
-        failed_step: Some(index),
-      }
-    }
     if !accepted {
       return {
         id,
@@ -432,32 +555,111 @@ fn Runner::execute(
 }
 
 ///|
-fn Runner::retry_dial_failure(
+/// Pull the next case of a path, preferring the lookahead buffer so a case
+/// is only ever consumed once across threshold drains.
+fn Runner::pull(
+  self : Runner,
+  index : Int,
+) -> @core.MutationCase? raise @core.ModelError {
+  match self.pending {
+    Some(saved) => {
+      self.pending = None
+      Some(saved)
+    }
+    None =>
+      match self.streams[index] {
+        Some(stream) => stream.next()
+        None => None
+      }
+  }
+}
+
+///|
+/// Exhaust the remaining candidates of one element, buffering the first
+/// case of the next element instead of discarding it; upstream skips only
+/// the remaining mutations of the crashing element (session.py:614-627).
+fn Runner::drain_element(
+  self : Runner,
+  index : Int,
+  element : String,
+) -> Unit raise @core.ModelError {
+  while self.pull(index) is Some(next_case) {
+    self.position += 1
+    if next_case.field_path != element {
+      self.pending = Some(next_case)
+      return
+    }
+  }
+}
+
+///|
+/// Exhaust the current path after its crash threshold; other paths keep
+/// fuzzing, matching upstream's per-node exhaustion.
+fn Runner::drain_path(
+  self : Runner,
+  index : Int,
+) -> Unit raise @core.ModelError {
+  while self.pull(index) is Some(_) {
+    self.position += 1
+  }
+}
+
+///|
+/// A dial-only failure: the connection was never established. A UDP
+/// server's pre-receive shares failed_step -1 but is a response timeout,
+/// not a dial failure.
+fn is_dial_failure(result : CaseResult) -> Bool {
+  result.failed_step == Some(-1) &&
+  (result.outcome is ConnectFailed(_) || result.outcome is ConnectTimedOut)
+}
+
+///|
+/// Upstream's _open_connection_keep_trying: recover the target and retry
+/// the dial. With no threshold (the default) it retries indefinitely, and
+/// an explicit threshold counts failed dials including the first; an
+/// explicit restart_timeout bounds the whole loop. Giving up ends the run
+/// after this recorded case, like upstream re-raising out of the fuzz loop
+/// (session.py:1475-1514, 518c139).
+fn Runner::recover_and_retry(
   self : Runner,
   path : @core.SessionPath,
   case : @core.MutationCase,
-  result : CaseResult,
+  first : CaseResult,
 ) -> CaseResult raise @core.ModelError {
-  let mut current = result
-  let mut attempts = 0
-  while attempts < self.restart_threshold &&
-        current.failed_step == Some(-1) &&
-        (
-          current.outcome is ConnectFailed(_) ||
-          current.outcome is ConnectTimedOut
-        ) {
-    attempts += 1
+  let started = @transport.monotonic_ms()
+  let mut current = first
+  let mut failed_dials = 1
+  while true {
+    // Upstream's falsy check: a threshold of 0 means never give up, so
+    // only a positive count ends the loop (session.py:1491).
+    if self.restart_threshold is Some(threshold) &&
+      threshold > 0 &&
+      failed_dials >= threshold {
+      self.state = Stopped
+      return current
+    }
+    if self.restart_timeout_ms is Some(timeout) &&
+      @transport.monotonic_ms() - started >= timeout.to_int64() {
+      self.state = Stopped
+      return current
+    }
     let recovered : Bool = (self.monitor.recover)(current.snapshot()) catch {
       _ => false
     }
-    @transport.sleep_ms(self.restart_sleep_ms)
     if !recovered {
+      // A failed restart cannot make the target reachable; upstream ends
+      // the run when the restart handler raises.
+      self.state = Stopped
       return current
     }
-    let retried = self.finish(self.execute(path, case))
-    if retried.failed_step != Some(-1) || !(retried.outcome is ConnectFailed(_)) {
-      return retried
+    if self.restart_sleep_ms > 0 {
+      @transport.sleep_ms(self.restart_sleep_ms)
     }
+    let retried = self.execute(path, case)
+    if !is_dial_failure(retried) {
+      return self.finish(retried)
+    }
+    failed_dials += 1
     current = retried
   }
   current
@@ -466,56 +668,112 @@ fn Runner::retry_dial_failure(
 ///|
 pub fn Runner::next(self : Runner) -> CaseResult? raise @core.ModelError {
   guard self.state == Running else { return None }
-  if self.executed >= self.limit {
-    self.state = Limited
-    return None
-  }
   errdefer {
     self.state = Stopped
   }
   while self.index < self.paths.length() {
-    if self.streams[self.index].next() is Some(case) {
-      let result = self.finish(self.execute(self.paths[self.index], case))
-      // Upstream's _open_connection_keep_trying: a dial-only failure is
-      // retried after recovery, honoring the restart threshold
-      // (session.py:1475-1514, 518c139).
-      let retry_result = self.retry_dial_failure(
-        self.paths[self.index],
-        case,
-        result,
-      )
-      // Crash thresholds mirror upstream: repeated failures for the same
-      // element (3) or request (12) skip remaining candidates instead of
-      // hammering a crashed target (session.py:569-632, 518c139).
-      let ignored = retry_result.outcome is ConnectionIgnored(_)
-      if retry_result.outcome != Passed && !ignored {
-        self.request_failures += 1
-        let element = retry_result.case.field_path
-        let current = self.element_failures.get(element).unwrap_or(0)
-        self.element_failures[element] = current + 1
-        if current + 1 >= self.crash_threshold_element {
-          let stream = self.streams[self.index]
-          while stream.next() is Some(next_case) {
-            if next_case.field_path != element {
-              break
-            }
-          }
-        }
-        if self.request_failures >= self.crash_threshold_request {
-          let stream = self.streams[self.index]
-          while stream.next() is Some(_) {
-
-          }
-          self.index += 1
-        }
-      }
-      if self.sleep_between_ms > 0 {
-        @transport.sleep_ms(self.sleep_between_ms)
-      }
-      self.executed += 1
-      return Some(retry_result)
+    // --start/--end are global ordinals across paths: cases below start are
+    // pulled but never executed, and the run stops once the next ordinal
+    // would reach end (session.py:1073-1091, 518c139).
+    if self.end_index is Some(end) && self.position >= end {
+      self.state = Limited
+      return None
     }
-    self.index += 1
+    if self.executed >= self.limit {
+      self.state = Limited
+      return None
+    }
+    let stream = match self.streams[self.index] {
+      Some(stream) => stream
+      None => {
+        // A sequential skip beyond a path's raw case count carries into the
+        // next path, mirroring ProtocolDefinition::generate.
+        if !self.combinatorial {
+          let count = self.paths[self.index].target().raw_mutation_count()
+          if self.skip.to_int64() >= count {
+            self.skip -= count.to_int()
+            self.index += 1
+            continue
+          }
+        }
+        let start = self.skip
+        self.skip = 0
+        let path = self.paths[self.index]
+        let max_depth = self.max_depth
+        let built = if self.combinatorial {
+          path.combinatorial_cases_with_variables(
+            self.stream_variables,
+            start~,
+            limit=2147483647,
+            max_depth?,
+          )
+        } else {
+          path.cases_with_variables(
+            self.stream_variables,
+            start~,
+            limit=2147483647,
+          )
+        }
+        self.streams[self.index] = Some(built)
+        built
+      }
+    }
+    let case = match self.pending {
+      Some(saved) => {
+        self.pending = None
+        saved
+      }
+      None =>
+        match stream.next() {
+          Some(case) => case
+          None => {
+            // A combinatorial stream that exhausts before consuming its
+            // start offset leaves the remainder for the next path.
+            if self.combinatorial && stream.remaining_skip() > 0 {
+              self.skip = stream.remaining_skip()
+            }
+            self.index += 1
+            continue
+          }
+        }
+    }
+    self.position += 1
+    let raw = self.execute(self.paths[self.index], case)
+    // Dial-only failures take the reconnect path and skip the post-case
+    // failure machinery: upstream restarts the target inside the connect
+    // retry loop instead (_open_connection_keep_trying).
+    let result = if is_dial_failure(raw) {
+      self.recover_and_retry(self.paths[self.index], case, raw)
+    } else {
+      self.finish(raw)
+    }
+    if self.state == Stopped {
+      // Give-up (retry threshold/timeout or failed recovery) ends the run
+      // after this case, like upstream re-raising out of the fuzz loop.
+      self.executed += 1
+      return Some(result)
+    }
+    // Crash thresholds mirror upstream's per-node and per-element counters;
+    // only counted failures reach here — dial failures take the reconnect
+    // path, and ignored issues/timeouts/closures/callback errors are not
+    // failures (session.py:591-627, 518c139).
+    if is_failure(result.outcome) {
+      self.path_failures[self.index] += 1
+      let element = result.case.field_path
+      let current = self.element_failures.get(element).unwrap_or(0)
+      self.element_failures[element] = current + 1
+      if current + 1 >= self.crash_threshold_element {
+        self.drain_element(self.index, element)
+      }
+      if self.path_failures[self.index] >= self.crash_threshold_request {
+        self.drain_path(self.index)
+      }
+    }
+    if self.sleep_between_ms > 0 {
+      @transport.sleep_ms(self.sleep_between_ms)
+    }
+    self.executed += 1
+    return Some(result)
   }
   self.state = Exhausted
   None

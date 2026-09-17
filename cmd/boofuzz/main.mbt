@@ -143,7 +143,29 @@ fn dispatch(args : Array[String]) -> Int raise {
         true
       },
       start=match case_id {
-        Some(id) => definition.position_of_id(id)
+        Some(id) => {
+          guard !combinatorial.unwrap_or(false) else {
+            raise InvalidArguments(
+              "--id cannot be combined with --combinatorial",
+            )
+          }
+          guard int_option(opts, "--start") is None else {
+            raise InvalidArguments("--id cannot be combined with --start")
+          }
+          let offset = definition.position_of_id(id)
+          // Verify the position actually holds the requested id; the
+          // offset model assumes definition-order paths with no diamonds,
+          // so a mismatch means the definition differs from the one that
+          // produced the id.
+          let actual = definition.case_id_at(offset)
+          guard actual == Some(id) else {
+            let found = actual.unwrap_or("end of stream")
+            raise InvalidArguments(
+              "case id \{id} does not resolve to itself at position \{offset} (found \{found}); the definition differs from the one that produced the id",
+            )
+          }
+          offset
+        }
         None => int_option(opts, "--start").unwrap_or(0)
       },
       limit=limit.unwrap_or(10000),
@@ -214,7 +236,7 @@ fn dispatch(args : Array[String]) -> Int raise {
       max_depth?,
       start~,
       end~,
-      sleep_between=sleep_ms_value.unwrap_or(0),
+      sleep_between=sleep_ms_value,
     )
   } else {
     match limit {
@@ -226,7 +248,7 @@ fn dispatch(args : Array[String]) -> Int raise {
           max_depth?,
           start~,
           end~,
-          sleep_between=sleep_ms_value.unwrap_or(0),
+          sleep_between=sleep_ms_value,
           monitor~,
         )
       None =>
@@ -236,7 +258,7 @@ fn dispatch(args : Array[String]) -> Int raise {
           max_depth?,
           start~,
           end~,
-          sleep_between=sleep_ms_value.unwrap_or(0),
+          sleep_between=sleep_ms_value,
           monitor~,
         )
     }

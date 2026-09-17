@@ -8,7 +8,8 @@
 ## 进程控制（MoonBit API）
 
 `Process::spawn(command)` 异步启动命令；`status()`/`alive()` 非阻塞轮询、
-`wait(timeout_ms)` 带超时等待、`kill()` 终止、`pid()`/`exit_code()` 报告。
+`wait(timeout_ms)` 带超时等待、`kill()` 终止（POSIX 用 SIGKILL，对齐上游
+stop_target；Windows 为 TerminateProcess）、`pid()`/`exit_code()` 报告。
 `is_windows()` 报告宿主平台——命令语义按平台分裂：Windows 把整个字符串
 作为命令行交给 `CreateProcessW`（如 `cmd /c exit 3`）；POSIX 把字符串作为
 shell 文本经 `/bin/sh -c` 执行（如 `exit 3`）。这与上游
@@ -20,7 +21,9 @@ DebuggerThreadSimple 的 spawn 语义一致。C 层遵循 transport/socket.c 模
 `ProcessMonitor::new(command, start_delay_ms=1000, stop_delay_ms=500)`
 构造一个 `runner.Monitor`：
 
-- `before`：目标未启动则启动（含启动延迟）；已死则该用例失败。
+- `before`：目标未启动则启动（含启动延迟）；已死则透明重启
+  （stop+start，对齐上游 pre_send 的 process_monitor_local.py），重启
+  失败不中断用例，由后续发送暴露（摘要记入 synopsis）。
 - `after`：轮询目标——**运行期内任何退出都视为故障**（包括正常退出 0，
   与上游 post_send 的存活语义一致），记入崩溃摘要并使该用例失败。
 - `recover`：停止（kill + 停止延迟 + 回收）后重新启动（启动延迟 +

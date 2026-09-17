@@ -16,12 +16,16 @@ Timeout and system failure remain distinct.
 
 `Connection::udp_server(endpoint)` 对齐上游 server 语义
 (udp_socket_connection.py:36-133):绑定 `host:port`(SO_REUSEADDR),
+空 host 绑定通配地址(INADDR_ANY)、端口 0 由系统分配临时端口
+(经 `local_port()` 读取实际端口,连接对象内 endpoint 同步为真实端口);
 每次 `receive()` 用 `recvfrom` 记录最后对端,`send()` 经 `sendto` 回发该
 对端;未收到任何请求就 `send` 直接失败(上游 BoofuzzError 的
 "recv() must be called before send")。Runner 集成:每例拨号后先做一次
 受限时的预接收等待目标请求(消耗该报文,不入步骤记录),然后发送变异
 载荷——即"收到请求→模糊应答"的服务端模糊流程;预接收超时记为
-`receive_timeout`(连接阶段失败,无步骤)。
+`receive_timeout`(连接阶段失败,无步骤)。server/broadcast 接收路径的
+超长报文与连接路径一致:整个报文被消耗并抛出 `DatagramTooLarge`
+(POSIX 经 `MSG_TRUNC` 取真实长度,Windows 经 `WSAEMSGSIZE`)。
 
 `Connection::udp_broadcast(endpoint)` 开启 SO_BROADCAST 的非连接套接字:
 每个 `send()` 都是到 `endpoint.host:port` 的 `sendto`(host 须为 IPv4

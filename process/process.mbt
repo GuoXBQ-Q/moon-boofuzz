@@ -54,13 +54,17 @@ fn Process::raise_error(self : Process, code : Int) -> ProcessError {
 
 ///|
 /// Poll without blocking: exited plus its latched exit code, or running.
+/// Once exit is observed the latched result is returned without polling,
+/// matching upstream's exit_status staying stable after reaping.
 pub fn Process::status(self : Process) -> ProcessStatus raise ProcessError {
-  let code = proc_poll(self.handle)
-  if code == 0 {
-    self.exited = true
-    self.exit_code = proc_exit_code(self.handle)
-  } else if code == -1 {
-    raise self.raise_error(code)
+  if !self.exited {
+    let code = proc_poll(self.handle)
+    if code == 0 {
+      self.exited = true
+      self.exit_code = proc_exit_code(self.handle)
+    } else if code == -1 {
+      raise self.raise_error(code)
+    }
   }
   {
     exited: self.exited,

@@ -73,7 +73,11 @@ log-case/log-step/log-send/log-receive/log-fail/log-pass/log-error。
 
 边界:仅回环、单线程顺序服务(UI 请求在用例间隙被服务,长阻塞用例
 期间会延迟);无 HTTPS、无静态文件、无 Flask 模板全集;崩溃详情
-(procmon 摘要)不入库,详情页只含日志行。
+(procmon 摘要)不入库;test-case 详情页对未知或未持久化的用例渲染
+提示页(200)而非 404,活动运行的崩溃链接保持可点击,对齐上游空页面
+行为。其余已知差异:端口占用自动 +1 最多尝试 100 次(上游不限);
+离线视图的 /togglepause 静默无效果(上游会 500);live 运行时长/速度
+统计包含暂停时间(上游扣除);index 页无按元素进度条与千位分组。
 
 Source: `boofuzz/web/app.py`(路由 :26-91、_get_log_data :54-65)、
 `boofuzz/sessions/session.py` build_webapp_thread(:904-920)、

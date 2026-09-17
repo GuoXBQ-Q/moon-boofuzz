@@ -57,7 +57,7 @@
 |51|UDP server 模式|transport udp_server（bf_udp_server/recvfrom/send_peer），udp_wbtest.mbt、cli_wbtest.mbt|
 |52|UDP 广播|transport udp_broadcast（SO_BROADCAST + bf_udp_send_address），udp_wbtest.mbt|
 
-纯核心、定义和记录格式不依赖网络。Native transport/recordio/db/web 只用 C 桥接系统调用与内嵌 SQLite；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接，不自动重试。
+纯核心、定义和记录格式不依赖网络。Native transport/recordio/db/web 只用 C 桥接系统调用与内嵌 SQLite；协议策略、变异、执行、分类与重放由 MoonBit 实现。执行顺序固定，每例创建新连接；拨号失败默认无限重试并在恢复后重连（阈值/超时可配，见 RUNNER.md），故障计数按请求/元素区分。
 
 进程监视器、校验和算法集、IPv6 与 File 传输、CSV 导出、SQLite 结果库、
 --record-passes 节流、Web UI/open 子命令以及 UDP server/广播模式已落地。

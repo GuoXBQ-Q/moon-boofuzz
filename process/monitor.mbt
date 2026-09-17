@@ -16,10 +16,10 @@ pub struct ProcessMonitor {
 }
 
 ///|
-/// Build a runner Monitor that owns the target process lifecycle.
-/// `start_delay_ms`/`stop_delay_ms` pace restarts the way upstream sleeps
-/// between stop and start (restart_sleep_time); tune them for targets that
-/// bind sockets lazily.
+/// Build a runner Monitor that owns the target process lifecycle. The
+/// delay knobs are port-side pacing (upstream uses restart_sleep_time only
+/// when no restart handler exists, and its spawn/start settles are
+/// longer); tune them for targets that bind sockets lazily.
 pub fn ProcessMonitor::new(
   command : String,
   start_delay_ms? : Int = 1000,
@@ -60,13 +60,19 @@ pub fn ProcessMonitor::new(
   }
   let monitor = @runner.Monitor::new(
     before=fn(_context) raise {
-      // A case must never start against a dead target; death between
-      // cases is normally caught by `after` of the previous case.
+      // Upstream pre_send restarts a dead target transparently
+      // (process_monitor_local.py pre_send/start_target); a failed restart
+      // surfaces on the subsequent send instead of aborting the case.
       match state.val {
-        Some(process) => {
-          let alive = process.alive()
-          guard alive else { raise ProcessError::PollFailure(-1) }
-        }
+        Some(process) =>
+          if !process.alive() {
+            try {
+              stop()
+              start()
+            } catch {
+              error => synopsis.val = "target start failed: \{Repr(error)}"
+            }
+          }
         None => start()
       }
     },

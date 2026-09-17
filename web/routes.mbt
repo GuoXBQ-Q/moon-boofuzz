@@ -130,13 +130,33 @@ pub fn[T : SessionView] api_test_case(
 
 ///|
 /// /test-case/<index> — server-rendered log view (the test-case.html
-/// equivalent; crash details stay out of the port).
+/// equivalent; crash details stay out of the port). Unknown or
+/// not-persisted cases render a notice page instead of a 404 so crash
+/// links stay clickable during a live run, like upstream's empty page.
 pub fn[T : SessionView] render_test_case(
   view : T,
   index : Int,
 ) -> HttpResponse raise {
   let case_data = SessionView::test_case_data(view, index) catch {
-    @db.NoSuchCase(_) => return HttpResponse::not_found()
+    @db.NoSuchCase(_) => {
+      let builder = StringBuilder()
+      builder.write_string(
+        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>",
+      )
+      builder.write_string(html_escape("Test Case \{index}"))
+      builder.write_string("</title><style>")
+      builder.write_string(PAGE_CSS)
+      builder.write_string("</style></head><body><div class=\"main-wrapper\">")
+      builder.write_string("<h1>boofuzz Test Case \{index}</h1>")
+      builder.write_string(
+        "<p><a href=\"/\">&larr; back to fuzz control</a></p>",
+      )
+      builder.write_string(
+        "<p>No recorded data for this test case. During a live run case details are not persisted; open the JSONL or database file with <code>open</code> after the run for the full log.</p>",
+      )
+      builder.write_string("</div></body></html>\n")
+      return HttpResponse::html(builder.to_string())
+    }
     error => raise error
   }
   let builder = StringBuilder()

@@ -18,4 +18,7 @@ expansion raises an error instead of returning a truncated array.
 Source: DAG subset of graph traversal and request sequencing in
 `boofuzz/sessions/session.py` and `boofuzz/pgraph/graph.py` at
 `518c13904fc32e7f2cc88c9dec934e509062953e` (GPL-2.0-only).
-Cycles and Python callbacks on graph edges are not exposed.
+Cycles and Python callbacks on graph edges are not exposed. Session-level
+`restart_interval` (periodic target restart every N cases) and the
+`post_start_target`/`start_target` hook family have no port counterpart;
+process lifecycle is owned by the process monitor (see PROCESS.md).

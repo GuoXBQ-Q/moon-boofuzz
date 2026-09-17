@@ -58,6 +58,17 @@ fn validate_policy(policy : ReadPolicy, limit : Int) -> Unit raise RunError {
 }
 
 ///|
+/// Classified result of one receive stage: complete, cleanly closed or
+/// empty, timed out, reset/abort (errno carried), or another failure.
+priv enum ReadOutcome {
+  Complete
+  Closed
+  TimedOut
+  ResetAborted(Int)
+  Failed(@transport.TransportError)
+}
+
+///|
 fn read_response(
   channel : &Channel,
   policy : ReadPolicy,

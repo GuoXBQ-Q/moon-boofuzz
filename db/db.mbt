@@ -25,25 +25,15 @@ fn db_path_bytes(path : String) -> Bytes raise DbError {
 }
 
 ///|
-fn db_fail(code : Int) -> DbError {
-  match code {
-    1 => OpenFailure(code)
-    2 => ExecFailure(code)
-    3 => PrepareFailure(code)
-    4 => BindFailure(code)
-    5 => StepFailure(code)
-    code => ExecFailure(code)
-  }
-}
-
-///|
 /// Open (creating if absent) a SQLite database file, the equivalent of
 /// python's sqlite3.connect(path).
 pub fn Db::open(path : String) -> Db raise DbError {
   let bytes = db_path_bytes(path)
   let handle = db_new()
   if db_open(handle, bytes, bytes.length()) != 0 {
-    raise db_fail(db_error(handle))
+    // The FFI slot carries the raw SQLite rc here (e.g. SQLITE_CANTOPEN);
+    // label it as an open failure instead of an exec failure.
+    raise OpenFailure(db_error(handle))
   }
   { handle, }
 }

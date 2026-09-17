@@ -28,11 +28,12 @@ test "callback lifecycle is ordered and monitor cannot edit recorded steps" {
 }
 
 ///|
-test "recovery failure stops run and before callback failure never connects" {
+test "before callback failure never connects and is not a counted failure" {
+  // Upstream logs callback exceptions without failing the case
+  // (monitors/callback_monitor.py); the port records CallbackFailed but
+  // does not run fault/recover for it.
   let connected = Ref(0)
-  let monitor = Monitor::new(before=_ => fail("before failed"), recover=_ => {
-    false
-  })
+  let monitor = Monitor::new(before=_ => fail("before failed"))
   let runner = Runner::with_dialer(
     runner_paths(),
     () => {
@@ -42,8 +43,31 @@ test "recovery failure stops run and before callback failure never connects" {
     },
     monitor~,
   )
-  assert_true(runner.next().unwrap().outcome is RecoveryFailed(_))
+  let first = runner.next().unwrap()
+  assert_true(first.outcome is CallbackFailed(_))
   assert_eq(connected.val, 0)
+  // The run continues: no recovery is attempted for callback errors.
+  assert_eq(runner.state(), Running)
+  let second = runner.next().unwrap()
+  assert_true(second.outcome is CallbackFailed(_))
+  assert_true(runner.next() is None)
+  assert_eq(runner.state(), Exhausted)
+  assert_eq(runner.executed(), 2)
+}
+
+///|
+test "recovery failure stops the run on a counted failure" {
+  let monitor = Monitor::new(recover=_ => false)
+  let runner = Runner::with_dialer(
+    runner_paths(),
+    () => {
+      { sent: [], responses: [], fail_at: 0, last_sent: 0, closed: false, }
+      as &Channel
+    },
+    monitor~,
+  )
+  let result = runner.next().unwrap()
+  assert_true(result.outcome is RecoveryFailed(_))
   assert_true(runner.next() is None)
   assert_eq(runner.state(), Stopped)
 }
@@ -92,8 +116,14 @@ test "timeout peer closure response mismatch and callback errors stay distinct" 
     monitor=Monitor::new(after=_ => fail("after failed")),
   )
   assert_true(callback.next().unwrap().outcome is CallbackFailed(_))
-  let refused = Runner::with_dialer(runner_paths(), () => {
-    raise @transport.TransportError::ConnectFailure(61)
-  })
+  // The default restart_threshold retries indefinitely, so this always-
+  // refusing dialer needs an explicit threshold of 1 (give up after the
+  // first failed dial, like upstream's threshold semantics).
+  let refused = Runner::with_dialer(
+    runner_paths(),
+    () => raise @transport.TransportError::ConnectFailure(61),
+    restart_threshold=Some(1),
+    restart_sleep_ms=0,
+  )
   assert_eq(refused.next().unwrap().outcome, ConnectFailed(61))
 }

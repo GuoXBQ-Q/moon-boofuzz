@@ -236,7 +236,10 @@ test "index and test-case pages render; unknown paths 404" {
   assert_true(case_page.contains("Check Failed: ReceiveTimedOut"))
   assert_true(case_page.contains("Transmitted 2 bytes"))
   let missing = roundtrip(server, view, "/test-case/99")
-  assert_true(missing.has_prefix("HTTP/1.1 404"))
+  // Unknown or not-persisted cases render a notice page instead of a 404,
+  // like upstream's empty page; live-run crash links stay clickable.
+  assert_true(missing.has_prefix("HTTP/1.1 200"))
+  assert_true(missing.contains("No recorded data for this test case"))
   let unknown = roundtrip(server, view, "/nope")
   assert_true(unknown.has_prefix("HTTP/1.1 404"))
 }

@@ -159,7 +159,9 @@ MOONBIT_FFI_EXPORT int bf_proc_kill(bf_proc *p) {
   }
   return 0;
 #else
-  if (kill((pid_t)p->pid, SIGTERM) < 0) { p->error = errno; return -1; }
+  /* SIGKILL like upstream's stop_target (debugger_thread_simple.py); a
+     target trapping SIGTERM would survive and keep the port bound. */
+  if (kill((pid_t)p->pid, SIGKILL) < 0) { p->error = errno; return -1; }
   return 0;
 #endif
 }

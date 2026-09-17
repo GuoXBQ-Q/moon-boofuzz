@@ -7,6 +7,10 @@
 ///|
 /// Cycle through bad values, one per provided line. Empty lines are dropped
 /// like upstream's filter(None, ...); max_len > 0 keeps only shorter lines.
+/// Upstream collapses the filtered library through a Python set ONLY when at
+/// least one line exceeds max_len (from_file.py:43-47), so the port applies
+/// dedup under the same condition — keeping first-occurrence order where the
+/// set would scramble it (documented deviation).
 pub fn Field::from_lines(
   default_value? : Bytes = b"",
   lines? : Array[Bytes] = [],
@@ -15,6 +19,8 @@ pub fn Field::from_lines(
   fuzz_values? : Array[Bytes] = [],
 ) -> Field raise ModelError {
   guard max_len >= 0 else { raise Invalid("negative max_len") }
+  let oversized = max_len > 0 &&
+    lines.iter().any(line => line.length() > max_len)
   let saved : Array[Bytes] = []
   let seen : Map[Bytes, Bool] = Map([])
   for line in lines {
@@ -24,8 +30,7 @@ pub fn Field::from_lines(
     if max_len > 0 && line.length() > max_len {
       continue
     }
-    if max_len > 0 {
-      // Upstream collapses the filtered library through a set.
+    if oversized {
       if seen.contains(line) {
         continue
       }

@@ -20,10 +20,16 @@ fn capture_all(
   errdefer runner.stop()
   let throttled = @recordio.ThrottledWriter::new(writer, keep=record_passes)
   let mut count = 0
-  while runner.next() is Some(result) {
+  while true {
+    // Upstream checks the pause flag before every case
+    // (_pause_if_pause_flag_is_set), so a pre-set pause also stops case 1.
     match webui {
       Some(ui) => ui.gate()
       None => ()
+    }
+    let result = match runner.next() {
+      Some(result) => result
+      None => break
     }
     let record = runner.record(result)
     if record_passes > 0 {

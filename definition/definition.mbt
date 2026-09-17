@@ -90,6 +90,11 @@ pub fn ProtocolDefinition::position_of_id(
   }
   let body = id[3:]
   guard body.contains(":") else { raise Invalid("case id missing field index") }
+  guard !body.contains("+") else {
+    raise Invalid(
+      "group product case ids cannot be resumed by id; use --start with the case ordinal",
+    )
+  }
   let mut cut = body.length() - 1
   while cut > 0 && body[cut] != ':' {
     cut -= 1
@@ -116,10 +121,42 @@ pub fn ProtocolDefinition::position_of_id(
       found = true
       break
     }
-    offset += request.raw_mutation_count().to_int()
+    // Positions are 32-bit; refuse silent truncation of huge counts.
+    let total = request.raw_mutation_count()
+    guard total <= 2147483647L else {
+      raise Invalid("request case count exceeds the 32-bit position range")
+    }
+    offset += total.to_int()
   }
   guard found else { raise Invalid("unknown case field path: " + field_path) }
   offset
+}
+
+///|
+/// The full case id at a global start position, walking paths exactly like
+/// `generate`; None when the position is at or past the end of the stream.
+/// Callers use it to verify that a resolved id actually identifies its case
+/// before resuming from the position.
+pub fn ProtocolDefinition::case_id_at(
+  self : ProtocolDefinition,
+  start : Int,
+) -> String? raise {
+  guard start >= 0 else { raise Invalid("negative start") }
+  let mut skip = start
+  for path in self.paths {
+    let count = path.target().raw_mutation_count()
+    if skip.to_int64() >= count {
+      skip -= count.to_int()
+      continue
+    }
+    let stream = path.cases(start=skip, limit=1)
+    match stream.next() {
+      Some(case) =>
+        return Some(path.names().to_json().stringify() + "/" + case.id)
+      None => return None
+    }
+  }
+  None
 }
 
 ///|

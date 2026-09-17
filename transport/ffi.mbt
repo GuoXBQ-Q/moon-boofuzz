@@ -65,6 +65,10 @@ extern "c" fn udp_server_bind(
 extern "c" fn udp_broadcast_enable(socket : Socket) -> Int = "bf_udp_broadcast_enable"
 
 ///|
+#borrow(socket)
+extern "c" fn udp_local_port(socket : Socket) -> Int = "bf_udp_local_port"
+
+///|
 #borrow(socket, bytes)
 extern "c" fn udp_receive_from(
   socket : Socket,

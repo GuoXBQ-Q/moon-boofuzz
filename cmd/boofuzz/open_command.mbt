@@ -21,8 +21,11 @@ fn open_session(path : String) -> @web.OfflineSession raise {
 fn open_viewer(input : String, flags : ArrayView[String]) -> Unit raise {
   let opts = options(flags.to_owned(), ["--ui-port"])
   let port = int_option(opts, "--ui-port").unwrap_or(26000)
-  guard port > 0 && port <= 65535 else {
-    raise InvalidArguments("--ui-port must be a port number")
+  // Port 0 asks the OS for a free port; the bound port is printed below.
+  guard port >= 0 && port <= 65535 else {
+    raise InvalidArguments(
+      "--ui-port must be a port number (0 picks a free port)",
+    )
   }
   let session = open_session(input)
   let server = @web.HttpServer::bind(port~)

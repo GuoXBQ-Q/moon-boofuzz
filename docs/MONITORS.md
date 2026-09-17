@@ -7,6 +7,12 @@ checks may return false to reject a response; exceptions are callback failures.
 Callbacks receive array snapshots so they cannot alter the runner's actual
 send/receive record. Recovery false or exception stops the run immediately.
 
+Callback exceptions do not count as failures: like upstream, which logs
+callback errors and keeps transmitting, the case is recorded as
+`CallbackFailed` but no recovery runs and crash thresholds ignore it.
+Receive timeouts, clean closes and ignored connection resets are likewise
+recorded without counting (see RUNNER.md for the full classification).
+
 Outcomes distinguish connect/send/receive failures, each timeout phase, peer
 closure, response mismatch, callback failure, configuration failure and recovery
 failure. Socket failures never imply a crash. Callback/recovery error messages

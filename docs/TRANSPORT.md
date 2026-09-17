@@ -9,13 +9,18 @@ Repeated close is harmless. A GC finalizer is a fallback for abandoned handles.
 `last_sent_len()` returns the number of bytes accepted by the last send, also
 after a partial failure. It does not claim the peer received or processed them.
 
-Connection, send and receive timeouts default to 5000 ms. Each operation uses
+Connection, send and receive timeouts default to 5000 ms; a connect deadline is
+a port addition (upstream connects block until the OS gives up). Each operation uses
 a monotonic deadline, including partial sends and interrupted readiness waits.
+Unlike upstream, which returns a possibly partial `sock.send` count, the port
+loops until the whole buffer is accepted or the deadline fires; upstream can
+silently under-deliver large messages that the port delivers fully. TCP server
+mode (bind/listen/accept) is not implemented.
 Hostname, IPv4 and IPv6 literals are supported; TLS is not. The system `getaddrinfo`
 resolver runs before the TCP connect deadline; OS name-resolution timing is
 not controlled by this synchronous socket API. Use IPv4 when requiring a
-strict end-to-end connection deadline. Receive defaults to 64 KiB and allows
-an explicit cap up to 1 MiB; the API rejects invalid bounds before allocating.
+strict end-to-end connection deadline. Receive defaults to 64 KiB (upstream's default `max_recv_bytes` is 10000) and
+allows an explicit cap up to 1 MiB; the API rejects invalid bounds before allocating.
 
 C contains Winsock/POSIX calls, nonblocking readiness, handle finalizers and
 error-code conversion. MoonBit owns the full-send loop, deadlines and errors.

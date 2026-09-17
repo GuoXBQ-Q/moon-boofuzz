@@ -141,6 +141,55 @@ test "CLI run completes TCP and UDP flows with portable records" {
 }
 
 ///|
+test "CLI run honors --end as a global case ordinal" {
+  let server = fixture_new()
+  defer fixture_close(server)
+  let port = fixture_listen(server)
+  assert_true(port > 0)
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  let output_path = fixture_path()
+  defer fixture_remove(output_path)
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "r",
+        "children": [
+          {
+            "type": "simple",
+            "name": "data",
+            "values_hex": ["00ff", "41", "42"],
+          },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "tcp",
+      "endpoint": { "host": "127.0.0.1", "port": port },
+    },
+  }
+  save_definition(definition_path, definition)
+  assert_eq(
+    dispatch([
+      "run",
+      @utf8.decode(definition_path),
+      "--output",
+      @utf8.decode(output_path),
+      "--end",
+      "2",
+    ]),
+    0,
+  )
+  let records = @recordio.read_records(@utf8.decode(output_path))
+  assert_true(records.error is None)
+  // The run stops once the global ordinal reaches the end index.
+  assert_eq(records.records.length(), 2)
+  assert_eq(records.records[0].steps[0].sent, b"\x00\xff")
+  assert_eq(records.records[1].steps[0].sent, b"A")
+}
+
+///|
 test "CLI rejects malformed definitions before any connection" {
   let server = fixture_new()
   defer fixture_close(server)

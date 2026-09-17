@@ -45,6 +45,31 @@ fn CaseResult::snapshot(self : CaseResult) -> CaseResult {
 }
 
 ///|
+/// Upstream counts a case as failed only on a monitor log_fail or a raised
+/// BoofuzzFailure; ignored connection issues, receive timeouts, clean
+/// closes and callback errors are logged without failing the case
+/// (session.py:781-903, monitors/callback_monitor.py, 518c139).
+fn is_failure(outcome : Outcome) -> Bool {
+  match outcome {
+    Passed
+    | ConnectionIgnored(_)
+    | CallbackFailed(_)
+    | ReceiveTimedOut
+    | PeerClosed => false
+    ConnectFailed(_)
+    | ConnectTimedOut
+    | SendFailed(_)
+    | SendTimedOut
+    | ReceiveFailed(_)
+    | ResponseMismatch
+    | ConfigurationFailed(_)
+    | DatagramTooLarge
+    | RecoveryFailed(_)
+    | NothingReceived => true
+  }
+}
+
+///|
 fn Runner::finish(self : Runner, result : CaseResult) -> CaseResult {
   let mut final_result = result
   (self.monitor.after)(result.snapshot()) catch {
@@ -56,7 +81,7 @@ fn Runner::finish(self : Runner, result : CaseResult) -> CaseResult {
         ),
       }
   }
-  if final_result.outcome != Passed {
+  if is_failure(final_result.outcome) {
     (self.monitor.fault)(final_result.snapshot()) catch {
       error =>
         final_result = {

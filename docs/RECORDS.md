@@ -26,10 +26,13 @@ as TCP/UDP without a separately defined transport.
 ## 导出与结果库
 
 `run --db FILE` 旁路把每条记录写入上游兼容的 SQLite 结果库,`run
---record-passes N` 对 JSONL 与 SQLite 双侧做 keep-only-n 节流;`run
---csv-out FILE` 把已执行用例导出为每用例一行的 CSV(含流量 hex),行格式
-对齐 fuzz_logger_csv.py;读取端见 DB.md。核心 records 模型仍保持
-Wasm/Native 纯净,SQLite 依赖只存在于 native db 包。
+--record-passes N` 对 JSONL 与 SQLite 双侧做 keep-only-n 节流(CLI 默认
+0=全量记录;上游 CLI 默认 10)。`run --csv-out FILE` 把已执行用例导出为
+每用例一行的 CSV(表头 + 九列身份/结果/流量 hex)。这是独立的导出格式,
+**并非**上游 fuzz_logger_csv.py 的逐消息行格式(上游每行一条日志消息、
+无表头、带时间戳);损坏尾行会像 report 一样报错退出 2。读取端见
+DB.md。核心 records 模型仍保持 Wasm/Native 纯净,SQLite 依赖只存在于
+native db 包。
 
 Source: recording concepts from `boofuzz/fuzz_logger.py` and
 `fuzz_logger_db.py`, baseline `518c13904fc32e7f2cc88c9dec934e509062953e`.

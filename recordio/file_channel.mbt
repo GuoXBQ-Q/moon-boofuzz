@@ -71,7 +71,8 @@ pub fn file_runner(
   max_depth? : Int,
   start? : Int = 0,
   end? : Int? = None,
-  sleep_between? : Int = 0,
+  // None falls back to the JSON config; Some(0) disables the delay.
+  sleep_between? : Int? = None,
 ) -> @runner.Runner raise {
   let directory = match config.file_path {
     Some(directory) => directory
@@ -96,8 +97,9 @@ pub fn file_runner(
         max_depth=depth,
         variables=Some(config.variables),
         check_data_received=config.check_data_received,
+        ignore_connection_issues_when_sending_fuzz_data=config.ignore_connection_issues_when_sending_fuzz_data,
         restart_threshold=config.restart_threshold,
-        sleep_between_ms=sleep_between,
+        sleep_between_ms=sleep_between.unwrap_or(0),
         crash_threshold_request=config.crash_threshold_request,
         crash_threshold_element=config.crash_threshold_element,
         start~,
@@ -113,8 +115,9 @@ pub fn file_runner(
         combinatorial~,
         variables=Some(config.variables),
         check_data_received=config.check_data_received,
+        ignore_connection_issues_when_sending_fuzz_data=config.ignore_connection_issues_when_sending_fuzz_data,
         restart_threshold=config.restart_threshold,
-        sleep_between_ms=sleep_between,
+        sleep_between_ms=sleep_between.unwrap_or(0),
         crash_threshold_request=config.crash_threshold_request,
         crash_threshold_element=config.crash_threshold_element,
         start~,

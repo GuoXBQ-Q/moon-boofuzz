@@ -97,6 +97,7 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
   if kind == "size" {
     @records.require_keys(value, [
       "type", "name", "target", "length", "endian", "offset", "inclusive", "mutations",
+      "fuzzable",
     ])
     return @core.Node::size(
       name,
@@ -106,11 +107,12 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
       offset=number(value, "offset", 0),
       inclusive=boolean(value, "inclusive", false),
       mutations=unsigned_values(value),
+      fuzzable=boolean(value, "fuzzable", true),
     )
   }
   if kind == "crc32" {
     @records.require_keys(value, [
-      "type", "name", "target", "endian", "mutations", "algorithm",
+      "type", "name", "target", "endian", "mutations", "algorithm", "fuzzable",
     ])
     let values = unsigned_values(value).map(number => {
       guard number <= 0xffffffffUL else {
@@ -132,6 +134,7 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
       @json.from_json(required(value, "target")),
       endian=endian(value),
       mutations=values,
+      fuzzable=boolean(value, "fuzzable", true),
       algorithm~,
     )
   }

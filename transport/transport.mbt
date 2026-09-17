@@ -39,11 +39,14 @@ pub fn Endpoint::new(
   send_timeout_ms? : Int = 5000,
   receive_timeout_ms? : Int = 5000,
   max_receive? : Int = 65536,
+  /// UDP server binds may use an empty host (wildcard) and port 0
+  /// (ephemeral), like upstream's udp_socket_connection bind.
+  udp_server? : Bool = false,
 ) -> Endpoint raise TransportError {
-  guard !host.is_empty() &&
-    !host.contains("\u0000") &&
-    port > 0 &&
-    port <= 65535 else {
+  guard !host.contains("\u0000") && (udp_server || !host.is_empty()) else {
+    raise InvalidConfiguration("expected hostname/IPv4/IPv6 and port 1..65535")
+  }
+  guard port >= 0 && port <= 65535 && (udp_server || port > 0) else {
     raise InvalidConfiguration("expected hostname/IPv4/IPv6 and port 1..65535")
   }
   guard connect_timeout_ms > 0 &&
@@ -151,10 +154,15 @@ pub fn Connection::send(
     guard bytes.length() <= 65507 else { raise DatagramTooLarge }
     for ;; {
       self.wait_ready(Send, deadline)
-      // -3 = no peer recorded yet: upstream raises BoofuzzError
-      // "recv() must be called before send with udp fuzzing servers"
+      // -3 = no peer recorded yet: a distinct configuration error with
+      // upstream's message, not a meaningless SendFailure(0)
       // (udp_socket_connection.py:114-116).
       let n = udp_send_to_peer(self.socket, bytes, bytes.length())
+      if n == -3 {
+        raise InvalidConfiguration(
+          "recv() must be called before send with udp fuzzing servers",
+        )
+      }
       if n == -2 {
         continue
       }
@@ -253,6 +261,11 @@ pub fn Connection::receive(
       let n = udp_receive_from(self.socket, buffer, limit)
       if n == -2 {
         continue
+      }
+      if n == -3 {
+        // Oversized datagram: consumed and rejected, matching the
+        // connected path's behavior (docs/UDP.md).
+        raise DatagramTooLarge
       }
       guard n >= 0 else { raise ReceiveFailure(socket_error(self.socket)) }
       return Data(Bytes::makei(n, i => buffer[i]))

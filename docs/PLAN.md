@@ -30,7 +30,7 @@
 | 5c | 传输长尾（UDP server/广播完成；Unix/Serial/Raw 评估为永久边界） | ✅ 完成 | 017cd0e |
 | 7 | 收尾（来源表/README/ACCEPTANCE/ASan/包审查；推送核对待维护者） | ✅ 基本完成 | 本次提交 |
 
-当前验证基线：Wasm 99 / Native 160 测试全绿，`verify.mbtx` 通过，
+当前验证基线：Wasm 100 / Native 173 测试全绿，`verify.mbtx` 通过，
 ASan 零报告。
 
 ## 剩余工作明细
@@ -140,3 +140,16 @@ socket（Windows 工具链无 AF_UNIX 头，双平台 CI 无法统一）、Seria
   保留实现行为——VARIABLES.md
 - SQLite 步骤按 JSONL 记录重放：每步固定成对记录 send/receive（上游按
   会话实际事件逐条记录），失败由 outcome 行表达——DB.md
+- 拨号重试放弃时记录失败用例后停止（上游直接抛出，不产出该用例记录）；
+  `run --start/--end` 为 0 基全局序号（上游 index_start/index_end 为 1 基）
+  ——RUNNER.md
+- 元素级故障阈值不豁免 Group/Repeat 元素（上游对二者不触发元素耗尽）；
+  监视器回调异常记录为 CallbackFailed 但不计阈值、不触发恢复（上游记
+  log_error 后继续传输）；接收超时、对端关闭与被忽略的连接重置同样
+  只记录不计故障，check_data_received 可将空读取升级为 NothingReceived
+  ——RUNNER.md、MONITORS.md
+- `--csv-out` 为独立的每用例一行导出格式，非上游 fuzz_logger_csv.py 的
+  逐消息行格式；上游 receive 行截断 quirk（"recv"/"receive" 不匹配）逐字
+  保留——RECORDS.md、DB.md
+- 组合爆破在嵌套结构 depth≥2 时少于上游（上游按顶层条目过滤 skip，
+  会额外发射载荷重复的跨顺序用例）；扁平请求逐例一致——MUTATION.md

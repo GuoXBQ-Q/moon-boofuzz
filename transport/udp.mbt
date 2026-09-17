@@ -34,9 +34,10 @@ pub fn Connection::udp(endpoint : Endpoint) -> Connection raise TransportError {
 
 ///|
 /// Server-mode UDP: bind host:port (SO_REUSEADDR), record the last peer
-/// on every recvfrom and answer it via sendto. send before any receive
-/// fails like upstream's BoofuzzError
-/// (udp_socket_connection.py:36-133).
+/// on every recvfrom and answer it via sendto. An empty host binds the
+/// wildcard address and port 0 asks for an ephemeral port, readable via
+/// `local_port()`. send before any receive fails like upstream's
+/// BoofuzzError (udp_socket_connection.py:36-133).
 pub fn Connection::udp_server(
   endpoint : Endpoint,
 ) -> Connection raise TransportError {
@@ -46,6 +47,14 @@ pub fn Connection::udp_server(
   if udp_server_bind(socket, host, host.length(), endpoint.port) != 0 {
     raise ConnectFailure(socket_error(socket))
   }
+  // Resolve an ephemeral bind so the endpoint names the real port.
+  let endpoint = if endpoint.port == 0 {
+    let port = udp_local_port(socket)
+    guard port > 0 else { raise ConnectFailure(socket_error(socket)) }
+    { ..endpoint, port, }
+  } else {
+    endpoint
+  }
   {
     socket,
     endpoint,
@@ -54,6 +63,23 @@ pub fn Connection::udp_server(
     udp: true,
     server: true,
     broadcast: false,
+  }
+}
+
+///|
+/// The bound local port: resolved actual port after an ephemeral server
+/// bind, the endpoint port for other server sockets, and a best-effort
+/// getsockname query otherwise.
+pub fn Connection::local_port(self : Connection) -> Int {
+  if self.server {
+    self.endpoint.port
+  } else {
+    let port = udp_local_port(self.socket)
+    if port > 0 {
+      port
+    } else {
+      self.endpoint.port
+    }
   }
 }
 

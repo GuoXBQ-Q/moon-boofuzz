@@ -169,3 +169,42 @@ test "definition limits resume and unsupported options fail" {
     )
   }
 }
+
+///|
+test "case_id_at verifies id resolution and group ids are rejected" {
+  let source : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "a",
+        "children": [
+          { "type": "simple", "name": "x", "values_hex": ["41", "42"] },
+        ],
+      },
+      {
+        "name": "b",
+        "children": [
+          { "type": "simple", "name": "y", "values_hex": ["43", "44"] },
+        ],
+      },
+    ],
+  }
+  let protocol = ProtocolDefinition::parse(source.stringify())
+  // Global positions walk across paths in definition order.
+  assert_eq(protocol.case_id_at(0), Some("[\"a\"]/v1:a.x:0"))
+  assert_eq(protocol.case_id_at(2), Some("[\"b\"]/v1:b.y:0"))
+  assert_eq(protocol.case_id_at(4), None)
+  // The id of the case at a resolved position matches the id itself.
+  // position_of_id takes the inner id; case_id_at returns the full id.
+  let offset = protocol.position_of_id("v1:b.y:1")
+  assert_eq(protocol.case_id_at(offset), Some("[\"b\"]/v1:b.y:1"))
+  // Group product ids carry a '+' part and are rejected explicitly.
+  assert_true(
+    try {
+      ignore(protocol.position_of_id("v1:a.g:0+a.x:0"))
+      false
+    } catch {
+      _ => true
+    },
+  )
+}

@@ -173,6 +173,12 @@ test "512-byte truncation applies to passing cases only" {
   assert_eq(send.length(), 1)
   assert_eq(send[0].data.length(), @db.DATA_TRUNCATE_LENGTH)
   assert_true(send[0].truncated)
+  // Upstream's "recv"/"receive" mismatch leaves receive rows untruncated;
+  // the quirk is preserved so databases stay byte-comparable.
+  let receive = passed.steps.filter(step => step.step_type == "receive")
+  assert_eq(receive.length(), 1)
+  assert_eq(receive[0].data.length(), 600)
+  assert_true(!receive[0].truncated)
   let failed = reader.get_test_case_data(1)
   let failed_send = failed.steps.filter(step => step.step_type == "send")
   assert_eq(failed_send[0].data.length(), 600)

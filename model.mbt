@@ -316,7 +316,9 @@ fn CompiledRequest::render_node(
   match self.entries[index].kind {
     ComputedChecksum(spec) => {
       if active.contains(index) {
-        return Bytes::makei(4, fn(_) { zero_byte() })
+        // Recursive render: upstream renders length dummy zeros
+        // (checksum.py _get_dummy_value), so md5/sha1 pad to 16/20.
+        return Bytes::makei(spec.algorithm.length(), fn(_) { zero_byte() })
       }
       let nested = active.copy()
       nested.push(index)

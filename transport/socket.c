@@ -338,18 +338,26 @@ static int bf_parse_ipv4(const char *text, struct sockaddr_in *address) {
 }
 
 /* Bind a UDP socket to host:port with SO_REUSEADDR, the server-mode
- * open() of udp_socket_connection.py:59-64. 0 = ok. */
+ * open() of udp_socket_connection.py:59-64. An empty host binds the
+ * wildcard address (INADDR_ANY) and port 0 asks the OS for an ephemeral
+ * port (read back with bf_udp_local_port). 0 = ok. */
 MOONBIT_FFI_EXPORT int bf_udp_server(bf_socket *s, const uint8_t *host, int host_length, int port) {
   if (s->error) return -1;
-  char *name = malloc((size_t)host_length + 1);
-  if (name == NULL) { s->error = -1; return -1; }
-  memcpy(name, host, (size_t)host_length); name[host_length] = 0;
   s->udp = 1;
   s->fd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (s->fd == BF_INVALID) { s->error = bf_errno(); free(name); return -1; }
+  if (s->fd == BF_INVALID) { s->error = bf_errno(); return -1; }
   struct sockaddr_in address;
-  if (!bf_parse_ipv4(name, &address)) { free(name); s->error = -1; bf_close_fd(s->fd); s->fd = BF_INVALID; return -1; }
-  free(name);
+  memset(&address, 0, sizeof(address));
+  address.sin_family = AF_INET;
+  if (host_length == 0) {
+    address.sin_addr.s_addr = INADDR_ANY;
+  } else {
+    char *name = malloc((size_t)host_length + 1);
+    if (name == NULL) { s->error = -1; bf_close_fd(s->fd); s->fd = BF_INVALID; return -1; }
+    memcpy(name, host, (size_t)host_length); name[host_length] = 0;
+    if (!bf_parse_ipv4(name, &address)) { free(name); s->error = -1; bf_close_fd(s->fd); s->fd = BF_INVALID; return -1; }
+    free(name);
+  }
   address.sin_port = htons((uint16_t)port);
 #ifdef _WIN32
   int reuse = 1;
@@ -361,6 +369,23 @@ MOONBIT_FFI_EXPORT int bf_udp_server(bf_socket *s, const uint8_t *host, int host
     s->error = bf_errno(); bf_close_fd(s->fd); s->fd = BF_INVALID; return -1;
   }
   return 0;
+}
+
+/* Local port of a bound UDP socket (ephemeral-port readback). Port number
+ * or -1 on error. */
+MOONBIT_FFI_EXPORT int bf_udp_local_port(bf_socket *s) {
+  if (s->error || s->fd == BF_INVALID) return -1;
+  struct sockaddr_in address;
+#ifdef _WIN32
+  int size = sizeof(address);
+#else
+  socklen_t size = sizeof(address);
+#endif
+  if (getsockname(s->fd, (struct sockaddr *)&address, &size) != 0) {
+    s->error = bf_errno();
+    return -1;
+  }
+  return (int)ntohs(address.sin_port);
 }
 
 /* Create the broadcast-mode datagram socket: SO_BROADCAST on an
@@ -379,7 +404,10 @@ MOONBIT_FFI_EXPORT int bf_udp_broadcast_enable(bf_socket *s) {
 }
 
 /* recvfrom() that records the last peer, udp_socket_connection.py:70-100.
- * >0/0 = datagram length, -2 = would block, -1 = error. */
+ * Oversized datagrams are consumed and reported as -3 (MSG_TRUNC gives the
+ * real length on POSIX, WSAEMSGSIZE on Windows), matching the connected
+ * path. >0/0 = datagram length, -2 = would block, -3 = too large,
+ * -1 = error. */
 MOONBIT_FFI_EXPORT int bf_udp_recvfrom(bf_socket *s, uint8_t *data, int length) {
   struct sockaddr_in source;
 #ifdef _WIN32
@@ -387,13 +415,25 @@ MOONBIT_FFI_EXPORT int bf_udp_recvfrom(bf_socket *s, uint8_t *data, int length) 
 #else
   socklen_t size = sizeof(source);
 #endif
-  int n = (int)recvfrom(s->fd, (char *)data, length, 0, (struct sockaddr *)&source, &size);
+  int flags = 0;
+#if !defined(_WIN32) && defined(MSG_TRUNC)
+  flags = MSG_TRUNC;
+#endif
+  int n = (int)recvfrom(s->fd, (char *)data, length, flags, (struct sockaddr *)&source, &size);
+  if (n > length) {
+    s->peer = source;
+    s->have_peer = 1;
+    return -3;
+  }
   if (n >= 0) {
     s->peer = source;
     s->have_peer = 1;
     return n;
   }
   int err = bf_errno();
+#ifdef _WIN32
+  if (err == WSAEMSGSIZE) { s->error = err; return -3; }
+#endif
   if (err == BF_AGAIN || err == BF_INTR || err == BF_PROGRESS) return -2;
   s->error = err;
   return -1;

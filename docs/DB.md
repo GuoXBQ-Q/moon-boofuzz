@@ -46,9 +46,11 @@ fuzz_logger_db.py:119-132)、`close_test_case`(尝试刷写)、
   python 的隐式事务 + commit)。
 - 首个用例必定落库(上游 `_log_first_case`)。
 - 非失败批次做 512 字节截断(`_truncate_send_recv`,
-  fuzz_logger_db.py:227-230):仅 `send`/`receive` 行,超限则
-  `data` 截到 512、`is_truncated` 置真;**失败用例保留完整载荷**。
-  阈值常量 `DATA_TRUNCATE_LENGTH`。
+  fuzz_logger_db.py:227-230):超限则 `data` 截到 512、`is_truncated`
+  置真;**失败用例保留完整载荷**。上游以 `"recv"` 匹配类型而日志行
+  实为 `"receive"`,因此实际上只有 `send` 行会被截断;本移植逐字
+  保留该 quirk,两侧结果库保持字节可比。阈值常量
+  `DATA_TRUNCATE_LENGTH`。
 
 时间戳为 UTC ISO-8601(微秒精度,微秒为 0 时省略小数部分),与上游
 `helpers.get_time_stamp()` 的 `datetime.now(utc).replace(tzinfo=None)
@@ -91,7 +93,11 @@ fuzz_logger_db.py:119-132)、`close_test_case`(尝试刷写)、
 - ASan:`scripts/asan.mbtx` 已纳入 `db/`。
 
 边界:单线程使用(无 busy 重试/WAL);不移植 pedrpc、curses 等上游外围;
-数据列只收 Integer/Float/Text/Blob,库内无浮点 schema 列。
+数据列只收 Integer/Float/Text/Blob,库内无浮点 schema 列。其余已知差异:
+schema 重建以 `cases` 表存在为准(上游以文件不存在为准,已存在的
+异构库上游会写失败而本移植会补建表);写失败时缓冲区中最后 N 条通过
+用例随事务丢失(与上游崩溃时的未提交事务一致);写侧无上游
+`FuzzLoggerDb.get_test_case_data` 读取接口,读取统一走 `DbReader`。
 
 Source: `boofuzz/fuzz_logger_db.py`(表结构 :46-50、`_write_log`
 :206-225、截断 :227-230、Reader :233-289)、

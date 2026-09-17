@@ -85,7 +85,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 - 惰性单字段枚举、稳定身份、起始位置、数量限制与停止状态。
 - DAG 会话路径；每例重新连接并执行默认前置请求，仅变异末端目标。
 - TCP 完整发送与无响应/固定长度/分隔符读取；UDP 保留报文边界和空报文。
-- 生命周期回调、响应检查、故障通知、恢复失败停止。
+- 生命周期回调、响应检查、故障通知与目标恢复；拨号失败默认无限重试（阈值/超时可配，放弃即停）。
 - 版本化 JSON 定义、JSONL 记录、按保存字节重放及分类报告。
 
 旧 Static、Choice 和平面 Request 行为保留。Choice 是原项目显式候选 API，不冒充上游 Group。新 API 示例见 [README.mbt.md](README.mbt.md)，JSON 格式见 [DEFINITIONS.md](docs/DEFINITIONS.md)。
@@ -98,7 +98,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 已在后续提交中补齐（不再是缺口）：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（`run --db`）、`--record-passes` 写入节流、Web UI 与 `open` 子命令、UDP 服务端模式与广播。
 
-仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界与评估结论见 [UPSTREAM.md](docs/UPSTREAM.md)、[PLAN.md](docs/PLAN.md)。
+仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行、TCP 服务端模式、`restart_interval` 周期性重启。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界与评估结论见 [UPSTREAM.md](docs/UPSTREAM.md)、[PLAN.md](docs/PLAN.md)。
 
 ## 验证与发布准备
 

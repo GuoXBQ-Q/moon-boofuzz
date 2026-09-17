@@ -31,6 +31,21 @@ test "spawn reports exit code and pid" {
 }
 
 ///|
+test "status and alive stay stable after exit is observed" {
+  // Upstream keeps exit_status readable after reaping; repeated polls must
+  // return the latched result instead of failing (POSIX waitpid ECHILD).
+  let process = Process::spawn(exit3_command())
+  ignore(process.wait(timeout_ms=10000))
+  for _ in 0..<3 {
+    let status = process.status()
+    assert_true(status.exited)
+    assert_eq(status.exit_code, 3)
+    assert_false(process.alive())
+    assert_eq(process.exit_code(), 3)
+  }
+}
+
+///|
 test "kill terminates a running process" {
   let process = Process::spawn(slow_command())
   assert_true(process.alive())

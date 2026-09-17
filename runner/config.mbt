@@ -23,7 +23,10 @@ pub(all) struct ExecutionConfig {
   receive_data_after_fuzz : Bool
   ignore_connection_reset : Bool
   ignore_connection_aborted : Bool
-  restart_threshold : Int
+  ignore_connection_issues_when_sending_fuzz_data : Bool
+  /// Failed-dial give-up count; absent (the default) retries indefinitely
+  /// like upstream's restart_threshold=None.
+  restart_threshold : Int?
   restart_timeout_ms : Int?
   restart_sleep_ms : Int
   sleep_between_ms : Int
@@ -42,8 +45,8 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     "variables", "check_data_received", "receive_data_after_fuzz", "sleep_between_ms",
     "crash_threshold_request", "crash_threshold_element", "ignore_connection_reset",
     "target_command", "target_start_delay_ms", "target_stop_delay_ms", "path", "ignore_connection_aborted",
-    "restart_threshold", "restart_timeout_ms", "restart_sleep_ms", "udp_server",
-    "udp_broadcast",
+    "ignore_connection_issues_when_sending_fuzz_data", "restart_threshold", "restart_timeout_ms",
+    "restart_sleep_ms", "udp_server", "udp_broadcast",
   ])
   guard value is { "transport": String(kind), .. } else {
     raise Invalid("execution config requires transport and endpoint")
@@ -67,6 +70,17 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
   } else {
     None
   }
+  // Server/broadcast modes are UDP-only and mutually exclusive
+  // (udp_socket_connection.py:36-45); parsed first because a UDP server
+  // endpoint may bind the wildcard host and an ephemeral port.
+  let raw_server = boolean_json(value, "udp_server")
+  let raw_broadcast = boolean_json(value, "udp_broadcast")
+  guard kind == "udp" || (!raw_server && !raw_broadcast) else {
+    raise Invalid("udp_server/udp_broadcast require the udp transport")
+  }
+  guard !raw_server || !raw_broadcast else {
+    raise Invalid("udp_server and udp_broadcast are mutually exclusive")
+  }
   let endpoint = if kind == "file" {
     // Placeholder; the file dialer never dials it.
     @transport.Endpoint::new("file", 1)
@@ -86,6 +100,7 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
       send_timeout_ms=wire.send_timeout_ms.unwrap_or(5000),
       receive_timeout_ms=wire.receive_timeout_ms.unwrap_or(5000),
       max_receive=wire.max_receive.unwrap_or(65536),
+      udp_server=raw_server,
     )
   }
   let limit : Int = if value is { "case_limit": limit, .. } {
@@ -159,16 +174,6 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
       variables[name] = @records.hex_decode(text)
     }
   }
-  // Server/broadcast modes are UDP-only and mutually exclusive
-  // (udp_socket_connection.py:36-45).
-  let raw_server = boolean_json(value, "udp_server")
-  let raw_broadcast = boolean_json(value, "udp_broadcast")
-  guard kind == "udp" || (!raw_server && !raw_broadcast) else {
-    raise Invalid("udp_server/udp_broadcast require the udp transport")
-  }
-  guard !raw_server || !raw_broadcast else {
-    raise Invalid("udp_server and udp_broadcast are mutually exclusive")
-  }
   {
     endpoint,
     udp: kind == "udp",
@@ -183,7 +188,10 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
     receive_data_after_fuzz: boolean_json(value, "receive_data_after_fuzz"),
     ignore_connection_reset: boolean_json(value, "ignore_connection_reset"),
     ignore_connection_aborted: boolean_json(value, "ignore_connection_aborted"),
-    restart_threshold: int_flag(value, "restart_threshold"),
+    ignore_connection_issues_when_sending_fuzz_data: boolean_json_or(
+      value, "ignore_connection_issues_when_sending_fuzz_data", true,
+    ),
+    restart_threshold: restart_threshold_config(value),
     restart_timeout_ms: optional_positive(value, "restart_timeout_ms"),
     restart_sleep_ms: json_int(value, "restart_sleep_ms", 5000),
     sleep_between_ms: json_int(value, "sleep_between_ms", 0),
@@ -245,18 +253,28 @@ fn boolean_json(value : Json, name : String) -> Bool raise {
 }
 
 ///|
-fn int_flag(value : Json, name : String) -> Int raise {
+fn optional_non_negative(value : Json, name : String) -> Int? raise {
   match value {
     Object(fields) =>
       match fields.get(name) {
         Some(item) => {
           let parsed : Int = @json.from_json(item)
           guard parsed >= 0 else { raise Invalid("negative " + name) }
-          parsed
+          Some(parsed)
         }
-        None => 0
+        None => None
       }
-    _ => 0
+    _ => None
+  }
+}
+
+///|
+/// Upstream treats a restart_threshold of None *or* 0 as "never give up"
+/// (falsy check in session.py:1491), so an explicit 0 maps to None too.
+fn restart_threshold_config(value : Json) -> Int? raise {
+  match optional_non_negative(value, "restart_threshold") {
+    Some(0) => None
+    other => other
   }
 }
 
@@ -292,7 +310,9 @@ pub fn ExecutionConfig::runner(
   max_depth? : Int,
   start? : Int = 0,
   end? : Int? = None,
-  sleep_between? : Int = 0,
+  /// Explicit CLI pacing; None falls back to the JSON config value, and
+  /// Some(0) disables the delay (an explicit 0 no longer means "unset").
+  sleep_between? : Int? = None,
   crash_request? : Int = 12,
   crash_element? : Int = 3,
 ) -> Runner raise {
@@ -302,11 +322,7 @@ pub fn ExecutionConfig::runner(
     Some(depth) => Some(depth)
     None => self.max_depth
   }
-  let sleep_ms = if sleep_between != 0 {
-    sleep_between
-  } else {
-    self.sleep_between_ms
-  }
+  let sleep_ms = sleep_between.unwrap_or(self.sleep_between_ms)
   let crash_req = if crash_request != 12 {
     crash_request
   } else {
@@ -333,6 +349,7 @@ pub fn ExecutionConfig::runner(
     receive_data_after_fuzz=self.receive_data_after_fuzz,
     ignore_connection_reset=self.ignore_connection_reset,
     ignore_connection_aborted=self.ignore_connection_aborted,
+    ignore_connection_issues_when_sending_fuzz_data=self.ignore_connection_issues_when_sending_fuzz_data,
     restart_threshold=self.restart_threshold,
     restart_timeout_ms?,
     restart_sleep_ms=self.restart_sleep_ms,
@@ -342,4 +359,19 @@ pub fn ExecutionConfig::runner(
     start~,
     end~,
   )
+}
+
+///|
+fn boolean_json_or(value : Json, name : String, default : Bool) -> Bool raise {
+  match value {
+    Object(fields) =>
+      match fields.get(name) {
+        Some(flag) => {
+          let parsed : Bool = @json.from_json(flag)
+          parsed
+        }
+        None => default
+      }
+    _ => default
+  }
 }

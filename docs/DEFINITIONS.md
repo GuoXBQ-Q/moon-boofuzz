@@ -49,32 +49,53 @@
 
 Top-level properties are schema_version=1, requests, optional edges, targets,
 max_bytes (default 1048576), max_paths (default 10000), and execution.
+Execution accepts transport (tcp/udp/file), endpoint, policies, case_limit,
+udp_server, udp_broadcast, combinatorial, max_depth, variables,
+check_data_received, receive_data_after_fuzz, ignore_connection_reset,
+ignore_connection_aborted,
+ignore_connection_issues_when_sending_fuzz_data (default true),
+restart_threshold, restart_timeout_ms, restart_sleep_ms,
+sleep_between_ms, crash_threshold_request, crash_threshold_element,
+target_command, target_start_delay_ms, target_stop_delay_ms, and (file
+transport) path. See docs/RUNNER.md for retry, threshold and failure
+semantics.
 Each request has name and children; blocks optionally have condition/alignment.
 Edges are two-name arrays. Targets select final fuzzed requests. Unknown keys,
 types, references and unsupported parameters are errors.
 
 | type | Properties after type and name |
 | --- | --- |
-| static | value_hex |
-| simple | value_hex, values_hex, fuzzable |
-| group | values_hex, default_hex, fuzzable |
-| integer | value (unsigned decimal **string**), width, endian, fuzzable |
-| bytes | value_hex, size, max_len, padding_hex, fuzzable |
-| text / delimiter | value (UTF-8 string), fuzzable |
-| block | children, condition, alignment |
-| repeat | target, min, max, step |
-| size | target, length, endian, offset, inclusive, mutations (decimal strings) |
-| crc32 | target, endian, mutations (decimal strings) |
+| static | value_hex, variable |
+| simple | value_hex, values_hex, fuzzable, fuzz_values, variable |
+| group | values_hex, default_hex, fuzzable, fuzz_values, variable |
+| integer | value (unsigned decimal **string**), width, endian, fuzzable, fuzz_values, variable |
+| bytes | value_hex, size, max_len, padding_hex, fuzzable, fuzz_values, variable |
+| text / delimiter | value (UTF-8 string), fuzzable, fuzz_values, variable |
+| block | children, condition, alignment, group (target field path; group-product case ids cannot be resumed by --id, use --start) |
+| repeat | target, min, max, step, variable |
+| size | target, length, endian, offset, inclusive, mutations (decimal strings), fuzzable |
+| crc32 | target, endian, mutations (decimal strings), algorithm (crc32/crc32c/adler32/md5/sha1), fuzzable |
+| mirror | target |
+| random | value_hex, min_length, max_length, max_mutations, step, fuzzable, fuzz_values, variable |
+| float | value (number), format (%.Nf), f_min, f_max (required numbers), max_mutations, seed (decimal string), ieee_754, endian, fuzzable, fuzz_values, variable |
+| lines | lines (array of UTF-8 strings), max_len, fuzzable, fuzz_values, variable |
 
-Endianness is little/big. Conditions use field, op=eq/ne/in and value_hex or
-values_hex. Alignment uses modulus and pattern_hex. References include the
+Every field type also accepts `fuzzable` and `fuzz_values` unless noted
+(mirror has neither: it renders its target's current value). Endianness is
+little/big. Conditions use field, op=eq/ne/in/not_in/gt/ge/lt/le and
+value_hex or values_hex — the comparison variants keep upstream's operand
+order quirk (`gt` renders when the field value is LESS than the configured
+bytes). Alignment uses modulus and pattern_hex. References include the
 request prefix. Integers use strings to preserve all 64 bits through JSON tools.
 String size/encoding overrides are unsupported; binary field padding is one byte.
 
-Execution contains transport=tcp/udp, endpoint with host/port and optional
-connect_timeout_ms/send_timeout_ms/receive_timeout_ms/max_receive, policies by
-request name, and case_limit. Policies use kind=none/fixed/until/datagram;
-fixed adds length, until adds delimiter_hex. See examples/*.json.
+Execution contains transport=tcp/udp/file, endpoint with host/port and
+optional connect_timeout_ms/send_timeout_ms/receive_timeout_ms/max_receive
+(UDP server endpoints may use an empty host for the wildcard bind and port 0
+for an ephemeral port), policies by request name, and case_limit. Policies
+use kind=none/fixed/until/datagram; fixed adds length, until adds
+delimiter_hex. The full execution key list is documented above; see
+examples/*.json and docs/RUNNER.md.
 
 Build with `moon build --target native cmd/boofuzz`, or run directly:
 

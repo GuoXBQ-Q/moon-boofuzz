@@ -15,9 +15,16 @@ fn csv_escape(field : String) -> String {
 
 ///|
 /// Convert a JSONL records file into CSV and write it. Returns the row
-/// count (excluding the header).
+/// count (excluding the header). A corrupt tail aborts the export with the
+/// same line-numbered error treatment as `report`, instead of silently
+/// exporting a prefix.
 fn write_csv_report(output : String, records_path : String) -> Int raise {
   let read = @records.parse_jsonl_bytes(@recordio.read_bytes(records_path))
+  if read.error is Some(error) {
+    raise InvalidArguments(
+      "invalid JSONL at line \{error.line}: " + error.message,
+    )
+  }
   let lines : Array[String] = []
   lines.push(
     "case_id,ordinal,request_name,field_path,mutation_index,outcome,failed_step,sent_hex,received_hex",

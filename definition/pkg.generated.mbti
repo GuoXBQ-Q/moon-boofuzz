@@ -33,6 +33,7 @@ pub struct ProtocolDefinition {
   paths : Array[@moon-boofuzz.SessionPath]
   execution_text : String?
 }
+pub fn ProtocolDefinition::case_id_at(Self, Int) -> String? raise
 pub fn ProtocolDefinition::execution(Self) -> Json?
 pub fn ProtocolDefinition::generate(Self, (GeneratedCase) -> Bool raise, start? : Int, limit? : Int, combinatorial? : Bool, max_depth? : Int) -> GenerationResult raise
 pub fn ProtocolDefinition::parse(String) -> Self raise
