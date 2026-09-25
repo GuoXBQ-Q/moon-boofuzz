@@ -1,5 +1,6 @@
 import {
   "GuoXBQ-Q/moon-boofuzz/db",
+  "GuoXBQ-Q/moon-boofuzz/httpgen",
   "GuoXBQ-Q/moon-boofuzz/records",
   "GuoXBQ-Q/moon-boofuzz/recordio",
   "GuoXBQ-Q/moon-boofuzz/transport",

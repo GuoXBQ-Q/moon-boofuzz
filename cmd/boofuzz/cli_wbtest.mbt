@@ -498,3 +498,28 @@ test "run udp_server waits for the peer request before answering" {
     assert_eq(record.steps.length(), 0)
   }
 }
+
+///|
+test "convert validates its options before binding" {
+  let failed_port = try {
+    ignore(dispatch(["convert", "--ui-port", "99999"]))
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(failed_port)
+  let unknown_option = try {
+    ignore(dispatch(["convert", "--nope", "1"]))
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(unknown_option)
+  let missing_value = try {
+    ignore(dispatch(["convert", "--ui-port"]))
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(missing_value)
+}

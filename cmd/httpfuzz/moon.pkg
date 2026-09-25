@@ -1,0 +1,11 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz" @boofuzz,
+  "GuoXBQ-Q/moon-boofuzz/runner",
+  "GuoXBQ-Q/moon-boofuzz/transport",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+pkgtype(kind: "executable")

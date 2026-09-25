@@ -1,0 +1,6 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz/definition",
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/utf8",
+}

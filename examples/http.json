@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "requests": [{
+    "name": "request",
+    "children": [
+      {"type": "text", "name": "method", "value": "GET", "fuzzable": false},
+      {"type": "static", "name": "sp1", "value_hex": "20"},
+      {"type": "text", "name": "uri", "value": "/index.html", "fuzzable": true},
+      {"type": "static", "name": "sp2", "value_hex": "20"},
+      {"type": "text", "name": "version", "value": "HTTP/1.1", "fuzzable": false},
+      {"type": "static", "name": "crlf0", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_0", "value_hex": "486f73743a20"},
+      {"type": "text", "name": "hdr_0", "value": "127.0.0.1:9000", "fuzzable": false},
+      {"type": "static", "name": "crlf1", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_1", "value_hex": "557365722d4167656e743a20"},
+      {"type": "text", "name": "hdr_1", "value": "moon-boofuzz", "fuzzable": false},
+      {"type": "static", "name": "crlf2", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_2", "value_hex": "436f6e6e656374696f6e3a20"},
+      {"type": "text", "name": "hdr_2", "value": "close", "fuzzable": false},
+      {"type": "static", "name": "crlf3", "value_hex": "0d0a"},
+      {"type": "static", "name": "head_end", "value_hex": "0d0a"},
+      {"type": "text", "name": "body", "value": "", "fuzzable": false}
+    ]
+  }],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {"host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 500},
+    "policies": {"request": {"kind": "until", "delimiter_hex": "0d0a0d0a"}},
+    "case_limit": 20
+  }
+}

@@ -1,0 +1,92 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "GuoXBQ-Q/moon-boofuzz/httpgen"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn to_definition(HttpMessage, Array[FieldSelection], ConvertOptions) -> ConvertResult raise HttpGenError
+
+// Errors
+pub(all) suberror HttpGenError {
+  Invalid(String)
+} derive(@debug.Debug)
+pub fn HttpGenError::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct ConvertOptions {
+  request_name : String
+  host : String
+  port : Int
+  policy_kind : String
+  fixed_length : Int
+  case_limit : Int
+} derive(@debug.Debug)
+pub fn ConvertOptions::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ConvertResult {
+  definition : Json
+  definition_text : String
+  case_count : Int
+  previews : Array[Bytes]
+} derive(@debug.Debug)
+pub fn ConvertResult::to_repr(Self) -> @debug.Repr
+
+pub(all) enum FieldPrimitive {
+  Text
+  Integer
+  Bytes
+  RandomData
+  Candidates
+} derive(Eq, @debug.Debug)
+pub fn FieldPrimitive::equal(Self, Self) -> Bool
+pub fn FieldPrimitive::not_equal(Self, Self) -> Bool
+pub fn FieldPrimitive::to_repr(Self) -> @debug.Repr
+
+pub(all) struct FieldSelection {
+  id : String
+  primitive : FieldPrimitive
+  width : Int
+  endian : String
+  max_len : Int
+  max_mutations : Int
+  candidates : Array[String]
+} derive(@debug.Debug)
+pub fn FieldSelection::to_repr(Self) -> @debug.Repr
+
+pub(all) struct HttpHeader {
+  name : String
+  gap : String
+  value : String
+} derive(@debug.Debug)
+pub fn HttpHeader::to_repr(Self) -> @debug.Repr
+
+pub(all) struct HttpMessage {
+  verb : String
+  uri : String
+  version : String
+  headers : Array[HttpHeader]
+  body : String
+  has_body : Bool
+  final_eol : Bool
+  eol : String
+  terminator : String?
+} derive(@debug.Debug)
+pub fn HttpMessage::header(Self, String) -> String?
+pub fn HttpMessage::parse(String) -> Self raise HttpGenError
+pub fn HttpMessage::segments(Self) -> Array[Segment]
+pub fn HttpMessage::to_repr(Self) -> @debug.Repr
+pub fn HttpMessage::valid_id(Self, String) -> Bool
+
+pub(all) struct Segment {
+  id : String
+  label : String
+  kind : String
+  value : String
+} derive(@debug.Debug)
+pub fn Segment::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

@@ -52,12 +52,16 @@ fn state_name(state : @core.EnumerationState) -> String {
 fn dispatch(args : Array[String]) -> Int raise {
   if args == ["--help"] || args.is_empty() {
     println(
-      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false] [--csv-out FILE] [--db FILE] [--record-passes N] [--web-port N]\nmoon-boofuzz open FILE [--ui-port N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
+      "moon-boofuzz generate DEFINITION.json [--limit N] [--start N] [--id CASE_ID] [--combinatorial true|false] [--max-depth N]\nmoon-boofuzz run DEFINITION.json --output CASES.jsonl [--limit N] [--combinatorial true|false] [--max-depth N] [--target-cmd CMD] [--start N] [--end N] [--sleep-between-ms N] [--text-dump true|false] [--csv-out FILE] [--db FILE] [--record-passes N] [--web-port N]\nmoon-boofuzz open FILE [--ui-port N]\nmoon-boofuzz convert [--ui-port N]\nmoon-boofuzz replay CASES.jsonl --id CASE_ID [--host HOST --port PORT]\nmoon-boofuzz report CASES.jsonl [--max-bytes N]",
     )
     return 0
   }
   if args == ["--version"] {
     println("moon-boofuzz 0.1.0")
+    return 0
+  }
+  if args is ["convert", .. flags] {
+    convert_command(flags)
     return 0
   }
   guard args is [command, input, .. flags] else {

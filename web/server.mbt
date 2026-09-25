@@ -15,10 +15,15 @@ pub(all) suberror WebError {
 pub(all) struct HttpRequest {
   verb : String
   path : String
+  /// Bytes following the head, up to the declared Content-Length.
+  body : Bytes
 } derive(Debug, Eq)
 
 ///|
 const REQUEST_LIMIT : Int = 8192
+
+///|
+const BODY_LIMIT : Int = 1048576
 
 ///|
 pub struct HttpServer {
@@ -106,11 +111,17 @@ pub fn HttpServer::serve_pending(
 
 ///|
 fn read_request(client : WebSocket) -> HttpRequest raise WebError {
-  let buffer : FixedArray[Byte] = FixedArray::make(REQUEST_LIMIT, b'\x00')
+  let mut buffer : FixedArray[Byte] = FixedArray::make(REQUEST_LIMIT, b'\x00')
   let mut received = 0
+  let mut head_end = -1
+  let mut content_length = 0
   // Headers arrive with the first segment on loopback; wait, then drain
-  // until the header terminator or the cap.
+  // until the header terminator, then until the declared body length or
+  // the caps. Each read gets a fresh 2000 ms budget.
   for ;; {
+    if head_end >= 0 && received >= head_end + 4 + content_length {
+      break
+    }
     let status = web_wait(client, 0, 2000)
     guard status == 0 else {
       if received > 0 {
@@ -118,11 +129,35 @@ fn read_request(client : WebSocket) -> HttpRequest raise WebError {
       }
       raise ServeFailure(-2)
     }
-    let n = web_recv(client, buffer, REQUEST_LIMIT - received)
+    if received == buffer.length() {
+      // Grow only for a declared body; otherwise the request is capped.
+      let needed = head_end + 4 + content_length
+      if head_end < 0 || content_length <= 0 || buffer.length() >= needed {
+        break
+      }
+      let grown : FixedArray[Byte] = FixedArray::make(needed, b'\x00')
+      for i in 0..<received {
+        grown[i] = buffer[i]
+      }
+      buffer = grown
+    }
+    let n = web_recv(client, buffer, buffer.length() - received)
     if n > 0 {
       received += n
-      if received >= REQUEST_LIMIT || has_header_end(buffer, received) {
-        break
+      if head_end < 0 {
+        match header_end_at(buffer, received) {
+          Some(index) => {
+            head_end = index
+            content_length = header_content_length(buffer, index)
+            guard content_length <= BODY_LIMIT else { raise ServeFailure(-4) }
+          }
+          None =>
+            // A head that fills the buffer without a terminator is
+            // served as-is; only bodies may exceed REQUEST_LIMIT.
+            if received >= REQUEST_LIMIT {
+              break
+            }
+        }
       }
     } else if n == 0 || n == -1 {
       break
@@ -133,25 +168,96 @@ fn read_request(client : WebSocket) -> HttpRequest raise WebError {
   // A connection that never sent a request byte is not a GET / (an empty
   // read used to render the index page); treat it as a dropped client.
   guard received > 0 else { raise ServeFailure(-3) }
-  parse_request_line(buffer, received)
+  let body : Bytes = if head_end >= 0 {
+    let start = head_end + 4
+    let end = if start + content_length < received {
+      start + content_length
+    } else {
+      received
+    }
+    if end > start {
+      Bytes::makei(end - start, i => buffer[start + i])
+    } else {
+      b""
+    }
+  } else {
+    b""
+  }
+  let request = parse_request_line(buffer, received)
+  { verb: request.verb, path: request.path, body, }
 }
 
 ///|
-fn has_header_end(buffer : FixedArray[Byte], length : Int) -> Bool {
+/// The offset of the CRLFCRLF head terminator, if fully received.
+fn header_end_at(buffer : FixedArray[Byte], length : Int) -> Int? {
+  if length < 4 {
+    return None
+  }
   let mut i = 0
-  let limit = length - 3
-  for ;; {
-    if i >= limit {
-      return false
-    }
-    if buffer[i] == b'\r' &&
-      buffer[i + 1] == b'\n' &&
-      buffer[i + 2] == b'\r' &&
-      buffer[i + 3] == b'\n' {
-      return true
+  while i + 3 < length {
+    if buffer[i] == b'\x0d' &&
+      buffer[i + 1] == b'\x0a' &&
+      buffer[i + 2] == b'\x0d' &&
+      buffer[i + 3] == b'\x0a' {
+      return Some(i)
     }
     i += 1
   }
+  None
+}
+
+///|
+/// The declared Content-Length inside the head (0 when absent, malformed
+/// or non-numeric). Only the first Content-Length header counts.
+fn header_content_length(buffer : FixedArray[Byte], head_end : Int) -> Int {
+  let head_bytes = Bytes::makei(head_end, i => buffer[i])
+  let head = @utf8.decode_lossy(head_bytes)
+  for raw_line in head.split("\n") {
+    let line = strip_line_ending(raw_line.to_owned())
+    let colon = match line.find(":") {
+      Some(index) => index
+      None => continue
+    }
+    let name = trim_ows(line[:colon].to_owned()).to_lower()
+    if name == "content-length" {
+      return parse_decimal(trim_ows(line[colon + 1:].to_owned()))
+    }
+  }
+  0
+}
+
+///|
+fn strip_line_ending(line : String) -> String {
+  if line.length() > 0 && line[line.length() - 1] == '\r' {
+    line[:line.length() - 1].to_owned()
+  } else {
+    line
+  }
+}
+
+///|
+fn trim_ows(text : String) -> String {
+  let mut start = 0
+  let mut end = text.length()
+  while start < end && (text[start] == ' ' || text[start] == '\t') {
+    start += 1
+  }
+  while end > start && (text[end - 1] == ' ' || text[end - 1] == '\t') {
+    end -= 1
+  }
+  text[start:end].to_owned()
+}
+
+///|
+/// Strict decimal; any other character (including a sign) yields 0.
+fn parse_decimal(text : String) -> Int {
+  let mut value = 0
+  for ch in text {
+    guard ch >= '0' && ch <= '9' else { return 0 }
+    value = value * 10 + (ch.to_int() - 48)
+    guard value <= BODY_LIMIT else { return BODY_LIMIT + 1 }
+  }
+  value
 }
 
 ///|
@@ -176,7 +282,7 @@ fn parse_request_line(
     Some(index) if index > 0 => raw_path[0:index].to_owned()
     _ => raw_path
   }
-  { verb, path, }
+  { verb, path, body: b"", }
 }
 
 ///|
@@ -243,7 +349,10 @@ fn status_text(status : Int) -> String {
   match status {
     200 => "OK"
     302 => "Found"
+    400 => "Bad Request"
     404 => "Not Found"
+    405 => "Method Not Allowed"
+    413 => "Content Too Large"
     500 => "Internal Server Error"
     _ => "OK"
   }

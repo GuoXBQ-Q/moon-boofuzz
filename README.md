@@ -37,6 +37,7 @@ Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/rele
 | `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N` |
 | `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`、`--db FILE`、`--record-passes N`、`--csv-out FILE`、`--web-port N`、`--target-cmd CMD` |
 | `open` | 结果库/JSONL → 本地只读 Web 视图 | `--ui-port N`（默认 26000） |
+| `convert` | Web 页面：粘贴原始 HTTP 报文 → 勾选分段并选择变异原语（字符串库/整数/二进制/随机/候选值）→ 自动生成协议定义 JSON（校验、用例数、载荷预览、复制/下载） | `--ui-port N`（默认 26001） |
 | `report` | JSONL 执行记录 → 分类计数、失败身份和行号 | `--max-bytes N` |
 | `replay` | JSONL 执行记录 → 按身份重放保存的字节 | 必填 `--id ID`，可选成对的 `--host HOST --port PORT`、`--max-bytes N` |
 
@@ -72,7 +73,8 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 | 需求 | 文档 |
 | --- | --- |
 | 编写 JSON 协议、字段与读取策略 | [DEFINITIONS.md](docs/DEFINITIONS.md) |
-| 在 MoonBit 代码中构造请求 | [可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
+| 用 Web 页面把 HTTP 报文转成定义 | [CONVERT.md](docs/CONVERT.md) |
+| 用 MoonBit 代码编写 fuzz 脚本 | [CODE.md](docs/CODE.md)、[可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
 | 配置前置路径和执行器 | [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) |
 | 响应检查、故障通知和恢复回调 | [MONITORS.md](docs/MONITORS.md) |
 | 理解日志、重放和退出码 | [RECORDS.md](docs/RECORDS.md)、[REPLAY.md](docs/REPLAY.md)、[REPORT.md](docs/REPORT.md) |
@@ -81,6 +83,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 ## 支持的核心
 
 - Simple、Group、8/16/32/64 位整数、二进制 Bytes、UTF-8 字符串和分隔符变异。
+- HTTP 报文转换器：粘贴原始请求，勾选要 fuzz 的分段并为每段选择变异原语（字符串库/整数/二进制/随机/显式候选），自动生成并校验协议定义 JSON（见 [CONVERT.md](docs/CONVERT.md)）。
 - 命名嵌套块、条件块、重复、对齐、长度字段及 CRC32。
 - 惰性单字段枚举、稳定身份、起始位置、数量限制与停止状态。
 - DAG 会话路径；每例重新连接并执行默认前置请求，仅变异末端目标。

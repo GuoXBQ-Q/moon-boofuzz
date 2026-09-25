@@ -44,3 +44,40 @@ const PAGE_SCRIPT : String = "<script>\n" +
   "}\n" +
   "setInterval(refresh, 2000);\n" +
   "</script>\n"
+
+///|
+/// Converter page script: copy and download the generated definition,
+/// and show only the parameter inputs of the selected mutation primitive.
+const CONVERT_SCRIPT : String = "<script>\n" +
+  "function copyDefinition() {\n" +
+  "  var t = document.getElementById('definition-json');\n" +
+  "  t.select();\n" +
+  "  navigator.clipboard.writeText(t.value);\n" +
+  "}\n" +
+  "function downloadDefinition() {\n" +
+  "  var t = document.getElementById('definition-json');\n" +
+  "  var name = document.getElementById('download-name').value || 'definition';\n" +
+  "  var blob = new Blob([t.value], {type: 'application/json'});\n" +
+  "  var a = document.createElement('a');\n" +
+  "  a.href = URL.createObjectURL(blob);\n" +
+  "  a.download = name + '.json';\n" +
+  "  a.click();\n" +
+  "  URL.revokeObjectURL(a.href);\n" +
+  "}\n" +
+  "function syncPrimitive(id) {\n" +
+  "  var sel = document.getElementsByName('p_' + id)[0];\n" +
+  "  if (!sel) return;\n" +
+  "  var kinds = ['integer', 'bytes', 'random'];\n" +
+  "  for (var i = 0; i < kinds.length; i++) {\n" +
+  "    var el = document.getElementById('params_' + kinds[i] + '_' + id);\n" +
+  "    if (el) el.style.display = (sel.value === kinds[i]) ? 'inline' : 'none';\n" +
+  "  }\n" +
+  "}\n" +
+  "function syncAllPrimitives() {\n" +
+  "  var selects = document.querySelectorAll('select[name^=\"p_\"]');\n" +
+  "  for (var i = 0; i < selects.length; i++) {\n" +
+  "    syncPrimitive(selects[i].name.slice(2));\n" +
+  "  }\n" +
+  "}\n" +
+  "syncAllPrimitives();\n" +
+  "</script>\n"
