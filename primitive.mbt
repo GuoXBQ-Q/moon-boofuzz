@@ -6,6 +6,9 @@ pub(all) enum Primitive {
 } derive(Debug)
 
 ///|
+pub extend Primitive with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 /// Return the normal wire value.
 pub fn Primitive::default_value(self : Primitive) -> Bytes {
   match self {

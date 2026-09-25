@@ -8,6 +8,12 @@ pub(all) enum Endian {
 } derive(Debug, Eq)
 
 ///|
+pub extend Endian with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Endian with Eq::{not_equal, equal}
+
+///|
 fn integer_max(width : Int) -> UInt64 raise ModelError {
   guard width == 8 || width == 16 || width == 32 || width == 64 else {
     raise Invalid("integer width must be 8, 16, 32 or 64")

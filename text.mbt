@@ -84,6 +84,9 @@ enum TextCandidate {
 } derive(Eq)
 
 ///|
+pub extend TextCandidate with Eq::{not_equal, equal}
+
+///|
 fn TextCandidate::render(self : TextCandidate) -> Bytes {
   match self {
     Literal(b) => b

@@ -7,6 +7,12 @@ pub(all) struct RecordedStep {
 } derive(Debug, Eq)
 
 ///|
+pub extend RecordedStep with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RecordedStep with Eq::{not_equal, equal}
+
+///|
 pub(all) struct CaseRecord {
   format_version : Int
   case_id : String
@@ -22,6 +28,12 @@ pub(all) struct CaseRecord {
   detail : String
   failed_step : Int?
 } derive(Debug, Eq)
+
+///|
+pub extend CaseRecord with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend CaseRecord with Eq::{not_equal, equal}
 
 ///|
 priv struct WireStep {

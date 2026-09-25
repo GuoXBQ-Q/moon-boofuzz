@@ -5,6 +5,9 @@ pub(all) suberror RecordError {
 } derive(Debug)
 
 ///|
+pub extend RecordError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub fn hex_encode(bytes : Bytes) -> String {
   let digits : Array[Char] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',

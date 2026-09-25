@@ -25,6 +25,7 @@ pub(all) suberror RecordError {
   Invalid(String)
   UnsupportedVersion(Int)
 } derive(@debug.Debug)
+pub fn RecordError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct CaseRecord {
@@ -44,6 +45,9 @@ pub(all) struct CaseRecord {
 } derive(Eq, @debug.Debug)
 pub fn CaseRecord::decode(String) -> Self raise RecordError
 pub fn CaseRecord::encode(Self) -> String raise RecordError
+pub fn CaseRecord::equal(Self, Self) -> Bool
+pub fn CaseRecord::not_equal(Self, Self) -> Bool
+pub fn CaseRecord::to_repr(Self) -> @debug.Repr
 pub fn CaseRecord::validate(Self) -> Unit raise RecordError
 
 pub(all) struct FailedCase {
@@ -53,16 +57,24 @@ pub(all) struct FailedCase {
   failed_step : Int?
   detail : String
 } derive(Eq, ToJson, @debug.Debug)
+pub fn FailedCase::equal(Self, Self) -> Bool
+pub fn FailedCase::not_equal(Self, Self) -> Bool
+pub fn FailedCase::to_json(Self) -> Json
+pub fn FailedCase::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RecordIssue {
   line : Int
   message : String
 } derive(Eq, @debug.Debug)
+pub fn RecordIssue::equal(Self, Self) -> Bool
+pub fn RecordIssue::not_equal(Self, Self) -> Bool
+pub fn RecordIssue::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RecordRead {
   records : Array[CaseRecord]
   error : RecordIssue?
 } derive(@debug.Debug)
+pub fn RecordRead::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RecordedStep {
   request_name : String
@@ -70,12 +82,17 @@ pub(all) struct RecordedStep {
   received : Bytes
   completed : Bool
 } derive(Eq, @debug.Debug)
+pub fn RecordedStep::equal(Self, Self) -> Bool
+pub fn RecordedStep::not_equal(Self, Self) -> Bool
+pub fn RecordedStep::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Report {
   total : Int
   outcomes : Map[String, Int]
   failures : Array[FailedCase]
 } derive(ToJson, @debug.Debug)
+pub fn Report::to_json(Self) -> Json
+pub fn Report::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

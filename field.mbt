@@ -5,6 +5,9 @@ pub suberror ModelError {
 } derive(Debug)
 
 ///|
+pub extend ModelError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 /// An immutable field definition with indexed, on-demand mutation generation.
 pub struct Field {
   value : Bytes

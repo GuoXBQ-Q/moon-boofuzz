@@ -5,6 +5,9 @@ pub(all) suberror DefinitionError {
 } derive(Debug)
 
 ///|
+pub extend DefinitionError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 fn property(value : Json, name : String) -> Json? {
   match value {
     Object(fields) => fields.get(name)

@@ -216,6 +216,12 @@ pub(all) enum ChecksumAlgorithm {
 } derive(Debug, Eq)
 
 ///|
+pub extend ChecksumAlgorithm with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ChecksumAlgorithm with Eq::{not_equal, equal}
+
+///|
 fn ChecksumAlgorithm::length(self : ChecksumAlgorithm) -> Int {
   match self {
     Crc32 | Crc32c | Adler32 => 4

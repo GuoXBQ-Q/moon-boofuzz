@@ -5,10 +5,19 @@ pub(all) struct RecordIssue {
 } derive(Debug, Eq)
 
 ///|
+pub extend RecordIssue with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend RecordIssue with Eq::{not_equal, equal}
+
+///|
 pub(all) struct RecordRead {
   records : Array[CaseRecord]
   error : RecordIssue?
 } derive(Debug)
+
+///|
+pub extend RecordRead with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 /// Preserve preceding complete records on a malformed or incomplete line.

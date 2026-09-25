@@ -12,12 +12,24 @@ pub(all) struct MutationCase {
 } derive(Debug, Eq)
 
 ///|
+pub extend MutationCase with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend MutationCase with Eq::{not_equal, equal}
+
+///|
 pub(all) enum EnumerationState {
   Running
   Exhausted
   Limited
   Stopped
 } derive(Debug, Eq)
+
+///|
+pub extend EnumerationState with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend EnumerationState with Eq::{not_equal, equal}
 
 ///|
 /// One stack frame of the lazy case-sequence walker. Sequence frames track

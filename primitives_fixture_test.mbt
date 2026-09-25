@@ -232,8 +232,8 @@ test "upstream combinatorial enumeration depth two" {
 ///|
 test "adler32 and crc32c reference vectors" {
   // zlib.adler32(b'Wikipedia') == 0x11e60398
-  assert_eq(adler32(b"Wikipedia"), 0x11e60398U)
+  assert_eq(@moon_boofuzz.adler32(b"Wikipedia"), 0x11e60398U)
   // Castagnoli CRC-32C reference: crc32c(b'123456789') == 0xe3069283
-  assert_eq(crc32c(b"123456789"), 0xe3069283U)
-  assert_eq(crc32c(b"hello"), 0x9a71bb4cU)
+  assert_eq(@moon_boofuzz.crc32c(b"123456789"), 0xe3069283U)
+  assert_eq(@moon_boofuzz.crc32c(b"hello"), 0x9a71bb4cU)
 }

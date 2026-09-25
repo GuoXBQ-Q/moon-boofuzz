@@ -8,11 +8,26 @@ pub(all) struct FailedCase {
 } derive(Debug, Eq, ToJson)
 
 ///|
+pub extend FailedCase with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend FailedCase with Eq::{not_equal, equal}
+
+///|
+pub extend FailedCase with ToJson::{to_json}
+
+///|
 pub(all) struct Report {
   total : Int
   outcomes : Map[String, Int]
   failures : Array[FailedCase]
 } derive(Debug, ToJson)
+
+///|
+pub extend Report with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Report with ToJson::{to_json}
 
 ///|
 pub fn summarize(records : Array[CaseRecord]) -> Report raise RecordError {

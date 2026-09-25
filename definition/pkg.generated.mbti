@@ -14,6 +14,7 @@ pub(all) suberror DefinitionError {
   Invalid(String)
   UnsupportedVersion(Int)
 } derive(@debug.Debug)
+pub fn DefinitionError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct GeneratedCase {
@@ -22,11 +23,15 @@ pub(all) struct GeneratedCase {
   prefix : Array[Bytes]
   case : @moon-boofuzz.MutationCase
 } derive(@debug.Debug)
+pub fn GeneratedCase::to_repr(Self) -> @debug.Repr
 
 pub(all) struct GenerationResult {
   generated : Int
   state : @moon-boofuzz.EnumerationState
 } derive(Eq, @debug.Debug)
+pub fn GenerationResult::equal(Self, Self) -> Bool
+pub fn GenerationResult::not_equal(Self, Self) -> Bool
+pub fn GenerationResult::to_repr(Self) -> @debug.Repr
 
 pub struct ProtocolDefinition {
   requests : Array[@moon-boofuzz.CompiledRequest]

@@ -73,10 +73,19 @@ pub(all) struct GeneratedCase {
 } derive(Debug)
 
 ///|
+pub extend GeneratedCase with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub(all) struct GenerationResult {
   generated : Int
   state : @core.EnumerationState
 } derive(Debug, Eq)
+
+///|
+pub extend GenerationResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend GenerationResult with Eq::{not_equal, equal}
 
 ///|
 /// Resolve a stable case identity ("v1:request.field:index") to the raw
