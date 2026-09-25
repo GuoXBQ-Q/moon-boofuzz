@@ -7,6 +7,9 @@ pub(all) suberror StorageError {
 } derive(Debug)
 
 ///|
+pub extend StorageError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub struct Writer {
   file : FileHandle
 }

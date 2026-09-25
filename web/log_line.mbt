@@ -11,6 +11,12 @@ pub(all) struct LogLine {
 } derive(Debug, Eq)
 
 ///|
+pub extend LogLine with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend LogLine with Eq::{not_equal, equal}
+
+///|
 fn type_css_class(step_type : String) -> String {
   match step_type {
     "test_case" => "log-case"

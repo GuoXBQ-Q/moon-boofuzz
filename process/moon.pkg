@@ -1,12 +1,14 @@
 supported_targets = "native"
 
 import {
+  "moonbitlang/core/debug",
   "GuoXBQ-Q/moon-boofuzz" @core,
 } for "wbtest"
 
 import {
   "GuoXBQ-Q/moon-boofuzz/runner",
   "GuoXBQ-Q/moon-boofuzz/transport",
+  "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
 }
 

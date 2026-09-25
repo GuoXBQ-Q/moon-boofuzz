@@ -22,12 +22,24 @@ pub(all) enum Outcome {
 } derive(Debug, Eq)
 
 ///|
+pub extend Outcome with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Outcome with Eq::{not_equal, equal}
+
+///|
 pub(all) struct StepResult {
   request_name : String
   sent : Bytes
   received : Bytes
   completed : Bool
 } derive(Debug, Eq)
+
+///|
+pub extend StepResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend StepResult with Eq::{not_equal, equal}
 
 ///|
 pub(all) struct CaseResult {
@@ -38,6 +50,9 @@ pub(all) struct CaseResult {
   outcome : Outcome
   failed_step : Int?
 } derive(Debug)
+
+///|
+pub extend CaseResult with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 pub struct Runner {

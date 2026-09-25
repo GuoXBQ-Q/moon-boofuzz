@@ -23,6 +23,7 @@ pub(all) suberror DbError {
   StepFailure(Int)
   NoSuchCase(Int)
 } derive(@debug.Debug)
+pub fn DbError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct Db {
@@ -39,6 +40,9 @@ pub(all) struct DbCase {
   timestamp : String
   steps : Array[DbStep]
 } derive(Eq, @debug.Debug)
+pub fn DbCase::equal(Self, Self) -> Bool
+pub fn DbCase::not_equal(Self, Self) -> Bool
+pub fn DbCase::to_repr(Self) -> @debug.Repr
 
 type DbHandle
 
@@ -46,6 +50,9 @@ pub(all) enum DbLogEntry {
   CasesEntry(String, Int, String)
   StepsEntry(Int, String, String, Bytes, String, Bool)
 } derive(Eq, @debug.Debug)
+pub fn DbLogEntry::equal(Self, Self) -> Bool
+pub fn DbLogEntry::not_equal(Self, Self) -> Bool
+pub fn DbLogEntry::to_repr(Self) -> @debug.Repr
 
 pub struct DbLogger {
   db : Db
@@ -86,6 +93,9 @@ pub fn DbReader::query(Self, String, params? : Array[DbValue]) -> Array[DbRow] r
 pub(all) struct DbRow {
   values : Array[DbValue]
 } derive(Eq, @debug.Debug)
+pub fn DbRow::equal(Self, Self) -> Bool
+pub fn DbRow::not_equal(Self, Self) -> Bool
+pub fn DbRow::to_repr(Self) -> @debug.Repr
 
 pub(all) struct DbStep {
   step_type : String
@@ -94,6 +104,9 @@ pub(all) struct DbStep {
   timestamp : String
   truncated : Bool
 } derive(Eq, @debug.Debug)
+pub fn DbStep::equal(Self, Self) -> Bool
+pub fn DbStep::not_equal(Self, Self) -> Bool
+pub fn DbStep::to_repr(Self) -> @debug.Repr
 
 pub(all) enum DbValue {
   VNull
@@ -102,6 +115,9 @@ pub(all) enum DbValue {
   VText(String)
   VBlob(Bytes)
 } derive(Eq, @debug.Debug)
+pub fn DbValue::equal(Self, Self) -> Bool
+pub fn DbValue::not_equal(Self, Self) -> Bool
+pub fn DbValue::to_repr(Self) -> @debug.Repr
 
 pub struct Stmt {
   handle : StmtHandle

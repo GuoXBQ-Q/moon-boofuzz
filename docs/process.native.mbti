@@ -16,6 +16,7 @@ pub suberror ProcessError {
   PollFailure(Int)
   KillFailure(Int)
 } derive(@debug.Debug)
+pub fn ProcessError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 type Proc
@@ -48,6 +49,9 @@ pub struct ProcessStatus {
   exit_code : Int
   pid : Int
 } derive(Eq, @debug.Debug)
+pub fn ProcessStatus::equal(Self, Self) -> Bool
+pub fn ProcessStatus::not_equal(Self, Self) -> Bool
+pub fn ProcessStatus::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

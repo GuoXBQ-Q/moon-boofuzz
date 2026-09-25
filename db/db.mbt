@@ -14,6 +14,9 @@ pub(all) suberror DbError {
 } derive(Debug)
 
 ///|
+pub extend DbError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub struct Db {
   handle : DbHandle
 }

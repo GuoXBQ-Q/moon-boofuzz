@@ -11,6 +11,9 @@ pub suberror ProcessError {
 } derive(Debug)
 
 ///|
+pub extend ProcessError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub struct Process {
   handle : Proc
   mut exited : Bool
@@ -23,6 +26,12 @@ pub struct ProcessStatus {
   exit_code : Int
   pid : Int
 } derive(Debug, Eq)
+
+///|
+pub extend ProcessStatus with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ProcessStatus with Eq::{not_equal, equal}
 
 ///|
 /// Whether the host is Windows; command strings differ between

@@ -7,6 +7,9 @@ pub(all) struct ReplayResult {
 } derive(Debug)
 
 ///|
+pub extend ReplayResult with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 fn replay_sequence(
   record : @records.CaseRecord,
   config : ExecutionConfig,

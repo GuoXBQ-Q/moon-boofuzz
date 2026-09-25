@@ -18,10 +18,22 @@ pub(all) enum DbValue {
 } derive(Debug, Eq)
 
 ///|
+pub extend DbValue with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DbValue with Eq::{not_equal, equal}
+
+///|
 /// One result row of a reader query, column values in order.
 pub(all) struct DbRow {
   values : Array[DbValue]
 } derive(Debug, Eq)
+
+///|
+pub extend DbRow with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DbRow with Eq::{not_equal, equal}
 
 ///|
 fn bind_one(stmt : Stmt, index : Int, value : DbValue) -> Unit raise DbError {

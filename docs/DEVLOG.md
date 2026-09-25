@@ -69,8 +69,11 @@ Web 页面（粘贴报文 → 预览 → 生成定义 JSON）、`cmd/httpfuzz` �
 moonc v0.10.14（moon 0.1.20260920）把两个警告转为默认开启：
 `implicit_impl_as_method`（trait impl 方法不再隐式提升）与
 `test_unqualified_package`（黑盒测试隐式导入）。本次迁移通过一个 `.mbtx`
-codemod（读取 `moon check --output-json` 自动定位修改点）插入 40 条显式
-`extend` 声明、限定 13 处测试导入，50 个警告清零后重新生成全部接口文件。
+codemod（读取 `moon check --output-json` 自动定位修改点）分两轮完成：wasm
+目标 50 个警告（40 条显式 `extend` + 13 处限定导入），native 目标 20 个
+（native-only 的 transport/runner/process/db/recordio/web 包不在 wasm 检查图内，
+首轮被遗漏）；`SessionView` 这类仅以 trait 限定形式调用的方法按编译器建议加
+`#deprecated` 标记。清理后双目标 `--deny-warn` 均 0 警告，接口文件重新生成。
 期间发现编译器 E0025 建议文本中的 `@moon-boofuzz.`（连字符）不是合法别名，
 按声明的 `@moon_boofuzz` 修正。
 

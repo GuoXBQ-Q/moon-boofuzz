@@ -24,6 +24,12 @@ pub(all) enum DbLogEntry {
 } derive(Debug, Eq)
 
 ///|
+pub extend DbLogEntry with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DbLogEntry with Eq::{not_equal, equal}
+
+///|
 fn DbLogEntry::case_index(self : DbLogEntry) -> Int {
   match self {
     CasesEntry(_, index, _) => index

@@ -12,12 +12,21 @@ pub(all) suberror WebError {
 } derive(Debug)
 
 ///|
+pub extend WebError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub(all) struct HttpRequest {
   verb : String
   path : String
   /// Bytes following the head, up to the declared Content-Length.
   body : Bytes
 } derive(Debug, Eq)
+
+///|
+pub extend HttpRequest with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend HttpRequest with Eq::{not_equal, equal}
 
 ///|
 const REQUEST_LIMIT : Int = 8192
@@ -292,6 +301,9 @@ pub(all) struct HttpResponse {
   body : Bytes
   headers : Array[String]
 } derive(Debug)
+
+///|
+pub extend HttpResponse with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 pub fn HttpResponse::html(body : String) -> HttpResponse {

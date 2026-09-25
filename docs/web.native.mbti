@@ -13,6 +13,8 @@ pub fn[T : SessionView] api_current_run(T) -> HttpResponse raise
 
 pub fn[T : SessionView] api_test_case(T, Int) -> HttpResponse raise
 
+pub fn handle_convert_request(HttpRequest) -> HttpResponse
+
 pub fn[T : SessionView] handle_request(T, HttpRequest) -> HttpResponse raise
 
 pub fn[T : SessionView] render_index(T) -> HttpResponse raise
@@ -24,12 +26,20 @@ pub(all) suberror WebError {
   BindFailure(Int)
   ServeFailure(Int)
 } derive(@debug.Debug)
+pub fn WebError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
+type ConvertForm derive(@debug.Debug)
+pub fn ConvertForm::to_repr(Self) -> @debug.Repr
+
 pub(all) struct HttpRequest {
   verb : String
   path : String
+  body : Bytes
 } derive(Eq, @debug.Debug)
+pub fn HttpRequest::equal(Self, Self) -> Bool
+pub fn HttpRequest::not_equal(Self, Self) -> Bool
+pub fn HttpRequest::to_repr(Self) -> @debug.Repr
 
 pub(all) struct HttpResponse {
   status : Int
@@ -42,6 +52,7 @@ pub fn HttpResponse::internal_error() -> Self
 pub fn HttpResponse::json(String) -> Self
 pub fn HttpResponse::not_found() -> Self
 pub fn HttpResponse::redirect(String) -> Self
+pub fn HttpResponse::to_repr(Self) -> @debug.Repr
 
 pub struct HttpServer {
   socket : WebSocket
@@ -60,14 +71,39 @@ pub struct LiveSession {
   failures : @ref.Ref[Map[Int, Array[String]]]
   current_name : @ref.Ref[String]
 }
+#deprecated
+pub fn LiveSession::crashes(Self) -> Map[Int, Array[String]] raise
+#deprecated
+pub fn LiveSession::current_case_name(Self) -> String
+#deprecated
+pub fn LiveSession::current_element(Self) -> String
+#deprecated
+pub fn LiveSession::current_index(Self) -> Int raise
+#deprecated
+pub fn LiveSession::exec_speed(Self) -> Double
+#deprecated
+pub fn LiveSession::is_paused(Self) -> Bool
 pub fn LiveSession::new(limit~ : Int) -> Self
+#deprecated
+pub fn LiveSession::num_mutations(Self) -> Int?
 pub fn LiveSession::observe(Self, @records.CaseRecord) -> Unit
+#deprecated
+pub fn LiveSession::runtime_seconds(Self) -> Double
+#deprecated
+pub fn LiveSession::state(Self) -> String
+#deprecated
+pub fn LiveSession::test_case_data(Self, Int) -> @db.DbCase raise
+#deprecated
+pub fn LiveSession::toggle_pause(Self) -> Unit
 pub impl SessionView for LiveSession
 
 pub(all) struct LogLine {
   css_class : String
   log_line : String
 } derive(Eq, @debug.Debug)
+pub fn LogLine::equal(Self, Self) -> Bool
+pub fn LogLine::not_equal(Self, Self) -> Bool
+pub fn LogLine::to_repr(Self) -> @debug.Repr
 
 pub struct OfflineSession {
   reader : @db.DbReader?
@@ -75,8 +111,30 @@ pub struct OfflineSession {
   names : Map[Int, String]
 }
 pub fn OfflineSession::close(Self) -> Unit
+#deprecated
+pub fn OfflineSession::crashes(Self) -> Map[Int, Array[String]] raise
+#deprecated
+pub fn OfflineSession::current_case_name(Self) -> String
+#deprecated
+pub fn OfflineSession::current_element(Self) -> String
+#deprecated
+pub fn OfflineSession::current_index(Self) -> Int raise
+#deprecated
+pub fn OfflineSession::exec_speed(Self) -> Double
+#deprecated
+pub fn OfflineSession::is_paused(Self) -> Bool
+#deprecated
+pub fn OfflineSession::num_mutations(Self) -> Int?
 pub fn OfflineSession::open_database(String) -> Self raise
 pub fn OfflineSession::open_jsonl(String) -> Self raise
+#deprecated
+pub fn OfflineSession::runtime_seconds(Self) -> Double
+#deprecated
+pub fn OfflineSession::state(Self) -> String
+#deprecated
+pub fn OfflineSession::test_case_data(Self, Int) -> @db.DbCase raise
+#deprecated
+pub fn OfflineSession::toggle_pause(Self) -> Unit
 pub impl SessionView for OfflineSession
 
 type WebSocket

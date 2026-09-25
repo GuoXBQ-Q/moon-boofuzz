@@ -21,6 +21,7 @@ pub(all) suberror TransportError {
   Timeout(Phase)
   DatagramTooLarge
 } derive(@debug.Debug)
+pub fn TransportError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct Connection {
@@ -54,17 +55,25 @@ pub fn Endpoint::new(String, Int, connect_timeout_ms? : Int, send_timeout_ms? : 
 pub fn Endpoint::receive_limit(Self) -> Int
 pub fn Endpoint::receive_timeout(Self) -> Int
 pub fn Endpoint::retarget(Self, String, Int) -> Self raise TransportError
+pub fn Endpoint::to_json(Self) -> Json
+pub fn Endpoint::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Phase {
   Connect
   Send
   Receive
 } derive(Eq, @debug.Debug)
+pub fn Phase::equal(Self, Self) -> Bool
+pub fn Phase::not_equal(Self, Self) -> Bool
+pub fn Phase::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Received {
   Data(Bytes)
   Closed
 } derive(Eq, @debug.Debug)
+pub fn Received::equal(Self, Self) -> Bool
+pub fn Received::not_equal(Self, Self) -> Bool
+pub fn Received::to_repr(Self) -> @debug.Repr
 
 type Socket
 
@@ -76,6 +85,9 @@ pub(all) enum SocketFailure {
   AddressInUse
   Other
 } derive(Eq, @debug.Debug)
+pub fn SocketFailure::equal(Self, Self) -> Bool
+pub fn SocketFailure::not_equal(Self, Self) -> Bool
+pub fn SocketFailure::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

@@ -13,6 +13,12 @@ pub(all) struct DbCase {
 } derive(Debug, Eq)
 
 ///|
+pub extend DbCase with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DbCase with Eq::{not_equal, equal}
+
+///|
 /// One logged step as persisted in the `steps` table.
 pub(all) struct DbStep {
   step_type : String
@@ -21,6 +27,12 @@ pub(all) struct DbStep {
   timestamp : String
   truncated : Bool
 } derive(Debug, Eq)
+
+///|
+pub extend DbStep with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend DbStep with Eq::{not_equal, equal}
 
 ///|
 pub struct DbReader {

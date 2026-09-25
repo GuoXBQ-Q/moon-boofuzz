@@ -6,6 +6,9 @@ pub(all) struct CaseContext {
 } derive(Debug)
 
 ///|
+pub extend CaseContext with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 /// Raised by a monitor's `after` callback to report a passively detected
 /// target failure, like upstream's `post_send()` returning False
 /// (sessions/session.py:507-548, 518c139). The runner records the case as
@@ -14,6 +17,9 @@ pub(all) struct CaseContext {
 pub(all) suberror MonitorSignal {
   TargetFailed(reason~ : String)
 } derive(Debug)
+
+///|
+pub extend MonitorSignal with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 pub struct Monitor {

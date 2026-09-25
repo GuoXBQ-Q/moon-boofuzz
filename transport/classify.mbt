@@ -19,6 +19,12 @@ pub(all) enum SocketFailure {
 } derive(Debug, Eq)
 
 ///|
+pub extend SocketFailure with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend SocketFailure with Eq::{not_equal, equal}
+
+///|
 pub fn classify_socket_failure(code : Int) -> SocketFailure {
   // ECONNRESET/ENETRESET/ETIMEDOUT/EPIPE (send) and their WSA counterparts.
   let reset = [104, 102, 110, 32, 10054, 10052, 10060]

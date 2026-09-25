@@ -72,6 +72,22 @@ pub impl SessionView for LiveSession with fn is_paused(self) {
 }
 
 ///|
+#deprecated
+pub extend LiveSession with SessionView::{
+  state,
+  toggle_pause,
+  current_index,
+  current_element,
+  exec_speed,
+  current_case_name,
+  num_mutations,
+  crashes,
+  test_case_data,
+  is_paused,
+  runtime_seconds,
+}
+
+///|
 pub impl SessionView for LiveSession with fn toggle_pause(self) {
   self.paused.val = !self.paused.val
 }
@@ -209,6 +225,22 @@ fn value_text(value : @db.DbValue) -> String {
 ///|
 pub impl SessionView for OfflineSession with fn is_paused(_self) {
   false
+}
+
+///|
+#deprecated
+pub extend OfflineSession with SessionView::{
+  state,
+  toggle_pause,
+  current_index,
+  current_element,
+  exec_speed,
+  current_case_name,
+  num_mutations,
+  crashes,
+  test_case_data,
+  is_paused,
+  runtime_seconds,
 }
 
 ///|

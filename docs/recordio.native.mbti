@@ -29,6 +29,7 @@ pub(all) suberror StorageError {
   ReadFailure(Int)
   WriteFailure(Int)
 } derive(@debug.Debug)
+pub fn StorageError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub struct FileChannel {

@@ -46,6 +46,22 @@ pub impl SessionView for FakeSession with fn is_paused(self) {
 }
 
 ///|
+#deprecated
+pub extend FakeSession with SessionView::{
+  state,
+  toggle_pause,
+  current_index,
+  current_element,
+  exec_speed,
+  current_case_name,
+  num_mutations,
+  crashes,
+  test_case_data,
+  is_paused,
+  runtime_seconds,
+}
+
+///|
 pub impl SessionView for FakeSession with fn toggle_pause(self) {
   self.paused.val = !self.paused.val
 }

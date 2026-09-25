@@ -6,6 +6,12 @@ pub(all) enum Phase {
 } derive(Debug, Eq)
 
 ///|
+pub extend Phase with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Phase with Eq::{not_equal, equal}
+
+///|
 pub(all) suberror TransportError {
   InvalidConfiguration(String)
   ConnectFailure(Int)
@@ -16,10 +22,19 @@ pub(all) suberror TransportError {
 } derive(Debug)
 
 ///|
+pub extend TransportError with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 pub(all) enum Received {
   Data(Bytes)
   Closed
 } derive(Debug, Eq)
+
+///|
+pub extend Received with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Received with Eq::{not_equal, equal}
 
 ///|
 pub struct Endpoint {
@@ -30,6 +45,12 @@ pub struct Endpoint {
   receive_timeout_ms : Int
   max_receive : Int
 } derive(Debug, ToJson)
+
+///|
+pub extend Endpoint with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend Endpoint with ToJson::{to_json}
 
 ///|
 pub fn Endpoint::new(

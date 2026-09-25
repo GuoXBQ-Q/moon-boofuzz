@@ -15,10 +15,12 @@ pub fn replay(@records.CaseRecord, override_target? : (String, Int)) -> ReplayRe
 pub(all) suberror MonitorSignal {
   TargetFailed(reason~ : String)
 } derive(@debug.Debug)
+pub fn MonitorSignal::to_repr(Self) -> @debug.Repr
 
 pub suberror RunError {
   Invalid(String)
 } derive(@debug.Debug)
+pub fn RunError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct CaseContext {
@@ -26,6 +28,7 @@ pub(all) struct CaseContext {
   case : @moon-boofuzz.MutationCase
   path : Array[String]
 } derive(@debug.Debug)
+pub fn CaseContext::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CaseResult {
   id : String
@@ -35,6 +38,7 @@ pub(all) struct CaseResult {
   outcome : Outcome
   failed_step : Int?
 } derive(@debug.Debug)
+pub fn CaseResult::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ExecutionConfig {
   endpoint : @transport.Endpoint
@@ -94,7 +98,10 @@ pub(all) enum Outcome {
   NothingReceived
   ConnectionIgnored(String)
 } derive(Eq, @debug.Debug)
+pub fn Outcome::equal(Self, Self) -> Bool
 pub fn Outcome::name(Self) -> String
+pub fn Outcome::not_equal(Self, Self) -> Bool
+pub fn Outcome::to_repr(Self) -> @debug.Repr
 
 pub(all) enum ReadPolicy {
   NoResponse
@@ -102,6 +109,10 @@ pub(all) enum ReadPolicy {
   Until(Bytes)
   Datagram
 } derive(Eq, ToJson, @debug.Debug)
+pub fn ReadPolicy::equal(Self, Self) -> Bool
+pub fn ReadPolicy::not_equal(Self, Self) -> Bool
+pub fn ReadPolicy::to_json(Self) -> Json
+pub fn ReadPolicy::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ReplayResult {
   case_id : String
@@ -109,6 +120,7 @@ pub(all) struct ReplayResult {
   outcome : Outcome
   failed_step : Int?
 } derive(@debug.Debug)
+pub fn ReplayResult::to_repr(Self) -> @debug.Repr
 
 pub struct Runner {
   paths : Array[@moon-boofuzz.SessionPath]
@@ -160,6 +172,9 @@ pub(all) struct StepResult {
   received : Bytes
   completed : Bool
 } derive(Eq, @debug.Debug)
+pub fn StepResult::equal(Self, Self) -> Bool
+pub fn StepResult::not_equal(Self, Self) -> Bool
+pub fn StepResult::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

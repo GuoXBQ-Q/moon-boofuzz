@@ -36,9 +36,21 @@ pub(all) enum ReadPolicy {
 } derive(Debug, Eq, ToJson)
 
 ///|
+pub extend ReadPolicy with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
+pub extend ReadPolicy with Eq::{not_equal, equal}
+
+///|
+pub extend ReadPolicy with ToJson::{to_json}
+
+///|
 pub suberror RunError {
   Invalid(String)
 } derive(Debug)
+
+///|
+pub extend RunError with @moonbitlang/core/debug.Debug::{to_repr}
 
 ///|
 fn validate_policy(policy : ReadPolicy, limit : Int) -> Unit raise RunError {

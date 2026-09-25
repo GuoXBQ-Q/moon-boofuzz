@@ -41,6 +41,9 @@ struct ConvertForm {
 } derive(Debug)
 
 ///|
+pub extend ConvertForm with @moonbitlang/core/debug.Debug::{to_repr}
+
+///|
 fn form_of(fields : Map[String, String]) -> ConvertForm {
   {
     rawtext: fields.get("rawtext").unwrap_or(""),
