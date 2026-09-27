@@ -130,7 +130,7 @@ codemod（读取 `moon check --output-json` 自动定位修改点）分两轮完
 
 - MoonBit 源码超过 2 万行（含测试和生成语料）；实现、测试与生成语料应分别统计；
 - 2026-09-27 修复版测试：Wasm 133 个、Native 249 个，均使用 `--deny-warn`；
-- 双平台 CI（Windows llvm-mingw + Linux GCC/ASan），最终状态以对应提交的 Actions 为准；
+- 双平台 CI（Windows MSVC + Linux GCC/ASan），最终状态以对应提交的 Actions 为准；
 - `docs/` 下 30 余篇按包/主题拆分的中文文档，另有发布前清单
   [ACCEPTANCE.md](ACCEPTANCE.md) 与移植边界说明 [UPSTREAM.md](UPSTREAM.md)。
 

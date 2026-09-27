@@ -13,6 +13,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
+/* Link Winsock for consumers that do not use transport/socket.c. */
+#pragma comment(lib, "ws2_32")
 #define BF_WOULDBLOCK WSAEWOULDBLOCK
 #define BF_INTR_ERR WSAEINTR
 #else
