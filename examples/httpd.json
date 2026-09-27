@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "requests": [{
+    "name": "request",
+    "children": [
+      {"type": "group", "name": "verb", "values_hex": ["474554", "504f5354", "505554", "44454c455445"], "default_hex": "474554", "fuzzable": true},
+      {"type": "static", "name": "sp1", "value_hex": "20"},
+      {"type": "text", "name": "uri", "value": "/", "fuzzable": true},
+      {"type": "static", "name": "sp2", "value_hex": "20"},
+      {"type": "static", "name": "version", "value_hex": "485454502f312e31"},
+      {"type": "static", "name": "crlf0", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_0", "value_hex": "486f73743a20"},
+      {"type": "static", "name": "hdr_0", "value_hex": "3132372e302e302e313a39303030"},
+      {"type": "static", "name": "crlf1", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_1", "value_hex": "582d46757a7a3a20"},
+      {"type": "text", "name": "hdr_1", "value": "seed", "fuzzable": true},
+      {"type": "static", "name": "crlf2", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_2", "value_hex": "436f6e6e656374696f6e3a20"},
+      {"type": "static", "name": "hdr_2", "value_hex": "636c6f7365"},
+      {"type": "static", "name": "crlf3", "value_hex": "0d0a"},
+      {"type": "static", "name": "head_end", "value_hex": "0d0a"}
+    ]
+  }],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {"host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 500},
+    "policies": {"request": {"kind": "until", "delimiter_hex": "0d0a0d0a"}},
+    "case_limit": 40
+  }
+}

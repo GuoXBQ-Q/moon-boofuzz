@@ -438,22 +438,33 @@ pub fn CaseStream::next(self : CaseStream) -> MutationCase? raise ModelError {
     self.state = Limited
     return None
   }
-  guard self.ordinal < 2147483647 else {
-    self.state = Stopped
-    raise Limit("case ordinal overflow")
-  }
-  let found = if self.combinatorial { self.comb_step() } else { self.find() }
-  let parts = match found {
-    Some(parts) => parts
-    None => {
-      self.state = Exhausted
-      return None
+  for ;; {
+    guard self.ordinal < 2147483647 else {
+      raise Limit("case ordinal overflow")
     }
+    let found = if self.combinatorial { self.comb_step() } else { self.find() }
+    let parts = match found {
+      Some(parts) => parts
+      None => {
+        self.state = Exhausted
+        return None
+      }
+    }
+    let built = self.build_case(parts) catch {
+      // An oversized candidate — the leaf alone or the total render above
+      // the byte budget — cannot exist as a case; skip it and keep the
+      // rest of the enumeration reachable instead of aborting the run.
+      Limit(_) => {
+        // Raw candidate positions must advance even when output is skipped.
+        self.ordinal += 1
+        continue
+      }
+      other => raise other
+    }
+    self.ordinal += 1
+    self.emitted += 1
+    return Some(built)
   }
-  let case = self.build_case(parts)
-  self.ordinal += 1
-  self.emitted += 1
-  Some(case)
 }
 
 ///|
@@ -475,6 +486,7 @@ pub fn CaseStream::state(self : CaseStream) -> EnumerationState {
 }
 
 ///|
+/// The next raw candidate position, including oversized skipped candidates.
 pub fn CaseStream::position(self : CaseStream) -> Int {
   self.ordinal
 }

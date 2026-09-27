@@ -422,3 +422,33 @@ test "silent malformed and closed connections never stop serving" {
   let page = roundtrip(server, view, "/api/current-run")
   assert_true(page.contains("\"session_info\""))
 }
+
+///|
+test "raw socket receive appends at its offset and rejects invalid buffer ranges" {
+  let server = RawServer::bind(port=0)
+  defer web_socket_close(server.socket)
+  let client = web_socket_new()
+  defer web_socket_close(client)
+  assert_eq(web_connect(client, server.port()), 0)
+  let conn = server.accept(timeout_ms=2000).unwrap()
+  defer conn.close()
+  let buffer : FixedArray[Byte] = FixedArray::make(5, b'_')
+  assert_eq(web_send(client, b"AB", 2), 2)
+  assert_true(conn.wait(timeout_ms=2000))
+  assert_eq(conn.recv(buffer, capacity=2), 2)
+  assert_eq(web_send(client, b"CD", 2), 2)
+  assert_true(conn.wait(timeout_ms=2000))
+  assert_eq(conn.recv(buffer, offset=2, capacity=2), 2)
+  assert_eq(Bytes::makei(5, i => buffer[i]), b"ABCD_")
+  for (offset, capacity) in [(-1, 1), (6, 0), (4, 2), (0, -1)] {
+    assert_true(
+      try {
+        ignore(conn.recv(buffer, offset~, capacity~))
+        false
+      } catch {
+        ServeFailure(-1) => true
+        _ => false
+      },
+    )
+  }
+}

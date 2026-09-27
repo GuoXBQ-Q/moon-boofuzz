@@ -11,7 +11,9 @@ Long strings use compact recipes and are allocated on indexed access.
 The supported String subset is UTF-8 with dynamic size. Upstream's size and
 max_len options are deliberately not exposed: its mutation truncation counts
 characters, while its encoder padding counts bytes. Request rendering applies
-an explicit wire-byte limit and reports excess instead of truncating UTF-8.
+an explicit wire-byte limit instead of truncating UTF-8. Mutation streams skip
+oversized renders while preserving their raw candidate positions; direct render
+calls still report a typed limit error.
 `default_value().length()` therefore measures wire bytes, not characters.
 
 `Field::delimiter(":")` implements repetition, replacement and deletion.

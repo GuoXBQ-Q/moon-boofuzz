@@ -2,7 +2,7 @@
 
 本文面向"可解释性评估"撰写：记录 moon-boofuzz 从立项到当前版本的开发过程、
 关键技术决策、AI 工具的使用方式，以及踩过的坑。事实性内容以仓库提交历史
-（56 个提交，全部位于 9 月赛期）与本仓库文档为依据，不虚构细节。
+（参赛开发提交位于 9 月赛期）与本仓库文档为依据，不虚构细节。
 
 ## 一、项目缘起
 
@@ -128,10 +128,9 @@ codemod（读取 `moon check --output-json` 自动定位修改点）分两轮完
 
 ## 六、数据小结（当前版本）
 
-- MoonBit 源码约 2.4 万行（含测试），11 个包；
-- 测试：50 个测试文件、211 个用例块（wasm 目标 128 个测试用例，全部通过，
-  `--deny-warn` 下 0 警告 0 错误）；
-- 双平台 CI（Windows MSVC + Linux GCC/ASan）；
+- MoonBit 源码超过 2 万行（含测试和生成语料）；实现、测试与生成语料应分别统计；
+- 2026-09-27 修复版测试：Wasm 133 个、Native 249 个，均使用 `--deny-warn`；
+- 双平台 CI（Windows llvm-mingw + Linux GCC/ASan），最终状态以对应提交的 Actions 为准；
 - `docs/` 下 30 余篇按包/主题拆分的中文文档，另有发布前清单
   [ACCEPTANCE.md](ACCEPTANCE.md) 与移植边界说明 [UPSTREAM.md](UPSTREAM.md)。
 
@@ -146,3 +145,7 @@ codemod（读取 `moon check --output-json` 自动定位修改点）分两轮完
 > 3. MoonBit 语言与工具链的切身体感（块组织、类型化错误、`.mbtx` 脚本模式、
 >    双目标编译）；
 > 4. 与 AI 协作的得与失：哪些环节代理显著提速，哪些判断必须自己拿。
+
+## 2026-09-27：HTTP 靶子与验收修复
+
+提交 HTTP 靶子与 RawServer/RawConn 接口，补齐严格解析与回环测试；修复 offset 接收覆盖旧字节、LF body 起点和头部上限。超长变异候选跳过时保留原始序号，generate 与 runner 记录采用跨路径全局序号，并验证续跑、组合枚举、排除 end 边界及阈值 lookahead。ASan 注入名单覆盖新增 cmd/httpfuzz 与 cmd/httpd，防止链接 instrumented C 桥时缺少运行库。最终测试和 CI 状态以对应提交的检查结果为准。

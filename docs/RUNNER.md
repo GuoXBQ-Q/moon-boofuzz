@@ -78,3 +78,8 @@ retry semantics and the crash-threshold counters of
 `boofuzz/sessions/session.py` at
 `518c13904fc32e7f2cc88c9dec934e509062953e` (GPL-2.0-only).
 MoonBit controls connection isolation and explicit response boundaries.
+
+Oversized mutation payloads consume raw ordinals without being executed or
+counted toward the case limit. Global ordinals are saved in execution records;
+use the last recorded ordinal plus one to resume. Threshold lookahead is counted
+once, and an exclusive end prevents dialing a candidate reached after a gap.

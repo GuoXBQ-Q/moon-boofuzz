@@ -196,10 +196,11 @@ pub fn ProtocolDefinition::generate(
   }
   let mut skip = start
   let mut generated = 0
+  let mut base = 0L
   for path in self.paths {
     if combinatorial {
       // Combinatorial totals are unknown up front; the start position walks
-      // emitted cases and any remainder carries into the next path.
+      // raw candidate positions and carries any remainder into the next path.
       let stream = path.combinatorial_cases_with_variables(
         None,
         start=skip,
@@ -219,7 +220,7 @@ pub fn ProtocolDefinition::generate(
               case_id: names.to_json().stringify() + "/" + case.id,
               path: names,
               prefix: path.prefix(),
-              case,
+              case: global_case(case, base),
             })
             generated += 1
             if !keep_going {
@@ -234,12 +235,14 @@ pub fn ProtocolDefinition::generate(
       }
       if exhausted {
         skip = stream.remaining_skip()
+        base += (stream.position() - stream.remaining_skip()).to_int64()
       }
       continue
     }
     let count = path.target().raw_mutation_count()
     if skip.to_int64() >= count {
       skip -= count.to_int()
+      base += count
       continue
     }
     let stream = path.cases(start=skip, limit=2147483647)
@@ -254,13 +257,26 @@ pub fn ProtocolDefinition::generate(
         case_id: names.to_json().stringify() + "/" + case.id,
         path: names,
         prefix: path.prefix(),
-        case,
+        case: global_case(case, base),
       })
       generated += 1
       if !keep_going {
         return { generated, state: Stopped, }
       }
     }
+    base += count
   }
   { generated, state: Exhausted, }
+}
+
+///|
+fn global_case(
+  case : @core.MutationCase,
+  base : Int64,
+) -> @core.MutationCase raise DefinitionError {
+  let ordinal = base + case.ordinal.to_int64()
+  guard ordinal <= 2147483647L else {
+    raise Invalid("global case ordinal exceeds the 32-bit position range")
+  }
+  { ..case, ordinal: ordinal.to_int(), }
 }

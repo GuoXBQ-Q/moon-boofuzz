@@ -137,6 +137,22 @@ pub fn OfflineSession::test_case_data(Self, Int) -> @db.DbCase raise
 pub fn OfflineSession::toggle_pause(Self) -> Unit
 pub impl SessionView for OfflineSession
 
+pub struct RawConn {
+  socket : WebSocket
+}
+pub fn RawConn::close(Self) -> Unit
+pub fn RawConn::recv(Self, FixedArray[Byte], offset? : Int, capacity? : Int) -> Int raise WebError
+pub fn RawConn::wait(Self, writing? : Bool, timeout_ms? : Int) -> Bool raise WebError
+pub fn RawConn::write(Self, Bytes) -> Unit raise WebError
+
+pub struct RawServer {
+  socket : WebSocket
+  bound_port : Int
+}
+pub fn RawServer::accept(Self, timeout_ms? : Int) -> RawConn? raise WebError
+pub fn RawServer::bind(port~ : Int) -> Self raise WebError
+pub fn RawServer::port(Self) -> Int
+
 type WebSocket
 
 pub struct WebUi {

@@ -1,7 +1,6 @@
 import {
-  "GuoXBQ-Q/moon-boofuzz" @boofuzz,
-  "GuoXBQ-Q/moon-boofuzz/runner",
-  "GuoXBQ-Q/moon-boofuzz/transport",
+  "GuoXBQ-Q/moon-boofuzz/web",
+  "moonbitlang/core/debug",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
 }

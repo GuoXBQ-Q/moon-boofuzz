@@ -49,13 +49,7 @@ test "repeat rejects invalid parameters references and oversized payloads" {
     ]),
     max_bytes=5,
   )
-  assert_true(
-    try {
-      ignore(request.cases().next())
-      false
-    } catch {
-      @moon_boofuzz.ModelError::Limit(_) => true
-      _ => false
-    },
-  )
+  // Every repeat render exceeds the byte budget, so all candidates are
+  // skipped and the stream ends cleanly instead of aborting.
+  assert_eq(request.cases().next(), None)
 }

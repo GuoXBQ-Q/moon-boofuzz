@@ -6,7 +6,7 @@ MoonBit 协议模糊测试核心：定义协议、生成单字段变异、执行
 
 ## 开始使用
 
-安装 [MoonBit](https://www.moonbitlang.com/download/)。CI 的 Windows 作业使用 MSVC 编译 C 桥，Linux 使用 GCC；本地开发推荐 llvm-mingw（两者均已验证可用）。初始开发工具链为 moon 0.1.20260915、moonc v0.10.13。
+安装 [MoonBit](https://www.moonbitlang.com/download/)。CI 的 Windows 作业使用 llvm-mingw 编译 C 桥，Linux 使用 GCC；本地也支持 Visual Studio MSVC。初始开发工具链为 moon 0.1.20260915、moonc v0.10.13。
 
 ```sh
 git clone https://github.com/GuoXBQ-Q/moon-boofuzz.git
@@ -26,7 +26,7 @@ moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
 moon test --target native --deny-warn -p cmd/boofuzz
 ```
 
-Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases)（把 bin 加入 PATH）或 Visual Studio MSVC；CI 同时覆盖两者。仅安装 MoonBit 可以运行纯核心 Wasm 检查；网络 CLI 还需要 C 工具链。运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
+Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases)（把 bin 加入 PATH）或 Visual Studio MSVC；当前 CI 的 Windows 作业使用 llvm-mingw。仅安装 MoonBit 可以运行纯核心 Wasm 检查；网络 CLI 还需要 C 工具链。运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
 
 第一次体验建议先执行上面的自动场景测试，再运行离线 `generate`，最后连接自己的服务。
 
@@ -74,6 +74,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 | --- | --- |
 | 编写 JSON 协议、字段与读取策略 | [DEFINITIONS.md](docs/DEFINITIONS.md) |
 | 用 Web 页面把 HTTP 报文转成定义 | [CONVERT.md](docs/CONVERT.md) |
+| 运行本地 HTTP fuzz 靶子（httpd） | [HTTPD.md](docs/HTTPD.md) |
 | 用 MoonBit 代码编写 fuzz 脚本 | [CODE.md](docs/CODE.md)、[可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
 | 配置前置路径和执行器 | [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) |
 | 响应检查、故障通知和恢复回调 | [MONITORS.md](docs/MONITORS.md) |
@@ -95,7 +96,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 ## 边界
 
-默认单请求 1 MiB、每次执行 10,000 例、接收 64 KiB；可显式调整。超限返回明确错误或 limited 状态，不静默截断载荷。动态变异在分配前检查长度。
+默认单请求 1 MiB、每次执行 10,000 例、接收 64 KiB；可显式调整。直接渲染超限返回明确错误；变异流跳过超长候选并保留其原始序号，数量上限返回 limited 状态，不截断载荷。动态变异在分配前检查长度。
 
 连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃；目标崩溃由监视器存活检测判定并以 `MonitorFailed` 计入失败。
 
@@ -105,7 +106,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 ## 验证与发布准备
 
-[GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows（MSVC）、Linux（GCC + ASan）与 Wasm/Native。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
+[GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows（llvm-mingw）、Linux（GCC + ASan）与 Wasm/Native。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
 
 `moon package --list` 审查源码包内容，`moon package` 生成待发布源码包。发布前清单见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。报名申报书仍由本人撰写，本项目不代填或提交。
 

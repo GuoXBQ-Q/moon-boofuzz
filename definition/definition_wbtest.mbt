@@ -256,3 +256,116 @@ test "position_of_id counts group product replays in raw offsets" {
     },
   )
 }
+
+///|
+test "JSON generation identities resume after an oversized candidate" {
+  let source : Json = {
+    "schema_version": 1,
+    "max_bytes": 2,
+    "requests": [
+      {
+        "name": "r",
+        "children": [
+          {
+            "type": "simple",
+            "name": "x",
+            "value_hex": "41",
+            "values_hex": ["414141", "42", "43"],
+          },
+        ],
+      },
+    ],
+  }
+  let protocol = ProtocolDefinition::parse(source.stringify())
+  let cases : Array[GeneratedCase] = []
+  ignore(
+    protocol.generate(
+      case => {
+        cases.push(case)
+        true
+      },
+      limit=1,
+    ),
+  )
+  assert_eq(cases[0].case.ordinal, 1)
+  let resumed : Array[GeneratedCase] = []
+  ignore(
+    protocol.generate(
+      case => {
+        resumed.push(case)
+        true
+      },
+      start=cases[0].case.ordinal + 1,
+      limit=1,
+    ),
+  )
+  assert_eq(resumed[0].case.mutation_index, 2)
+  assert_eq(resumed[0].case.payload, b"C")
+  let position = protocol.position_of_id(resumed[0].case.id)
+  assert_eq(position, 2)
+  assert_eq(protocol.case_id_at(position), Some(resumed[0].case_id))
+}
+
+///|
+test "generation ordinals remain global across paths and oversized gaps" {
+  let source : Json = {
+    "schema_version": 1,
+    "max_bytes": 1,
+    "requests": [
+      {
+        "name": "a",
+        "children": [
+          {
+            "type": "simple",
+            "name": "x",
+            "value_hex": "41",
+            "values_hex": ["414141", "42", "434343"],
+          },
+        ],
+      },
+      {
+        "name": "b",
+        "children": [
+          {
+            "type": "simple",
+            "name": "x",
+            "value_hex": "41",
+            "values_hex": ["444444", "45"],
+          },
+        ],
+      },
+    ],
+  }
+  let protocol = ProtocolDefinition::parse(source.stringify())
+  for combinatorial in [false, true] {
+    let first : Array[GeneratedCase] = []
+    ignore(
+      protocol.generate(
+        case => {
+          first.push(case)
+          true
+        },
+        combinatorial~,
+        max_depth=1,
+        limit=1,
+      ),
+    )
+    assert_eq(first[0].case.ordinal, 1)
+    let rest : Array[GeneratedCase] = []
+    ignore(
+      protocol.generate(
+        case => {
+          rest.push(case)
+          true
+        },
+        start=first[0].case.ordinal + 1,
+        combinatorial~,
+        max_depth=1,
+      ),
+    )
+    assert_eq(rest.length(), 1)
+    assert_eq(rest[0].case.ordinal, 4)
+    assert_eq(rest[0].case.payload, b"E")
+    assert_eq(protocol.position_of_id(rest[0].case.id), 4)
+  }
+}

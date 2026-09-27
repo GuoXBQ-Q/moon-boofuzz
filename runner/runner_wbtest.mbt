@@ -456,3 +456,91 @@ test "receive_data_after_fuzz reads under the none policy" {
   assert_eq(first.steps[0].received, b"")
   assert_eq(first.steps[1].received, b"ACK")
 }
+
+///|
+test "oversized raw candidates count toward global start and exclusive end" {
+  let graph = @core.SessionGraph::new()
+  graph.add(
+    @core.CompiledRequest::compile(
+      @core.Block::new("a", [
+        Leaf("x", @core.Field::simple(b"A", [b"AAA", b"B", b"CCC"])),
+      ]),
+      max_bytes=1,
+    ),
+  )
+  graph.add(
+    @core.CompiledRequest::compile(
+      @core.Block::new("b", [Leaf("x", @core.Field::simple(b"A", [b"D", b"E"]))]),
+      max_bytes=1,
+    ),
+  )
+  for (start, end) in [(0, 1), (0, 4), (2, 4)] {
+    let dials = Ref(0)
+    let runner = Runner::with_dialer(
+      graph.paths(),
+      fn() {
+        dials.val += 1
+        { sent: [], responses: [], fail_at: -1, last_sent: 0, closed: false, }
+        as &Channel
+      },
+      start~,
+      end=Some(end),
+      sleep_between_ms=0,
+    )
+    let ids : Array[String] = []
+    while runner.next() is Some(result) {
+      ids.push(
+        result.case.request_name + ":" + result.case.mutation_index.to_string(),
+      )
+      assert_eq(
+        runner.record(result).ordinal,
+        if result.case.request_name == "a" {
+          1
+        } else {
+          3
+        },
+      )
+    }
+    let expected = if end == 1 {
+      []
+    } else if start == 0 {
+      ["a:1", "b:0"]
+    } else {
+      ["b:0"]
+    }
+    assert_eq(ids, expected)
+    assert_eq(dials.val, expected.length())
+    assert_eq(runner.executed(), expected.length())
+    assert_eq(runner.state(), Limited)
+  }
+}
+
+///|
+test "threshold lookahead counts raw gaps once before the end boundary" {
+  let graph = @core.SessionGraph::new()
+  graph.add(
+    @core.CompiledRequest::compile(
+      @core.Block::new("r", [
+        Leaf("x", @core.Field::simple(b"X", [b"1", b"AAA", b"2"])),
+        Leaf("y", @core.Field::simple(b"Y", [b"3", b"4"])),
+      ]),
+      max_bytes=2,
+    ),
+  )
+  let runner = Runner::with_dialer(
+    graph.paths(),
+    fn() {
+      { sent: [], responses: [], fail_at: 0, last_sent: 0, closed: false, }
+      as &Channel
+    },
+    crash_threshold_element=1,
+    end=Some(4),
+    sleep_between_ms=0,
+  )
+  let ids : Array[String] = []
+  while runner.next() is Some(result) {
+    ids.push(result.case.id)
+  }
+  assert_eq(ids, ["v1:r.x:0", "v1:r.y:0"])
+  assert_eq(runner.state(), Limited)
+}

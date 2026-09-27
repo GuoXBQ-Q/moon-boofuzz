@@ -6,9 +6,14 @@ global ordinal and a `v1:path:index` identity. Identities are stable for the
 same named model and generator version; cross-version replay must save bytes.
 Cases change one field at a time, in depth-first field order and candidate order.
 
-`position()` is the next ordinal; create a new stream with that start to resume.
+`position()` is the next raw candidate ordinal; create a new stream with that
+start to resume. Oversized candidates consume positions without counting toward
+the output limit, so emitted ordinals can have gaps. `generate` and runner records
+use global raw ordinals across session paths; a standalone request stream uses
+request-local ordinals.
 `stop()` ends this stream. `state()` distinguishes explicit stop, limit reached
-and exhaustion. A rendering error stops the stream and raises its typed error.
+and exhaustion. Oversized field candidates and final payloads are skipped; their raw positions
+are still consumed. Other rendering errors stop the stream and raise their typed errors.
 Limits never truncate a payload. Construction and skipping do not render
 mutation payloads; the white-box test uses a million-candidate generator to
 verify only requested candidates are called.

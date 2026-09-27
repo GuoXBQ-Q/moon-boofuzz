@@ -583,11 +583,17 @@ fn Runner::pull(
   match self.pending {
     Some(saved) => {
       self.pending = None
+      self.advance_position(1)
       Some(saved)
     }
     None =>
       match self.streams[index] {
-        Some(stream) => stream.next()
+        Some(stream) => {
+          let before = stream.position()
+          let next = stream.next()
+          self.advance_position(stream.position() - before)
+          next
+        }
         None => None
       }
   }
@@ -603,8 +609,9 @@ fn Runner::drain_element(
   element : String,
 ) -> Unit raise @core.ModelError {
   while self.pull(index) is Some(next_case) {
-    self.position += 1
     if next_case.field_path != element {
+      // Leave this lookahead candidate pending until its next pull.
+      self.position -= 1
       self.pending = Some(next_case)
       return
     }
@@ -619,7 +626,7 @@ fn Runner::drain_path(
   index : Int,
 ) -> Unit raise @core.ModelError {
   while self.pull(index) is Some(_) {
-    self.position += 1
+    ()
   }
 }
 
@@ -741,26 +748,24 @@ pub fn Runner::next(self : Runner) -> CaseResult? raise @core.ModelError {
         built
       }
     }
-    let case = match self.pending {
-      Some(saved) => {
-        self.pending = None
-        saved
-      }
-      None =>
-        match stream.next() {
-          Some(case) => case
-          None => {
-            // A combinatorial stream that exhausts before consuming its
-            // start offset leaves the remainder for the next path.
-            if self.combinatorial && stream.remaining_skip() > 0 {
-              self.skip = stream.remaining_skip()
-            }
-            self.index += 1
-            continue
-          }
+    let case = match self.pull(self.index) {
+      Some(case) => case
+      None => {
+        // A combinatorial stream that exhausts before consuming its
+        // start offset leaves the remainder for the next path.
+        if self.combinatorial && stream.remaining_skip() > 0 {
+          self.skip = stream.remaining_skip()
         }
+        self.index += 1
+        continue
+      }
     }
-    self.position += 1
+    // A skipped raw candidate can move this case beyond the exclusive end.
+    if self.end_index is Some(end) && self.position - 1 >= end {
+      self.state = Limited
+      return None
+    }
+    let case = { ..case, ordinal: self.position - 1, }
     let raw = self.execute(self.paths[self.index], case)
     // Dial-only failures take the reconnect path and skip the post-case
     // failure machinery: upstream restarts the target inside the connect
@@ -815,4 +820,9 @@ pub fn Runner::state(self : Runner) -> @core.EnumerationState {
 ///|
 pub fn Runner::executed(self : Runner) -> Int {
   self.executed
+}
+
+///|
+fn Runner::advance_position(self : Runner, count : Int) -> Unit {
+  self.position += count
 }
