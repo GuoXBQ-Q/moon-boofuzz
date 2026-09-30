@@ -7,6 +7,28 @@
 - 许可证：GPL-2.0-only（上游 LICENSE.txt 为 GPL v2 全文，pyproject.toml 声明 only）。
 - 本仓库 LICENSE 从该基线 LICENSE.txt 原样复制。
 
+## 范围与限制速览
+
+支持的核心：
+
+- Simple、Group、8/16/32/64 位整数、二进制 Bytes、UTF-8 字符串和分隔符变异。
+- HTTP 报文转换器：粘贴原始请求，勾选要 fuzz 的分段并为每段选择变异原语（字符串库/整数/二进制/随机/显式候选），自动生成并校验协议定义 JSON（见 [CONVERT.md](CONVERT.md)）。
+- 命名嵌套块、条件块、重复、对齐、长度字段（二进制或 ascii 十进制渲染，后者对应上游 Content-Length 模式）及 CRC32。
+- 惰性单字段枚举、稳定身份、起始位置、数量限制与停止状态。
+- DAG 会话路径；每例重新连接并执行默认前置请求，仅变异末端目标。
+- TCP 完整发送与无响应/固定长度/分隔符读取；UDP 保留报文边界和空报文。
+- 生命周期回调、响应检查、故障通知与目标恢复；监视器检测的目标崩溃（如 `--target-cmd` 进程监视器）以 `MonitorFailed` 计入失败并触发恢复，普通回调异常只记录不计数；拨号失败默认无限重试（阈值/超时可配，放弃即停）。
+- 版本化 JSON 定义、JSONL 记录、按保存字节重放及分类报告。
+
+旧 Static、Choice 和平面 Request 行为保留。Choice 是原项目显式候选 API，不冒充上游 Group。新 API 示例见 [README.mbt.md](../README.mbt.md)，JSON 格式见 [DEFINITIONS.md](DEFINITIONS.md)。
+
+限制与边界：
+
+- 默认单请求 1 MiB、接收 64 KiB；用例数**不设默认上限**（与上游一致，跑到用例全部耗尽为止，`--limit N` 或 `case_limit` 可显式设限，达到上限返回 limited 状态）。直接渲染超限返回明确错误；变异流跳过超长候选并保留其原始序号，不截断载荷。动态变异在分配前检查长度。
+- 连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃；目标崩溃由监视器存活检测判定并以 `MonitorFailed` 计入失败。
+- 仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行、TCP 服务端模式、`restart_interval` 周期性重启。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。永久边界的完整论述见 [PLAN.md](PLAN.md)。
+- 已实现的补充能力（IPv6 双栈、File 传输、CSV 导出、SQLite 结果库、`--record-passes` 写入节流、Web UI 与 `open` 子命令、UDP 服务端模式与广播）见下表对应行。
+
 | 本项目部分 | 参考范围 | 当前来源/兼容状态 |
 | --- | --- | --- |
 | Static / Choice / 平面 Request | 初始化自定义 API | 保留原行为；Choice 不冒充 Group |

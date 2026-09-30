@@ -48,7 +48,7 @@ moon run --target native cmd/boofuzz -- convert --ui-port 0    # 0 = 随机空�
 - **Content-Length 自动跟随**：报文恰好声明一个 Content-Length 且存在 body 时，**未勾选**的 Content-Length 值段自动生成为 `"ascii": true` 的派生 size 字段（body 包进命名块）——body 变异时长度实时重算，报文永远自洽（对齐上游 `http_with_body.py` 的 `s_size(output_format="ascii")`；默认渲染与原报文逐字节一致）。勾选该段则保持显式候选的失配探测行为。多个 Content-Length（走私场景）不自动接线。
 - **混合行尾**：CRLF 与裸 LF 混用的报文按消息级行尾归一（有 `\r` 按 CRLF 处理）；头终结符与 body 始终保持原字节。
 - **生成的定义显式钉死 `"combinatorial": false`**：页面的用例数按顺序枚举（`raw_mutation_count`）计算、预览取前 3 例——组合爆破的总数无法预先得知，钉死顺序模式让这两个数字保持精确。要组合爆破时手工删掉该键即可（默认开启）。
-- 输入上限 64 KiB；生成的定义同样受单请求 1 MiB、单次执行 10,000 例等全局上限约束（见 README「边界」）。
+- 输入上限 64 KiB；生成的定义同样受单请求 1 MiB、单次执行 10,000 例等全局上限约束（见 [UPSTREAM.md](UPSTREAM.md)「范围与限制速览」）。
 
 ## 命令行衔接
 

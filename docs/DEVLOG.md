@@ -94,7 +94,8 @@ codemod（读取 `moon check --output-json` 自动定位修改点）分两轮完
 4. **白盒测试只测私有内部行为。** runner 的拨号重试/阈值计数、mutation 流的
    内部状态用 `*_wbtest.mbt` 注入 mock；公开行为一律黑盒测试。
 5. **诚实声明边界。** README 明确列出"仍不包含"清单（pedrpc 远程监视器、
-   TLS、串口、Raw L2/L3、覆盖率引导等），不宣称完整兼容上游。
+   TLS、串口、Raw L2/L3、覆盖率引导等；现集中于 UPSTREAM.md「范围与限制
+   速览」），不宣称完整兼容上游。
 
 ## 四、AI 工具的使用方式
 
