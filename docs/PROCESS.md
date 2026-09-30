@@ -32,7 +32,8 @@ DebuggerThreadSimple 的 spawn 语义一致。C 层遵循 transport/socket.c 模
   一次 50 ms 短暂等待再复查存活，避免漏报。
 - `recover`：停止（kill + 停止延迟 + 回收）后重新启动（启动延迟 +
   存活确认）；重启失败返回 false，执行器以 `RecoveryFailed` 停止。
-- `fault`：崩溃摘要保留在 `ProcessMonitor.synopsis`。
+- `fault`：空操作；崩溃摘要已由 `after`（以及 `before` 的重启失败分支）
+  写入 `ProcessMonitor.synopsis` 保留。
 
 `Monitor::combine(first, second)` 链接两个监视器：before/after/fault 顺序
 执行，check 与 recover 要求两者都通过——用于把进程监视器与文本输出等
@@ -42,7 +43,10 @@ DebuggerThreadSimple 的 spawn 语义一致。C 层遵循 transport/socket.c 模
 
 - CLI：`run --target-cmd CMD`（命令含空格时整体加引号）。
 - JSON `execution`：`"target_command"`、`"target_start_delay_ms"`、
-  `"target_stop_delay_ms"`；CLI 标志优先于 JSON。
+  `"target_stop_delay_ms"`。命令选择上 CLI 标志优先于 JSON；但两条路径
+  构建监视器时均使用默认延迟（1000/500 ms），JSON 的两个延迟键目前
+  仅由解析支持、CLI 尚未接线——延迟调节经库 API
+  `ProcessMonitor::new` 的具名参数完成。
 
 ## 边界
 

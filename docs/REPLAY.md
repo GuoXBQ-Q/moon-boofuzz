@@ -13,8 +13,11 @@ closed. No response-equality check or current monitor callback is applied;
 the original response boundaries and timeouts still govern receiving.
 
 `ExecutionConfig::parse` rejects unknown/unsupported network properties and
-validates all limits. Only recorded TCP/UDP configurations can use native replay;
-custom test channels require their own application integration.
+validates all limits. Only recorded TCP/UDP configurations can use native
+replay; records made in udp_server/udp_broadcast mode store transport
+udp-server/udp-broadcast and are rejected by that parse, so they cannot be
+replayed natively either. Custom test channels require their own application
+integration.
 
 Source: new GPL-2.0-only replay implementation built on the portable record
 schema. It does not emulate boofuzz's database or regenerate upstream mutants.

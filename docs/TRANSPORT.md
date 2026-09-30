@@ -25,7 +25,9 @@ allows an explicit cap up to 1 MiB; the API rejects invalid bounds before alloca
 C contains Winsock/POSIX calls, nonblocking readiness, handle finalizers and
 error-code conversion. MoonBit owns the full-send loop, deadlines and errors.
 The C layer borrows every buffer and never retains MoonBit pointers. Windows
-handles pair WSAStartup with WSACleanup. Linux sends suppress SIGPIPE.
+initializes Winsock once per process with WSAStartup and never calls
+WSACleanup (process-global cleanup is incompatible with handle finalizers
+and concurrent tests). Linux sends suppress SIGPIPE.
 
 Source: behavior subset of `boofuzz/connections/tcp_socket_connection.py` and
 `socket_connection.py` at `518c13904fc32e7f2cc88c9dec934e509062953e`, GPL-2.0-only.

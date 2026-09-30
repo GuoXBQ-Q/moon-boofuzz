@@ -85,7 +85,8 @@ types, references and unsupported parameters are errors.
 | lines | lines (array of UTF-8 strings), max_len, fuzzable, fuzz_values, variable |
 
 Every field type also accepts `fuzzable` and `fuzz_values` unless noted
-(mirror has neither: it renders its target's current value). Endianness is
+(static and mirror have neither: static always renders its `value_hex`;
+mirror renders its target's current value). Endianness is
 little/big. Conditions use field, op=eq/ne/in/not_in/gt/ge/lt/le and
 value_hex or values_hex — the comparison variants keep upstream's operand
 order quirk (`gt` renders when the field value is LESS than the configured

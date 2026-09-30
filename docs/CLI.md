@@ -31,9 +31,10 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 - [tcp.json](../examples/tcp.json)：向 127.0.0.1:9000 发送 `00ff`、`414141` 两个用例，每例等待 2 字节响应，接收超时 100 ms。目标不回复时会记录超时。
 - [udp.json](../examples/udp.json)：发送空报文及 `00ff`，每例接收一个 UDP 报文。
 - [stateful.json](../examples/stateful.json)：每个新连接重新发送 `HELLO`、`AUTH test`，再发送变异 `DATA`；只变异末端 `query`，每步等待响应。可直接运行 [STATEFUL.md](STATEFUL.md) 中的本地靶子和命令。
-- [http.json](../examples/http.json)：变异 HTTP 请求行（URI）与主体，可指向任意 HTTP 服务，或配合 [HTTPD.md](HTTPD.md) 的自带 httpd 靶子。
+- [http.json](../examples/http.json)：变异 HTTP 请求行（URI），可指向任意 HTTP 服务，或配合 [HTTPD.md](HTTPD.md) 的自带 httpd 靶子。
 - [httpd.json](../examples/httpd.json)、[httpd_lab.json](../examples/httpd_lab.json)：面向自带 httpd 靶子的动词组变异与实验室场景（拒绝状态码、崩溃注入），见 [HTTPD.md](HTTPD.md)。
-- [http_get_full.json](../examples/http_get_full.json)、[http_post_full.json](../examples/http_post_full.json)：头部丰富的完整 GET/POST 请求，变异点覆盖方法（GET/HEAD、POST/PUT）、URI 显式候选和字符串库头部。两者各有等价的 MoonBit API 版本 `examples/http_get_full`、`examples/http_post_full`，支持离线生成与在线执行两种模式。
+- [httpd_bof.json](../examples/httpd_bof.json)：正常 HTTP 请求打 lab 故障路由的崩溃演示（65 字节头值/129 字节路径各越界 1 字节即触发 `monitor_failed`），见 [HTTPD.md](HTTPD.md) 的 Lab 模式。
+- [http_get_full.json](../examples/http_get_full.json)：头部丰富的完整 GET 请求，变异点覆盖方法（GET/HEAD）、URI 显式候选和字符串库头部；[http_post_full.json](../examples/http_post_full.json)：完整 POST 请求，变异点覆盖方法（POST/PUT）、Content-Length 显式候选和字符串库 body。两者各有等价的 MoonBit API 版本 `examples/http_get_full`、`examples/http_post_full`，支持离线生成与在线执行两种模式。
 
 ## 定义要点
 

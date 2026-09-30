@@ -29,7 +29,8 @@ Timeout and system failure remain distinct.
 
 `Connection::udp_broadcast(endpoint)` 开启 SO_BROADCAST 的非连接套接字:
 每个 `send()` 都是到 `endpoint.host:port` 的 `sendto`(host 须为 IPv4
-字面量广播地址),`receive()` 接受任意来源。JSON 执行配置以
+字面量,通常为广播地址;非广播字面量会被接受并按单播发送),`receive()` 接受
+任意来源。JSON 执行配置以
 `"udp_server": true` / `"udp_broadcast": true` 启用(仅 UDP 传输,二者
 互斥)。多播、IPv6 广播与通配目的仍不支持。
 
