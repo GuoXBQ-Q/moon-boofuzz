@@ -131,12 +131,14 @@ pkgtype(kind: "executable")
 
 `cmd/main/main.mbt`：
 
-```moonbit
+```moonbit nocheck
+///|
 /// 冻结的结构字节：空格、CRLF、头名，永不变异。
 fn fixed(bytes : Bytes) -> @boofuzz.Field {
   @boofuzz.Field::simple(bytes, [], fuzzable=false)
 }
 
+///|
 /// 请求行 + Host/Accept/X-Fuzz 头。变异点：动词组（GET/HEAD）、
 /// URI 显式候选、两个字符串库字段。
 fn http_get() -> @boofuzz.CompiledRequest raise {
@@ -163,6 +165,7 @@ fn http_get() -> @boofuzz.CompiledRequest raise {
   )
 }
 
+///|
 fn main raise {
   let request = http_get()
   let graph = @boofuzz.SessionGraph::new()

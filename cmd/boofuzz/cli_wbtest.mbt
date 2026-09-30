@@ -691,3 +691,30 @@ test "generate --id requires an explicit --combinatorial false and then resumes"
     0,
   )
 }
+
+///|
+test "read_cases turns the size limit into a --max-bytes hint" {
+  let path = @utf8.decode(fixture_path())
+  @recordio.write_file_raw(path, b"0123456789abcdef")
+  try read_cases(path, 8) catch {
+    InvalidArguments(message) => {
+      guard message.contains("--max-bytes") else {
+        fail("hint missing: \{message}")
+      }
+      guard message.contains("8 bytes") else {
+        fail("limit missing: \{message}")
+      }
+    }
+    _ => fail("expected InvalidArguments for the EFBIG size limit")
+  } noraise {
+    _ => fail("expected read_cases to raise")
+  }
+  // A limit at or above the file size must not take the EFBIG path
+  // (parsing the non-JSONL bytes may still raise on its own).
+  try read_cases(path, 16) catch {
+    InvalidArguments(_) => fail("EFBIG must not trigger at the exact file size")
+    _ => ()
+  } noraise {
+    _ => ()
+  }
+}
