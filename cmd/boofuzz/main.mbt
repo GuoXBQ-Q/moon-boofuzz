@@ -341,10 +341,13 @@ fn dispatch(args : Array[String]) -> Int raise {
   }
   // Live web UI on upstream's default port: bound even before the first
   // case so the URL is known, mirroring upstream server_init before fuzz().
-  // --web-port 0 still asks the OS for a free port.
+  // --web-port 0 still asks the OS for a free port. The live /test-case
+  // pages read details from the results database this run writes
+  // (upstream's live-db approach) instead of caching records in memory.
   let webui = @web.WebUi::open(
     port=web_port.unwrap_or(26000),
     total=mutations.to_int(),
+    db_path=Some(db_file),
   )
   println("Web interface can be found at http://localhost:\{webui.port()}")
   let count = {
@@ -360,6 +363,7 @@ fn dispatch(args : Array[String]) -> Int raise {
   // exits right after (upstream's interactive keep-open ENTER wait is
   // deliberately not reproduced in a batch CLI).
   webui.serve()
+  webui.session().close()
   match csv_out {
     Some(csv) => {
       let rows = write_csv_report(csv, output)

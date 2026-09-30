@@ -167,3 +167,7 @@ live 运行期间的 /test-case 详情页此前固定提示"数据不可用"（�
 ## 2026-09-30：ascii size 与 Content-Length 自动跟随
 
 补上移植缺口：上游 Size 原语的 `output_format="ascii"`（size.py:41-48，官方 http_with_body.py 即用它实现 Content-Length 跟随）此前未随 size.py 一并移植。核心 `size` 字段新增 `ascii` 模式——计算长度渲染为十进制文本、边界变异同样以文本渲染；因自身宽度随值变化，`inclusive` 与"位于自身目标块内"两种自包含形态在编译期拒绝。convert 页面对恰好声明一个未勾选 Content-Length 且带 body 的报文自动生成 `fuzzable:false` 的 ascii size 并把 body 包进命名块，默认渲染与原报文逐字节一致；勾选该段保留显式候选的失配探测。手写 JSON 以 `"ascii": true` 使用。
+
+## 2026-09-30：live 详情改读实时结果库
+
+上一改动让 live 会话把每条观察记录存进内存以支持运行期详情页,超长组合爆破跑（数十万用例）实测内存涨到 GB 级。现改为上游做法：CLI 的 live 会话把 db_path 指向本 run 实时写入的 SQLite 结果库，/test-case 详情直接查库——单线程 capture 循环在用例间隙提交并服务，无并发问题，内存恒定；keep-only-n 节流淘汰的通过用例详情随之不可见（与上游一致）。无 db 的库用法（如代码示例）保留内存缓存回退。同时组合爆破越过单字段分母时，进度条钉满变琥珀色并显示 "+N beyond plan"，修正误导性的 100%。

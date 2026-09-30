@@ -552,3 +552,36 @@ test "run progress surfaces the combinatorial overrun beyond the plan" {
   assert_true(plain.contains("20.000%"))
   assert_false(plain.contains("run-progress overrun"))
 }
+
+///|
+test "LiveSession serves case details from the live results database" {
+  // Build a small results database the way a run writes it.
+  let path = @db.temp_path()
+  defer @db.remove_file(path)
+  let logger = @db.DbLogger::open(path)
+  logger.log_record(jsonl_record(0, "passed", "Passed"))
+  logger.log_record(jsonl_record(1, "send_failed", "SendTimedOut"))
+  logger.close_test()
+  logger.close()
+  // A db-backed live session reads details from the file: counters
+  // advance without accumulating records in memory.
+  let view = LiveSession::new(total=10, db_path=Some(path))
+  defer view.close()
+  view.observe(jsonl_record(0, "passed", "Passed"))
+  assert_eq(SessionView::current_index(view), 1)
+  let case0 = SessionView::test_case_data(view, 0)
+  assert_eq(case0.name, "udp_request")
+  assert_eq(case0.index, 0)
+  assert_eq(case0.steps[1].step_type, "send")
+  // Cases absent from the database raise; the memory fallback stays
+  // empty in db mode.
+  assert_true(
+    try {
+      ignore(SessionView::test_case_data(view, 2))
+      false
+    } catch {
+      @db.NoSuchCase(_) => true
+      _ => false
+    },
+  )
+}

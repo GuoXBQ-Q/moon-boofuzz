@@ -49,10 +49,11 @@ log-case/log-step/log-send/log-receive/log-fail/log-pass/log-error。
   求和(上游 Session.num_mutations 同款语义),与 case 上限无关——
   组合爆破执行超过该分母时进度条钉满并变为琥珀色,百分比标签改显
   "+N beyond plan"(计划外已执行的用例数),零变异定义显示 Unbounded。
-  **用例详情页在运行期间可用**:observe 同时保留每条记录,
-  `/test-case/<index>` 按已执行用例即时渲染收发字节(等价上游从
-  live-written db 取详情);尚未执行到的索引渲染"未执行"提示,
-  内存占用随已执行用例数增长。
+  **用例详情页在运行期间可用**:CLI 的 live 会话把 db_path 指向本 run
+  实时写入的结果库,/test-case 详情直接查库(上游 live-db 做法,内存
+  恒定;keep-only-n 节流淘汰的通过用例详情随之不可见,与上游一致);
+  无 db 的库用法回退为内存缓存每条观察记录(随已执行用例数增长),
+  尚未执行到的索引渲染"未执行"提示。
 - `OfflineSession`(`open FILE`):等价 session_info.SessionInfo 的
   只读视图——is_paused 恒 false、state "finished"、runtime/exec_speed
   0、current_index 为持久化用例数(上游 COUNT(*))。支持两种后端:

@@ -23,10 +23,13 @@ pub trait SessionView {
 
 ///|
 /// Live view for `run --web-port`: counters live in Refs the capture loop
-/// refreshes; pause is the flag checked before every case. Observed
-/// records are also kept so /test-case detail pages work during the run,
-/// standing in for upstream's live-written results db. `total` is the
-/// primitive-count denominator (upstream num_mutations).
+/// refreshes; pause is the flag checked before every case. `total` is the
+/// primitive-count denominator (upstream num_mutations). When `db_path`
+/// names the results database the run is writing, /test-case details are
+/// served from it live — upstream's approach, constant memory; the
+/// in-memory record cache remains only as the fallback for sessions
+/// without a database (throttled runs evict passing cases from the db,
+/// so their details vanish exactly like upstream's).
 pub struct LiveSession {
   paused : @ref.Ref[Bool]
   executed : @ref.Ref[Int]
@@ -34,11 +37,19 @@ pub struct LiveSession {
   started_ms : Int64
   failures : @ref.Ref[Map[Int, Array[String]]]
   current_name : @ref.Ref[String]
+  reader : @db.DbReader?
   cases : @ref.Ref[Map[Int, @records.CaseRecord]]
 }
 
 ///|
-pub fn LiveSession::new(total~ : Int) -> LiveSession {
+pub fn LiveSession::new(
+  total~ : Int,
+  db_path? : String? = None,
+) -> LiveSession raise {
+  let reader = match db_path {
+    Some(path) => Some(@db.DbReader::open(path))
+    None => None
+  }
   {
     paused: @ref.Ref(false),
     executed: @ref.Ref(0),
@@ -46,22 +57,34 @@ pub fn LiveSession::new(total~ : Int) -> LiveSession {
     started_ms: web_now_ms(),
     failures: @ref.Ref(Map([])),
     current_name: @ref.Ref(""),
+    reader,
     cases: @ref.Ref(Map([])),
   }
 }
 
 ///|
+/// Release the results-database reader, if any.
+pub fn LiveSession::close(self : LiveSession) -> Unit {
+  match self.reader {
+    Some(reader) => reader.close()
+    None => ()
+  }
+}
+
+///|
 /// Observe one executed case: advances the counters, records failures
-/// for the crash list and keeps the record for the detail pages,
-/// mirroring what the results database persists. Memory grows with the
-/// number of executed cases.
+/// for the crash list and, without a database reader, keeps the record
+/// for the detail pages. Memory in fallback mode grows with the number
+/// of executed cases.
 pub fn LiveSession::observe(
   self : LiveSession,
   record : @records.CaseRecord,
 ) -> Unit {
   self.executed.val += 1
   self.current_name.val = record.request_name
-  self.cases.val[record.ordinal] = record
+  if self.reader is None {
+    self.cases.val[record.ordinal] = record
+  }
   if record.outcome != "passed" {
     match record.failed_step {
       Some(-1) => ()
@@ -154,11 +177,18 @@ pub impl SessionView for LiveSession with fn crashes(self) {
 
 ///|
 pub impl SessionView for LiveSession with fn test_case_data(self, index) {
-  // Details come from the records observed so far; an index beyond the
-  // executed count raises, and the page explains it has not run yet.
-  match self.cases.val.get(index) {
-    Some(record) => record_case(record)
-    None => raise @db.NoSuchCase(index)
+  // Database-backed sessions read the live-written results file (the
+  // single-threaded capture loop commits and serves between cases); the
+  // fallback keeps observed records in memory. Missing cases raise and
+  // the page explains the case has not run yet (or was evicted by the
+  // keep-only-n throttle, like upstream).
+  match self.reader {
+    Some(reader) => reader.get_test_case_data(index)
+    None =>
+      match self.cases.val.get(index) {
+        Some(record) => record_case(record)
+        None => raise @db.NoSuchCase(index)
+      }
   }
 }
 

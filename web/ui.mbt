@@ -12,10 +12,16 @@ pub struct WebUi {
 ///|
 /// `total` is the run's progress denominator: the sum of every mutated
 /// field's primitive count for the fuzzed targets (upstream
-/// Session.num_mutations), not the case cap.
-pub fn WebUi::open(port~ : Int, total~ : Int) -> WebUi raise {
+/// Session.num_mutations), not the case cap. `db_path`, when given, is
+/// the results database the run writes; the live /test-case pages read
+/// their details from it (constant memory) instead of caching records.
+pub fn WebUi::open(
+  port~ : Int,
+  total~ : Int,
+  db_path? : String? = None,
+) -> WebUi raise {
   let server = HttpServer::bind(port~)
-  { server, session: LiveSession::new(total~), }
+  { server, session: LiveSession::new(total~, db_path~), }
 }
 
 ///|
