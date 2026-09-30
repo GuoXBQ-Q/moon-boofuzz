@@ -10,7 +10,10 @@ with a new connection.
 Policies are keyed by request name: `NoResponse` (default), `Fixed(n)`,
 `Until(delimiter)` for TCP, or `Datagram` for UDP. Stream policies preserve
 bytes beyond the boundary for subsequent responses. A single deadline covers
-the whole response, including partial reads. Byte and case limits are explicit.
+the whole response, including partial reads. Byte and case limits are explicit;
+the library default `limit` is 10000 and `combinatorial` is opt-in, while the
+JSON `ExecutionConfig` and CLI entry points default to no case cap with
+combinatorial blasting on (upstream CLI defaults).
 `stop()`, `state()` and `executed()` expose bounded execution progress.
 
 Results carry a path-qualified identity, per-step actual accepted send bytes,

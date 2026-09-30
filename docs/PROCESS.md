@@ -27,7 +27,9 @@ DebuggerThreadSimple 的 spawn 语义一致。C 层遵循 transport/socket.c 模
 - `after`：轮询目标——**运行期内任何退出都视为故障**（包括正常退出 0，
   与上游 post_send 的存活语义一致），以 `MonitorSignal::TargetFailed`
   上报：用例记录为计入失败的 `MonitorFailed`（含退出码），推进崩溃
-  阈值并触发恢复。
+  阈值并触发恢复。崩溃目标可能先重置套接字、操作系统稍后才报告进程
+  退出，因此当用例表现为连接被忽略或对端关闭而轮询尚未见退出时，先做
+  一次 50 ms 短暂等待再复查存活，避免漏报。
 - `recover`：停止（kill + 停止延迟 + 回收）后重新启动（启动延迟 +
   存活确认）；重启失败返回 false，执行器以 `RecoveryFailed` 停止。
 - `fault`：崩溃摘要保留在 `ProcessMonitor.synopsis`。
