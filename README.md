@@ -9,21 +9,6 @@ MoonBit 协议模糊测试核心：定义协议、生成单字段变异、执行
 - 安装 [MoonBit](https://www.moonbitlang.com/download/)。纯逻辑核心（协议模型与变异枚举）在 Wasm 下即可使用，无需 C 环境。
 - 网络与文件 I/O 仅支持 Native，需要系统 C 编译器：Windows 推荐 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases)（把 bin 加入 PATH）或 Visual Studio MSVC，Linux 使用 GCC。当前验证工具链为 moon 0.1.20260920、moonc v0.10.14。
 
-## 安装
-
-作为库使用：在自己的模块中执行 `moon add GuoXBQ-Q/moon-boofuzz`，然后在包的 `moon.pkg` 里 import `"GuoXBQ-Q/moon-boofuzz"`。
-
-从源码运行完整 CLI：
-
-```sh
-git clone https://github.com/GuoXBQ-Q/moon-boofuzz.git
-cd moon-boofuzz
-moon update
-moon check --deny-warn
-moon build --target native
-moon test --target native --deny-warn
-```
-
 ## 使用示例
 
 ### 1. 直接安装 CLI 使用
@@ -35,12 +20,7 @@ moon install GuoXBQ-Q/moon-boofuzz/cmd/boofuzz   # 主 CLI，装到 ~/.moon/bin
 moon install GuoXBQ-Q/moon-boofuzz/cmd/httpd     # 可选：自带 HTTP fuzz 靶子
 ```
 
-**启用 httpd 靶子**：一个严格解析的回环 HTTP 服务器，对畸形输入返回明确的拒绝状态码（431/413/405 等），让 fuzzer 能区分"被拒绝"和"连接被丢弃"；配合 `--target-cmd` 进程监视时，崩溃也会被记为 fault。
-
-```sh
-httpd --port 9000
-# httpd listening on 127.0.0.1:9000
-```
+httpd 是一个严格解析的回环 HTTP 服务器，对畸形输入返回明确的拒绝状态码（431/413/405 等），让 fuzzer 能区分"被拒绝"和"连接被丢弃"。
 
 保存协议定义 `http.json`（与仓库 [examples/http.json](examples/http.json) 相同——只有 `uri` 字段开启变异，其余请求行/头部字节全部冻结，完整枚举共 1954 个用例）：
 
@@ -77,13 +57,28 @@ httpd --port 9000
 }
 ```
 
-**执行 fuzz**（逐例变异发送，同时把真实收发字节写入 JSONL 和 `boofuzz-results/` 下的 SQLite 结果库）：
+靶子有两种启动方式，任选其一：
+
+**方式 A · 手动启动**：另开一个终端单独运行靶子，fuzz 命令只负责发送。
 
 ```sh
+# 终端 1：启动靶子
+httpd --port 9000
+# httpd listening on 127.0.0.1:9000
+
+# 终端 2：执行 fuzz
 boofuzz run http.json --output cases.jsonl
 ```
 
-启动时会打印实时 Web 界面地址，**fuzz 过程中用浏览器打开它即可查看进度**：
+**方式 B · `--target-cmd` 一条命令**：boofuzz 自己孵化靶子并开启**进程监视**——开跑前自动拉起（含约 1 秒启动延迟），运行期内靶子的任何退出（包括正常退出 0）都会把该用例记为 `MonitorFailed` 故障、自动重启靶子后续跑，结束后子进程自动回收，全程无需另开终端。命令含空格时整体加引号。
+
+```sh
+boofuzz run http.json --output cases.jsonl --target-cmd "httpd --port 9000"
+```
+
+崩溃监视的实战效果可用仓库的 [examples/httpd_lab.json](examples/httpd_lab.json) 体验（模拟 RCE 与缓冲区溢出的崩溃注入场景；注意其 execution 自带 `"case_limit": 6`）。
+
+两种方式下 `run` 的行为相同：逐例变异发送，把真实收发字节写入 JSONL 和 `boofuzz-results/` 下的 SQLite 结果库。启动时会打印实时 Web 界面地址，**fuzz 过程中用浏览器打开它即可查看进度**：
 
 ```text
 Web interface can be found at http://localhost:26000
@@ -95,10 +90,10 @@ Web interface can be found at http://localhost:26000
 {"kind":"run_summary","executed":1954,"state":"exhausted","records":"cases.jsonl","database":"boofuzz-results/run-<UTC时间戳>.db"}
 ```
 
-**分析结果**。注意：每条记录包含完整的收发字节，1954 例的 JSONL 约 117 MB，超过 `report` 默认 64 MiB 读取上限，需显式提高：
+**分析结果**（每条记录包含完整的收发字节，1954 例约 117 MB；`report` 默认可读约 2 GiB 以内的文件，超过时按报错提示处理）：
 
 ```sh
-boofuzz report cases.jsonl --max-bytes 130000000
+boofuzz report cases.jsonl
 ```
 
 ```text
@@ -107,9 +102,7 @@ boofuzz report cases.jsonl --max-bytes 130000000
  "failed_step":0,"detail":"ConnectionIgnored(\"send reset/aborted at step 0\")"}, ...]},"error":null}
 ```
 
-`connection_ignored` 是 httpd 对超长 URI 直接重置连接，属于可观察的拒绝行为而非工具错误。只想快速体验时给 `run` 加 `--limit 200`，输出文件小到无需 `--max-bytes`。跑完后可用 `boofuzz open cases.jsonl`（或 run_summary 里的 `.db` 路径）打开只读 Web 视图复看进度与用例详情；不连接目标预览用例用 `boofuzz generate http.json --limit 3`。
-
-从源码仓库使用时等价命令为 `moon run --target native cmd/boofuzz -- <子命令> ...`；自动验收场景测试（临时文件、回环地址和临时端口，无需另启服务）用 `moon test --target native --deny-warn -p cmd/boofuzz`。
+**从源码使用**（想阅读/修改工具本身时）：克隆仓库后先 `moon update` 初始化依赖索引，`moon check --deny-warn` 做全量类型检查，`moon build --target native` 构建全部可执行（CLI、httpd 靶子等），`moon test --target native --deny-warn` 跑完整测试（含临时文件、回环地址和临时端口、无需另启服务的自动验收场景）；此后所有子命令的等价写法是 `moon run --target native cmd/boofuzz -- <子命令> ...`。
 
 ### 2. 作为库使用（MoonBit API）
 
@@ -209,18 +202,20 @@ moon run --target native cmd/main
 
 输出形如 `uri:1 -> timeout`、`verb:0 -> ...` 的逐例结果。完整版（参数化 host/port、离线生成模式、Web UI 实时面板与暂停）见 [examples/http_get_full/main.mbt](examples/http_get_full/main.mbt)；从零编写自己的 fuzz 程序见 [CODE.md](docs/CODE.md) 教程，模型与字段原语见 [MODEL.md](docs/MODEL.md)，会话与执行器细节见 [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) 与 [MONITORS.md](docs/MONITORS.md)。
 
-## CLI 流程
+## boofuzz 命令简介
+
+`boofuzz` 的子命令围绕"定义 → 执行 → 分析/重放"组织（源码仓库内的等价写法是 `moon run --target native cmd/boofuzz -- <子命令> ...`）：
 
 | 命令 | 用途 |
 | --- | --- |
-| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 |
-| `run` | JSON 协议定义 → 逐例执行并保存实际流量 |
-| `open` | 结果库/JSONL → 本地只读 Web 视图 |
-| `convert` | Web 页面：粘贴 HTTP 报文 → 自动生成协议定义 JSON |
-| `report` | JSONL 执行记录 → 分类计数、失败身份和行号 |
-| `replay` | JSONL 执行记录 → 按身份重放保存的字节 |
+| `boofuzz generate DEFINITION.json` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 |
+| `boofuzz run DEFINITION.json --output CASES.jsonl` | 逐例执行并保存实际流量；`--target-cmd CMD` 可让 boofuzz 自己孵化并监视靶子（崩溃记为 fault 并自动重启），`--web-port N` 控制实时界面端口 |
+| `boofuzz report CASES.jsonl` | 分类计数、失败身份和行号 |
+| `boofuzz replay CASES.jsonl --id CASE_ID` | 按身份重放保存的字节，可用 `--host/--port` 覆盖目标 |
+| `boofuzz open FILE` | 结果库/JSONL → 本地只读 Web 视图 |
+| `boofuzz convert` | Web 页面：粘贴原始 HTTP 报文 → 自动生成协议定义 JSON |
 
-帮助：`moon run --target native cmd/boofuzz -- --help`，所有命令从项目根目录执行。全部选项、示例文件说明、运行行为与退出码见 [CLI.md](docs/CLI.md)；JSON 协议定义写法见 [DEFINITIONS.md](docs/DEFINITIONS.md)。
+帮助：`boofuzz --help`。全部选项、示例文件说明、运行行为与退出码见 [CLI.md](docs/CLI.md)；JSON 协议定义写法见 [DEFINITIONS.md](docs/DEFINITIONS.md)。
 
 ## 文档导航
 
