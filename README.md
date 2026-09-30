@@ -2,11 +2,76 @@
 
 MoonBit 协议模糊测试核心：定义协议、生成单字段变异、执行前置会话、通过 TCP/UDP 发送、记录结果并重放。
 
-采用 boofuzz 固定版本 `518c13904fc32e7f2cc88c9dec934e509062953e` 的明确功能子集。核心支持 Wasm 与 Native，网络和文件 I/O 支持 Windows/Linux Native。当前源码版本为 0.1.0，尚未发布到 mooncakes。
+采用 boofuzz 固定版本 `518c13904fc32e7f2cc88c9dec934e509062953e` 的明确功能子集。核心支持 Wasm 与 Native，网络和文件 I/O 支持 Windows/Linux Native。已发布到 [mooncakes.io](https://mooncakes.io/docs/GuoXBQ-Q/moon-boofuzz)（页面显示最新版本）。
 
 ## 开始使用
 
-安装 [MoonBit](https://www.moonbitlang.com/download/)。CI 的 Windows 作业使用 MSVC 编译 C 桥，Linux 使用 GCC；本地推荐 llvm-mingw，也支持 Visual Studio MSVC。初始开发工具链为 moon 0.1.20260915、moonc v0.10.13。
+安装 [MoonBit](https://www.moonbitlang.com/download/)。CI 的 Windows 作业使用 MSVC 编译 C 桥，Linux 使用 GCC；本地推荐 llvm-mingw，也支持 Visual Studio MSVC。当前验证工具链为 moon 0.1.20260920、moonc v0.10.14。
+
+作为库使用：在自己的模块中执行 `moon add GuoXBQ-Q/moon-boofuzz`，然后在包的 `moon.pkg` 里 import `"GuoXBQ-Q/moon-boofuzz"`（纯逻辑根包在 Wasm 下即可使用，无需 C 工具链；网络与文件 I/O 子包仅支持 Native）。
+
+## 库 API 快速示例
+
+以下示例由 `moon test` 执行。根包测试使用 `@moon_boofuzz` 别名；在自己的项目中，`moon add GuoXBQ-Q/moon-boofuzz` 后按所用别名导入即可。
+
+### 命名请求与惰性变异
+
+`CompiledRequest` 用于新协议模型。正常渲染和变异枚举分别调用 `render()` 与 `cases()`；用 `next()` 逐个获取载荷，避免先建立完整用例数组。
+
+```mbt check
+///|
+test "named request quick start" {
+  let request = @moon_boofuzz.CompiledRequest::compile(
+    @moon_boofuzz.Block::new("packet", [
+      Leaf("prefix", @moon_boofuzz.Field::simple(b"PING ", [])),
+      Leaf("value", @moon_boofuzz.Field::simple(b"ok", [b"", b"\x00\xff"])),
+    ]),
+  )
+  assert_eq(request.render(), b"PING ok")
+  let cases = request.cases(limit=1)
+  assert_eq(cases.next().map(case => case.payload), Some(b"PING "))
+  assert_eq(cases.next(), None)
+  assert_eq(cases.state(), Limited)
+  let resumed = request.cases(start=cases.position())
+  assert_eq(resumed.next().map(case => case.payload), Some(b"PING \x00\xff"))
+}
+```
+
+### Simple and Group
+
+`Field::simple(default, candidates)` preserves every explicit candidate.
+`Field::group(values, default_value=...)` selects the first value by default,
+then removes only the first matching default from mutation candidates.
+Both snapshot input arrays; `fuzzable=false` yields zero cases. Indices are
+zero based and out-of-range access returns `None`. Use these fields as named
+Leaf nodes in CompiledRequest; the legacy flat Request remains available.
+
+```mbt check
+///|
+test "group field" {
+  let field = @moon_boofuzz.Field::group([b"GET", b"POST", b"GET"])
+  assert_eq(field.default_value(), b"GET")
+  assert_eq(field.num_mutations(), 2)
+  assert_eq(field.mutation(0), Some(b"POST"))
+  assert_eq(field.mutation(1), Some(b"GET"))
+}
+```
+
+```mbt check
+///|
+test "minimal byte request" {
+  let request = @moon_boofuzz.Request::new([
+    @moon_boofuzz.Static(b"PING "),
+    @moon_boofuzz.Choice(b"ok", [b"", b"long"]),
+  ])
+  assert_eq(request.render(), b"PING ok")
+  assert_eq(request.mutations(), [b"PING ", b"PING long"])
+}
+```
+
+字段路径包含请求名，例如 `packet.value`。会话图、网络执行及回调的使用分别见 [docs/SESSION.md](docs/SESSION.md)、[docs/RUNNER.md](docs/RUNNER.md) 和 [docs/MONITORS.md](docs/MONITORS.md)。
+
+从源码运行完整 CLI：
 
 ```sh
 git clone https://github.com/GuoXBQ-Q/moon-boofuzz.git
@@ -34,8 +99,8 @@ Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/rele
 
 | 命令 | 输入与用途 | 主要选项 |
 | --- | --- | --- |
-| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N`、`--id ID`（需 `--combinatorial false`）；组合爆破默认开启（与上游 CLI 一致） |
-| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`（缺省**无上限**，跑完为止）、`--combinatorial true|false`、`--start N`、`--end N`、`--db FILE`（缺省自动写 `boofuzz-results/run-<UTC时间戳>.db`，与上游一致常开）、`--record-passes N`、`--csv-out FILE`、`--web-port N`（缺省 26000，与上游一致常开；`0` 为随机空闲端口）、`--target-cmd CMD` |
+| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N`、`--id ID`（需 `--combinatorial false`）、`--combinatorial true|false`、`--max-depth N`（组合深度上限）；组合爆破默认开启（与上游 CLI 一致） |
+| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`（缺省**无上限**，跑完为止）、`--combinatorial true|false`、`--max-depth N`、`--start N`、`--end N`、`--sleep-between-ms N`（用例间隔）、`--text-dump true|false`（逐例实时日志）、`--db FILE`（缺省自动写 `boofuzz-results/run-<UTC时间戳>.db`，与上游一致常开）、`--record-passes N`、`--csv-out FILE`、`--web-port N`（缺省 26000，与上游一致常开；`0` 为随机空闲端口）、`--target-cmd CMD` |
 | `open` | 结果库/JSONL → 本地只读 Web 视图 | `--ui-port N`（默认 26000） |
 | `convert` | Web 页面：粘贴原始 HTTP 报文 → 勾选分段并选择变异原语（字符串库/整数/二进制/随机/候选值）→ 自动生成协议定义 JSON（校验、用例数、载荷预览、复制/下载） | `--ui-port N`（默认 26001） |
 | `report` | JSONL 执行记录 → 分类计数、失败身份和行号 | `--max-bytes N` |
@@ -61,6 +126,9 @@ moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["pa
 - [tcp.json](examples/tcp.json)：向 127.0.0.1:9000 发送 `00ff`、`414141` 两个用例，每例等待 2 字节响应，接收超时 100 ms。目标不回复时会记录超时。
 - [udp.json](examples/udp.json)：发送空报文及 `00ff`，每例接收一个 UDP 报文。
 - [stateful.json](examples/stateful.json)：每个新连接重新发送 `HELLO`、`AUTH test`，再发送变异 `DATA`；只变异末端 `query`，每步等待响应。可直接运行 [多报文手工测试](docs/STATEFUL.md) 中的本地靶子和命令。
+- [http.json](examples/http.json)：变异 HTTP 请求行（URI）与主体，可指向任意 HTTP 服务，或配合 [自带 httpd 靶子](docs/HTTPD.md)。
+- [httpd.json](examples/httpd.json)、[httpd_lab.json](examples/httpd_lab.json)：面向自带 httpd 靶子的动词组变异与实验室场景（拒绝状态码、崩溃注入），见 [HTTPD.md](docs/HTTPD.md)。
+- [http_get_full.json](examples/http_get_full.json)、[http_post_full.json](examples/http_post_full.json)：头部丰富的完整 GET/POST 请求，变异点覆盖方法（GET/HEAD、POST/PUT）、URI 显式候选和字符串库头部。两者各有等价的 MoonBit API 版本 `examples/http_get_full`、`examples/http_post_full`，支持离线生成与在线执行两种模式。
 
 `value_hex` 定义正常值，`values_hex` 定义显式变异候选；默认值用于普通渲染和前置请求，不会自动额外插入变异序列。Group 会从候选中只移除一次默认值。自动变异可使用 `integer`、`bytes` 或 `text` 字段。
 
@@ -87,7 +155,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 - Simple、Group、8/16/32/64 位整数、二进制 Bytes、UTF-8 字符串和分隔符变异。
 - HTTP 报文转换器：粘贴原始请求，勾选要 fuzz 的分段并为每段选择变异原语（字符串库/整数/二进制/随机/显式候选），自动生成并校验协议定义 JSON（见 [CONVERT.md](docs/CONVERT.md)）。
-- 命名嵌套块、条件块、重复、对齐、长度字段及 CRC32。
+- 命名嵌套块、条件块、重复、对齐、长度字段（二进制或 ascii 十进制渲染，后者对应上游 Content-Length 模式）及 CRC32。
 - 惰性单字段枚举、稳定身份、起始位置、数量限制与停止状态。
 - DAG 会话路径；每例重新连接并执行默认前置请求，仅变异末端目标。
 - TCP 完整发送与无响应/固定长度/分隔符读取；UDP 保留报文边界和空报文。
@@ -102,7 +170,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃；目标崩溃由监视器存活检测判定并以 `MonitorFailed` 计入失败。
 
-已在后续提交中补齐（不再是缺口）：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（与上游一致常开，自动落 `boofuzz-results/run-<UTC时间戳>.db`）、`--record-passes` 写入节流、Web UI（默认 26000 常开）与 `open` 子命令、UDP 服务端模式与广播。
+已实现的补充能力：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（与上游一致常开，自动落 `boofuzz-results/run-<UTC时间戳>.db`）、`--record-passes` 写入节流、Web UI（默认 26000 常开）与 `open` 子命令、UDP 服务端模式与广播。
 
 仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行、TCP 服务端模式、`restart_interval` 周期性重启。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界与评估结论见 [UPSTREAM.md](docs/UPSTREAM.md)、[PLAN.md](docs/PLAN.md)。
 

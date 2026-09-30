@@ -18,7 +18,7 @@ moon run --target native cmd/httpfuzz -- run 127.0.0.1 9000  # 真实 fuzz 一�
 
 ## 第 1 步：包结构
 
-在本仓库内新建一个可执行包（mooncakes 发布前外部项目无法引用本模块）：
+新建一个可执行包（本模块已发布到 mooncakes，外部项目先 `moon add GuoXBQ-Q/moon-boofuzz`，再按下文 import；在仓库内开发则直接创建）：
 
 ```
 cmd/httpfuzz/

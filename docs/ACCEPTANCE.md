@@ -30,4 +30,4 @@ verify 包含 fmt/info、Wasm 和 Native check/build/test、格式检查，并�
 - 确认最新提交已同步 GitHub，并打开 Actions 验证最终提交的双平台检查。
 - 审查 moon package --list，确保源码、LICENSE、说明和样本齐全，构建缓存及本地日志未进入包。
 - 本次准备源码包，不自动打标签或执行 moon publish；发布账户、包名权限和最终二进制许可核查由维护者确认。
-- 正式发布后从 mooncakes 安装并复测；此前不宣称已经发布。
+- 正式发布后从 mooncakes 安装并复测；此前不宣称已经发布。（2026-09-30：维护者确认后已执行 `moon publish` 发布 0.1.0，并从注册表安装复测通过。）

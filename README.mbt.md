@@ -1,8 +1,20 @@
-# Tested API example
+# moon-boofuzz
 
-以下示例由 `moon test` 执行。根包测试使用 `@moon_boofuzz` 别名；在自己的项目中，将包导入为所用别名即可。当前尚未发布到 mooncakes，直接运行本仓库示例不需要额外安装该包。
+MoonBit 协议模糊测试核心：定义协议、生成单字段变异、执行前置会话、通过 TCP/UDP 发送、记录结果并重放。
 
-## 命名请求与惰性变异
+采用 boofuzz 固定版本 `518c13904fc32e7f2cc88c9dec934e509062953e` 的明确功能子集。核心支持 Wasm 与 Native，网络和文件 I/O 支持 Windows/Linux Native。已发布到 [mooncakes.io](https://mooncakes.io/docs/GuoXBQ-Q/moon-boofuzz)（页面显示最新版本）。
+
+## 开始使用
+
+安装 [MoonBit](https://www.moonbitlang.com/download/)。CI 的 Windows 作业使用 MSVC 编译 C 桥，Linux 使用 GCC；本地推荐 llvm-mingw，也支持 Visual Studio MSVC。当前验证工具链为 moon 0.1.20260920、moonc v0.10.14。
+
+作为库使用：在自己的模块中执行 `moon add GuoXBQ-Q/moon-boofuzz`，然后在包的 `moon.pkg` 里 import `"GuoXBQ-Q/moon-boofuzz"`（纯逻辑根包在 Wasm 下即可使用，无需 C 工具链；网络与文件 I/O 子包仅支持 Native）。
+
+## 库 API 快速示例
+
+以下示例由 `moon test` 执行。根包测试使用 `@moon_boofuzz` 别名；在自己的项目中，`moon add GuoXBQ-Q/moon-boofuzz` 后按所用别名导入即可。
+
+### 命名请求与惰性变异
 
 `CompiledRequest` 用于新协议模型。正常渲染和变异枚举分别调用 `render()` 与 `cases()`；用 `next()` 逐个获取载荷，避免先建立完整用例数组。
 
@@ -25,9 +37,7 @@ test "named request quick start" {
 }
 ```
 
-字段路径包含请求名，例如 `packet.value`。会话图、网络执行及回调的使用分别见 `docs/SESSION.md`、`docs/RUNNER.md` 和 `docs/MONITORS.md`。
-
-## Simple and Group
+### Simple and Group
 
 `Field::simple(default, candidates)` preserves every explicit candidate.
 `Field::group(values, default_value=...)` selects the first value by default,
@@ -58,3 +68,118 @@ test "minimal byte request" {
   assert_eq(request.mutations(), [b"PING ", b"PING long"])
 }
 ```
+
+字段路径包含请求名，例如 `packet.value`。会话图、网络执行及回调的使用分别见 [docs/SESSION.md](docs/SESSION.md)、[docs/RUNNER.md](docs/RUNNER.md) 和 [docs/MONITORS.md](docs/MONITORS.md)。
+
+从源码运行完整 CLI：
+
+```sh
+git clone https://github.com/GuoXBQ-Q/moon-boofuzz.git
+cd moon-boofuzz
+moon update
+moon check --deny-warn
+moon build
+moon test --deny-warn
+moon build --target native
+moon test --target native --deny-warn
+moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
+```
+
+全部自动验收场景使用临时文件、回环地址和临时端口，无需另启服务：
+
+```sh
+moon test --target native --deny-warn -p cmd/boofuzz
+```
+
+Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases)（把 bin 加入 PATH）或 Visual Studio MSVC；CI 的 Windows 作业由 MoonBit 默认选择 MSVC。仅安装 MoonBit 可以运行纯核心 Wasm 检查；网络 CLI 还需要 C 工具链。运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
+
+第一次体验建议先执行上面的自动场景测试，再运行离线 `generate`，最后连接自己的服务。
+
+## CLI 流程
+
+| 命令 | 输入与用途 | 主要选项 |
+| --- | --- | --- |
+| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N`、`--id ID`（需 `--combinatorial false`）、`--combinatorial true|false`、`--max-depth N`（组合深度上限）；组合爆破默认开启（与上游 CLI 一致） |
+| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`（缺省**无上限**，跑完为止）、`--combinatorial true|false`、`--max-depth N`、`--start N`、`--end N`、`--sleep-between-ms N`（用例间隔）、`--text-dump true|false`（逐例实时日志）、`--db FILE`（缺省自动写 `boofuzz-results/run-<UTC时间戳>.db`，与上游一致常开）、`--record-passes N`、`--csv-out FILE`、`--web-port N`（缺省 26000，与上游一致常开；`0` 为随机空闲端口）、`--target-cmd CMD` |
+| `open` | 结果库/JSONL → 本地只读 Web 视图 | `--ui-port N`（默认 26000） |
+| `convert` | Web 页面：粘贴原始 HTTP 报文 → 勾选分段并选择变异原语（字符串库/整数/二进制/随机/候选值）→ 自动生成协议定义 JSON（校验、用例数、载荷预览、复制/下载） | `--ui-port N`（默认 26001） |
+| `report` | JSONL 执行记录 → 分类计数、失败身份和行号 | `--max-bytes N` |
+| `replay` | JSONL 执行记录 → 按身份重放保存的字节 | 必填 `--id ID`，可选成对的 `--host HOST --port PORT`、`--max-bytes N` |
+
+查看帮助：`moon run --target native cmd/boofuzz -- --help`。所有命令均从项目根目录执行。
+
+`examples/tcp.json`、`udp.json` 和 `stateful.json` 默认指向 127.0.0.1:9000。前两者需要兼容的测试目标；`stateful.json` 可配合仓库自带的 `cmd/stateful_target` 直接运行，详见 [多报文手工测试](docs/STATEFUL.md)。
+
+```sh
+moon run --target native cmd/boofuzz -- run examples/tcp.json --output _build/tcp-cases.jsonl
+moon run --target native cmd/boofuzz -- report _build/tcp-cases.jsonl
+moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["packet"]/v1:packet.data:0'
+```
+
+与上游一致，`run` 每次都会在 `boofuzz-results/` 下生成一份 SQLite 结果库（`run-<UTC时间戳>.db`），并在默认端口 26000 启动实时 Web UI（端口被占时自动顺延）；进程在输出摘要后退出，不等待交互。组合爆破默认开启，按 id 续跑需显式 `--combinatorial false`。
+
+从 report 复制实际 case_id。重放可用 `--host HOST --port PORT` 显式覆盖目标，始终发送记录中的字节，不重新生成变异。响应无需与原记录完全相同。
+
+示例的具体含义：
+
+- [offline.json](examples/offline.json)：保留 `PING ` 前缀，依次生成空值、`00ff` 二进制值和 `long`。`payload_hex` 是完整请求，`prefix_hex` 是会话前置请求。
+- [tcp.json](examples/tcp.json)：向 127.0.0.1:9000 发送 `00ff`、`414141` 两个用例，每例等待 2 字节响应，接收超时 100 ms。目标不回复时会记录超时。
+- [udp.json](examples/udp.json)：发送空报文及 `00ff`，每例接收一个 UDP 报文。
+- [stateful.json](examples/stateful.json)：每个新连接重新发送 `HELLO`、`AUTH test`，再发送变异 `DATA`；只变异末端 `query`，每步等待响应。可直接运行 [多报文手工测试](docs/STATEFUL.md) 中的本地靶子和命令。
+- [http.json](examples/http.json)：变异 HTTP 请求行（URI）与主体，可指向任意 HTTP 服务，或配合 [自带 httpd 靶子](docs/HTTPD.md)。
+- [httpd.json](examples/httpd.json)、[httpd_lab.json](examples/httpd_lab.json)：面向自带 httpd 靶子的动词组变异与实验室场景（拒绝状态码、崩溃注入），见 [HTTPD.md](docs/HTTPD.md)。
+- [http_get_full.json](examples/http_get_full.json)、[http_post_full.json](examples/http_post_full.json)：头部丰富的完整 GET/POST 请求，变异点覆盖方法（GET/HEAD、POST/PUT）、URI 显式候选和字符串库头部。两者各有等价的 MoonBit API 版本 `examples/http_get_full`、`examples/http_post_full`，支持离线生成与在线执行两种模式。
+
+`value_hex` 定义正常值，`values_hex` 定义显式变异候选；默认值用于普通渲染和前置请求，不会自动额外插入变异序列。Group 会从候选中只移除一次默认值。自动变异可使用 `integer`、`bytes` 或 `text` 字段。
+
+运行前应按协议配置响应边界：TCP 用 `none`、`fixed` 或 `until`，UDP 用 `none` 或 `datagram`。完整 JSON 写法见 [协议定义说明](docs/DEFINITIONS.md)。
+
+generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；report 按结果分类并给出失败行号和身份。每次运行使用新日志文件，避免追加相同身份后产生歧义。report 遇到损坏尾行仍输出之前的完整记录汇总，并以状态码 2 退出。replay 拒绝损坏文件；重放结果失败返回 1，配置或文件错误返回 2。
+
+`limited` 表示达到配置的数量上限，并不表示一定还有未生成的用例。`run` 成功写完记录时返回 0，即使其中存在超时或其他失败用例；判断目标结果应查看 `report`，不能只看 `run` 的退出码。生成结果与执行记录是两种不同格式，`replay` 的输入应来自 `run --output`。
+
+## 文档导航
+
+| 需求 | 文档 |
+| --- | --- |
+| 编写 JSON 协议、字段与读取策略 | [DEFINITIONS.md](docs/DEFINITIONS.md) |
+| 用 Web 页面把 HTTP 报文转成定义 | [CONVERT.md](docs/CONVERT.md) |
+| 运行本地 HTTP fuzz 靶子（httpd） | [HTTPD.md](docs/HTTPD.md) |
+| 用 MoonBit 代码编写 fuzz 脚本 | [原生 MoonBit 完整示例](examples/moonbit_http/README.md)、[CODE.md](docs/CODE.md)、[可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
+| 配置前置路径和执行器 | [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) |
+| 响应检查、故障通知和恢复回调 | [MONITORS.md](docs/MONITORS.md) |
+| 理解日志、重放和退出码 | [RECORDS.md](docs/RECORDS.md)、[REPLAY.md](docs/REPLAY.md)、[REPORT.md](docs/REPORT.md) |
+| 核对验收、兼容边界与许可 | [ACCEPTANCE.md](docs/ACCEPTANCE.md)、[UPSTREAM.md](docs/UPSTREAM.md) |
+
+## 支持的核心
+
+- Simple、Group、8/16/32/64 位整数、二进制 Bytes、UTF-8 字符串和分隔符变异。
+- HTTP 报文转换器：粘贴原始请求，勾选要 fuzz 的分段并为每段选择变异原语（字符串库/整数/二进制/随机/显式候选），自动生成并校验协议定义 JSON（见 [CONVERT.md](docs/CONVERT.md)）。
+- 命名嵌套块、条件块、重复、对齐、长度字段（二进制或 ascii 十进制渲染，后者对应上游 Content-Length 模式）及 CRC32。
+- 惰性单字段枚举、稳定身份、起始位置、数量限制与停止状态。
+- DAG 会话路径；每例重新连接并执行默认前置请求，仅变异末端目标。
+- TCP 完整发送与无响应/固定长度/分隔符读取；UDP 保留报文边界和空报文。
+- 生命周期回调、响应检查、故障通知与目标恢复；监视器检测的目标崩溃（如 `--target-cmd` 进程监视器）以 `MonitorFailed` 计入失败并触发恢复，普通回调异常只记录不计数；拨号失败默认无限重试（阈值/超时可配，放弃即停）。
+- 版本化 JSON 定义、JSONL 记录、按保存字节重放及分类报告。
+
+旧 Static、Choice 和平面 Request 行为保留。Choice 是原项目显式候选 API，不冒充上游 Group。新 API 示例见 [README.mbt.md](README.mbt.md)，JSON 格式见 [DEFINITIONS.md](docs/DEFINITIONS.md)。
+
+## 边界
+
+默认单请求 1 MiB、接收 64 KiB；用例数**不设默认上限**（与上游一致，跑到用例全部耗尽为止，`--limit N` 或 `case_limit` 可显式设限，达到上限返回 limited 状态）。直接渲染超限返回明确错误；变异流跳过超长候选并保留其原始序号，不截断载荷。动态变异在分配前检查长度。
+
+连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃；目标崩溃由监视器存活检测判定并以 `MonitorFailed` 计入失败。
+
+已实现的补充能力：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（与上游一致常开，自动落 `boofuzz-results/run-<UTC时间戳>.db`）、`--record-passes` 写入节流、Web UI（默认 26000 常开）与 `open` 子命令、UDP 服务端模式与广播。
+
+仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行、TCP 服务端模式、`restart_interval` 周期性重启。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界与评估结论见 [UPSTREAM.md](docs/UPSTREAM.md)、[PLAN.md](docs/PLAN.md)。
+
+## 验证与发布准备
+
+[GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows（MSVC）、Linux（GCC + ASan）与 Wasm/Native。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
+
+`moon package --list` 审查源码包内容，`moon package` 生成待发布源码包。发布前清单见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。报名申报书仍由本人撰写，本项目不代填或提交。
+
+## 许可与来源
+
+本项目保持 **GPL-2.0-only**，见 [LICENSE](LICENSE)。移植来源、差分样本生成方式、已知差异及工具链许可注意事项见 [UPSTREAM.md](docs/UPSTREAM.md)。本项目不是 boofuzz 官方版本。
