@@ -194,7 +194,7 @@ pub fn Node::checksum(String, String, endian? : Endian, mutations? : Array[UInt]
 pub fn Node::dynamic(String, String, Field) -> Self
 pub fn Node::mirror(String, String) -> Self
 pub fn Node::repeat(String, String, min? : Int, max? : Int, step? : Int, variable? : String) -> Self
-pub fn Node::size(String, String, length? : Int, endian? : Endian, offset? : Int, inclusive? : Bool, mutations? : Array[UInt64], fuzzable? : Bool) -> Self raise ModelError
+pub fn Node::size(String, String, length? : Int, endian? : Endian, offset? : Int, inclusive? : Bool, ascii? : Bool, mutations? : Array[UInt64], fuzzable? : Bool) -> Self raise ModelError
 
 pub(all) enum Primitive {
   Static(Bytes)
@@ -240,6 +240,7 @@ pub struct SizeSpec {
   endian : Endian
   offset : Int
   inclusive : Bool
+  ascii : Bool
   mutations : Array[Bytes]
 }
 
