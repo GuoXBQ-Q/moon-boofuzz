@@ -5,6 +5,10 @@ pub struct SizeSpec {
   endian : Endian
   offset : Int
   inclusive : Bool
+  /// Upstream output_format="ascii" (size.py:41-48): render the computed
+  /// length as ASCII decimal digits instead of a fixed-width binary
+  /// integer — HTTP Content-Length being the canonical use.
+  ascii : Bool
   mutations : Array[Bytes]
 }
 
@@ -16,16 +20,23 @@ pub fn Node::size(
   endian? : Endian = Little,
   offset? : Int = 0,
   inclusive? : Bool = false,
+  ascii? : Bool = false,
   mutations? : Array[UInt64] = [],
   fuzzable? : Bool = true,
 ) -> Node raise ModelError {
   guard length == 1 || length == 2 || length == 4 || length == 8 else {
     raise Invalid("size length must be 1, 2, 4 or 8 bytes")
   }
+  // ASCII width varies with the value, so inclusive self-counting (which
+  // assumes the field's fixed width) cannot apply.
+  guard !(ascii && inclusive) else {
+    raise Invalid("ascii size cannot be inclusive")
+  }
   let maximum = integer_max(length * 8)
   // With no explicit values, upstream delegates mutations to an inner
   // BitField over the full width (boofuzz/blocks/size.py:91-104, 518c139);
   // the encoded values then bypass length computation (size.py:106-115).
+  // In ascii mode the same boundary values render as decimal text.
   let selected : Array[UInt64] = if !fuzzable {
     []
   } else if mutations.is_empty() {
@@ -38,8 +49,22 @@ pub fn Node::size(
     }
     mutations
   }
-  let values = selected.map(value => encode_integer(value, length * 8, endian))
-  Sized(name, { target, length, endian, offset, inclusive, mutations: values, })
+  let values = selected.map(value => {
+    if ascii {
+      @utf8.encode(value.to_string())
+    } else {
+      encode_integer(value, length * 8, endian)
+    }
+  })
+  Sized(name, {
+    target,
+    length,
+    endian,
+    offset,
+    inclusive,
+    ascii,
+    mutations: values,
+  })
 }
 
 ///|
@@ -70,7 +95,15 @@ fn CompiledRequest::measure(
             None => field.value.length()
           }
       }
-    ComputedSize(spec) => spec.length
+    ComputedSize(spec) =>
+      // An ascii field's width varies with its value; measure the actual
+      // default/current rendering. Safe from recursion because ascii
+      // sizes may not be contained in their own target.
+      if spec.ascii {
+        self.size_value(spec, replacements, vars).length()
+      } else {
+        spec.length
+      }
     ComputedChecksum(spec) => spec.algorithm.length()
     Mirror(target) => {
       guard !active.contains(index) else { return 0 }
@@ -148,7 +181,12 @@ fn CompiledRequest::size_value(
   guard value <= integer_max(spec.length * 8) else {
     raise Invalid("computed size encoding overflow")
   }
-  encode_integer(value, spec.length * 8, spec.endian)
+  // Upstream output_format="ascii": the length becomes decimal text.
+  if spec.ascii {
+    @utf8.encode(length.to_string())
+  } else {
+    encode_integer(value, spec.length * 8, spec.endian)
+  }
 }
 
 ///|
@@ -218,6 +256,12 @@ fn CompiledRequest::validate_sizes(
         if dependency != i {
           edges[i].push(dependency)
         } else {
+          // Self-containing binary sizes measure their fixed width; an
+          // ascii size's width varies with its value, so containing it in
+          // its own target is ambiguous and rejected.
+          guard !spec.ascii else {
+            raise Invalid("ascii size must not be contained in its target")
+          }
           guard entry.path.has_prefix(spec.target + ".") else {
             raise Invalid("indirect self size dependency")
           }

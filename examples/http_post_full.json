@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "requests": [
+    {
+      "name": "request",
+      "children": [
+        { "type": "group", "name": "verb", "values_hex": ["504f5354", "505554"], "default_hex": "504f5354" },
+        { "type": "static", "name": "sp1", "value_hex": "20" },
+        { "type": "static", "name": "uri", "value_hex": "2f6563686f" },
+        { "type": "static", "name": "sp2", "value_hex": "20" },
+        { "type": "static", "name": "version", "value_hex": "485454502f312e31" },
+        { "type": "static", "name": "crlf0", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_host", "value_hex": "486f73743a20" },
+        { "type": "static", "name": "host", "value_hex": "3132372e302e302e313a39303030" },
+        { "type": "static", "name": "crlf1", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_ua", "value_hex": "557365722d4167656e743a20" },
+        { "type": "static", "name": "ua", "value_hex": "6d6f6f6e2d626f6f66757a7a2f302e31" },
+        { "type": "static", "name": "crlf2", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_ctype", "value_hex": "436f6e74656e742d547970653a20" },
+        { "type": "static", "name": "ctype", "value_hex": "6170706c69636174696f6e2f6a736f6e" },
+        { "type": "static", "name": "crlf3", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_clen", "value_hex": "436f6e74656e742d4c656e6774683a20" },
+        { "type": "simple", "name": "clen", "value_hex": "3231", "values_hex": ["30", "2d31", "393939393939393939"] },
+        { "type": "static", "name": "crlf4", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_conn", "value_hex": "436f6e6e656374696f6e3a20" },
+        { "type": "static", "name": "conn", "value_hex": "636c6f7365" },
+        { "type": "static", "name": "crlf5", "value_hex": "0d0a" },
+        { "type": "static", "name": "head_end", "value_hex": "0d0a" },
+        { "type": "text", "name": "body", "value": "{\"name\":\"fuzz\",\"n\":1}" }
+      ]
+    }
+  ],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": { "host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 500 },
+    "policies": { "request": { "kind": "until", "delimiter_hex": "0d0a0d0a" } },
+    "case_limit": 40
+  }
+}

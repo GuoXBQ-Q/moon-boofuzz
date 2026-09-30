@@ -91,3 +91,76 @@ test "size rejects negative lengths overflow unknown references and ordinary cyc
     },
   )
 }
+
+///|
+test "ascii size renders the live body length as decimal text" {
+  // The HTTP Content-Length shape (upstream http_with_body.py): a text
+  // length field tracking its body block.
+  let request = @moon_boofuzz.CompiledRequest::compile(
+    @moon_boofuzz.Block::new("r", [
+      Leaf("label", @moon_boofuzz.Field::simple(b"CL:", [], fuzzable=false)),
+      @moon_boofuzz.Node::size("len", "r.body", ascii=true, fuzzable=false),
+      Nested(
+        @moon_boofuzz.Block::new("body", [
+          Leaf("x", @moon_boofuzz.Field::simple(b"AB", [b"", b"CDEF"])),
+        ]),
+      ),
+    ]),
+  )
+  assert_eq(request.render(), b"CL:2AB")
+  let stream = request.cases()
+  // Body mutations change the wire length and the text length follows.
+  assert_eq(stream.next().map(case => case.payload), Some(b"CL:0"))
+  assert_eq(stream.next().map(case => case.payload), Some(b"CL:4CDEF"))
+}
+
+///|
+test "ascii size boundary mutations render as decimal text" {
+  let request = @moon_boofuzz.CompiledRequest::compile(
+    @moon_boofuzz.Block::new("r", [
+      @moon_boofuzz.Node::size("len", "r.body", length=1, ascii=true, mutations=[
+        0UL, 255UL,
+      ]),
+      Nested(
+        @moon_boofuzz.Block::new("body", [
+          Leaf("x", @moon_boofuzz.Field::simple(b"AB", [])),
+        ]),
+      ),
+    ]),
+  )
+  assert_eq(request.render(), b"2AB")
+  let stream = request.cases()
+  assert_eq(stream.next().map(case => case.payload), Some(b"0AB"))
+  assert_eq(stream.next().map(case => case.payload), Some(b"255AB"))
+}
+
+///|
+test "ascii size rejects inclusive and self-containment" {
+  // inclusive is rejected at construction time.
+  assert_true(
+    try {
+      ignore(
+        @moon_boofuzz.Node::size("len", "r.body", ascii=true, inclusive=true),
+      )
+      false
+    } catch {
+      _ => true
+    },
+  )
+  // Containing the ascii size in its own target is rejected at compile.
+  assert_true(
+    try {
+      ignore(
+        @moon_boofuzz.CompiledRequest::compile(
+          @moon_boofuzz.Block::new("r", [
+            @moon_boofuzz.Node::size("len", "r", ascii=true),
+            Nested(@moon_boofuzz.Block::new("body", [])),
+          ]),
+        ),
+      )
+      false
+    } catch {
+      _ => true
+    },
+  )
+}

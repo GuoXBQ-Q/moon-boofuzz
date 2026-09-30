@@ -23,37 +23,45 @@ pub trait SessionView {
 
 ///|
 /// Live view for `run --web-port`: counters live in Refs the capture loop
-/// refreshes; pause is the flag checked before every case.
+/// refreshes; pause is the flag checked before every case. Observed
+/// records are also kept so /test-case detail pages work during the run,
+/// standing in for upstream's live-written results db. `total` is the
+/// primitive-count denominator (upstream num_mutations).
 pub struct LiveSession {
   paused : @ref.Ref[Bool]
   executed : @ref.Ref[Int]
-  limit : Int
+  total : Int
   started_ms : Int64
   failures : @ref.Ref[Map[Int, Array[String]]]
   current_name : @ref.Ref[String]
+  cases : @ref.Ref[Map[Int, @records.CaseRecord]]
 }
 
 ///|
-pub fn LiveSession::new(limit~ : Int) -> LiveSession {
+pub fn LiveSession::new(total~ : Int) -> LiveSession {
   {
     paused: @ref.Ref(false),
     executed: @ref.Ref(0),
-    limit,
+    total,
     started_ms: web_now_ms(),
     failures: @ref.Ref(Map([])),
     current_name: @ref.Ref(""),
+    cases: @ref.Ref(Map([])),
   }
 }
 
 ///|
-/// Observe one executed case: advances the counters and records failures
-/// for the crash list, mirroring what the results database persists.
+/// Observe one executed case: advances the counters, records failures
+/// for the crash list and keeps the record for the detail pages,
+/// mirroring what the results database persists. Memory grows with the
+/// number of executed cases.
 pub fn LiveSession::observe(
   self : LiveSession,
   record : @records.CaseRecord,
 ) -> Unit {
-  self.executed.val = record.ordinal + 1
+  self.executed.val += 1
   self.current_name.val = record.request_name
+  self.cases.val[record.ordinal] = record
   if record.outcome != "passed" {
     match record.failed_step {
       Some(-1) => ()
@@ -99,8 +107,11 @@ pub impl SessionView for LiveSession with fn current_index(self) {
 
 ///|
 pub impl SessionView for LiveSession with fn num_mutations(self) {
-  if self.limit > 0 {
-    Some(self.limit)
+  // The denominator the caller computed from the definition's primitive
+  // counts (upstream Session.num_mutations); combinatorial blasting may
+  // execute past it, and a zero total renders as Unbounded.
+  if self.total > 0 {
+    Some(self.total)
   } else {
     None
   }
@@ -142,11 +153,13 @@ pub impl SessionView for LiveSession with fn crashes(self) {
 }
 
 ///|
-pub impl SessionView for LiveSession with fn test_case_data(_self, index) {
-  // Live run details come from the results database via `open`, not from
-  // the in-memory session; upstream serves them from procmon/test-case
-  // state which this port keeps on disk.
-  raise @db.NoSuchCase(index)
+pub impl SessionView for LiveSession with fn test_case_data(self, index) {
+  // Details come from the records observed so far; an index beyond the
+  // executed count raises, and the page explains it has not run yet.
+  match self.cases.val.get(index) {
+    Some(record) => record_case(record)
+    None => raise @db.NoSuchCase(index)
+  }
 }
 
 ///|
@@ -332,51 +345,54 @@ fn jsonl_failures(
 fn jsonl_case(records : Array[@records.CaseRecord], index : Int) -> @db.DbCase? {
   for record in records {
     if record.ordinal == index {
-      let steps : Array[@db.DbStep] = []
-      for step in record.steps {
-        steps.push({
-          step_type: "step",
-          description: step.request_name,
-          data: b"",
-          timestamp: "",
-          truncated: false,
-        })
-        steps.push({
-          step_type: "send",
-          description: "",
-          data: step.sent,
-          timestamp: "",
-          truncated: false,
-        })
-        steps.push({
-          step_type: "receive",
-          description: "",
-          data: step.received,
-          timestamp: "",
-          truncated: false,
-        })
-      }
-      let step_type = if record.outcome == "passed" {
-        "pass"
-      } else if record.failed_step is Some(-1) {
-        "error"
-      } else {
-        "fail"
-      }
-      steps.push({
-        step_type,
-        description: record.detail,
-        data: b"",
-        timestamp: "",
-        truncated: false,
-      })
-      return Some({
-        name: record.request_name,
-        index: record.ordinal,
-        timestamp: "",
-        steps,
-      })
+      return Some(record_case(record))
     }
   }
   None
+}
+
+///|
+/// One CaseRecord rendered as the case inspector's data: the upstream log
+/// sequence (step / send / receive per protocol step, then the verdict),
+/// shared by the offline JSONL view and the live session.
+fn record_case(record : @records.CaseRecord) -> @db.DbCase {
+  let steps : Array[@db.DbStep] = []
+  for step in record.steps {
+    steps.push({
+      step_type: "step",
+      description: step.request_name,
+      data: b"",
+      timestamp: "",
+      truncated: false,
+    })
+    steps.push({
+      step_type: "send",
+      description: "",
+      data: step.sent,
+      timestamp: "",
+      truncated: false,
+    })
+    steps.push({
+      step_type: "receive",
+      description: "",
+      data: step.received,
+      timestamp: "",
+      truncated: false,
+    })
+  }
+  let step_type = if record.outcome == "passed" {
+    "pass"
+  } else if record.failed_step is Some(-1) {
+    "error"
+  } else {
+    "fail"
+  }
+  steps.push({
+    step_type,
+    description: record.detail,
+    data: b"",
+    timestamp: "",
+    truncated: false,
+  })
+  { name: record.request_name, index: record.ordinal, timestamp: "", steps, }
 }

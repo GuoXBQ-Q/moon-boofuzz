@@ -10,9 +10,12 @@ pub struct WebUi {
 }
 
 ///|
-pub fn WebUi::open(port~ : Int, limit~ : Int) -> WebUi raise {
+/// `total` is the run's progress denominator: the sum of every mutated
+/// field's primitive count for the fuzzed targets (upstream
+/// Session.num_mutations), not the case cap.
+pub fn WebUi::open(port~ : Int, total~ : Int) -> WebUi raise {
   let server = HttpServer::bind(port~)
-  { server, session: LiveSession::new(limit~), }
+  { server, session: LiveSession::new(total~), }
 }
 
 ///|

@@ -142,6 +142,21 @@ test "converter generates a validated definition with previews" {
 }
 
 ///|
+test "converter case limit 0 generates an uncapped definition" {
+  let server = HttpServer::bind(port=0)
+  defer web_socket_close(server.socket)
+  let rawtext = "GET%20%2F%20HTTP%2F1.1%0D%0AHost%3A%20127.0.0.1%0D%0A%0D%0A"
+  let form = "rawtext=" +
+    rawtext +
+    "&request_name=request&host=127.0.0.1&port=9000&policy=until&fixed_length=2&case_limit=0" +
+    "&f_uri=on&c_uri=%2Fabc%0A%2Fdef"
+  let body = post_roundtrip(server, "/convert/generate", form)
+  assert_true(body.has_prefix("HTTP/1.1 200"))
+  // 0 = no cap: the emitted execution omits case_limit entirely.
+  assert_false(body.contains("case_limit"))
+}
+
+///|
 test "converter generate validates numeric options" {
   let server = HttpServer::bind(port=0)
   defer web_socket_close(server.socket)
@@ -192,9 +207,9 @@ test "generate honors the integer primitive" {
     "&f_hdr_0=on&p_hdr_0=integer&p_hdr_0_width=16&p_hdr_0_endian=big"
   let body = post_roundtrip(server, "/convert/generate", form)
   assert_true(body.has_prefix("HTTP/1.1 200"))
-  assert_true(body.contains("\"type\":\"integer\""))
-  assert_true(body.contains("\"width\":16"))
-  assert_true(body.contains("\"endian\":\"big\""))
+  assert_true(body.contains("&quot;type&quot;: &quot;integer&quot;"))
+  assert_true(body.contains("&quot;width&quot;: 16"))
+  assert_true(body.contains("&quot;endian&quot;: &quot;big&quot;"))
 }
 
 ///|
@@ -216,6 +231,44 @@ test "generate honors the bytes primitive on the body" {
   let form = "rawtext=" + rawtext + "&f_body=on&p_body=bytes&p_body_maxlen=64"
   let body = post_roundtrip(server, "/convert/generate", form)
   assert_true(body.has_prefix("HTTP/1.1 200"))
-  assert_true(body.contains("\"type\":\"bytes\""))
-  assert_true(body.contains("\"max_len\":64"))
+  assert_true(body.contains("&quot;type&quot;: &quot;bytes&quot;"))
+  assert_true(body.contains("&quot;max_len&quot;: 64"))
+}
+
+///|
+test "HTML escaping encodes every delimiter including repeated payload tags" {
+  assert_eq(
+    html_escape("<<>>&\"\"''"),
+    "&lt;&lt;&gt;&gt;&amp;&quot;&quot;&#39;&#39;",
+  )
+  let raw = "<b>payload</b></textarea><script>alert(1)</script>"
+  let rendered = render_convert_input(raw)
+  let html = @utf8.decode(rendered.body)
+  assert_true(!html.contains(raw))
+  assert_true(
+    html.contains(
+      "&lt;b&gt;payload&lt;/b&gt;&lt;/textarea&gt;&lt;script&gt;alert(1)&lt;/script&gt;",
+    ),
+  )
+}
+
+///|
+test "converter auto-tracks Content-Length over the body" {
+  let server = HttpServer::bind(port=0)
+  defer web_socket_close(server.socket)
+  // POST with Content-Length: 2 and body "ok"; the body is selected for
+  // string-library fuzzing so the generated length field must follow it.
+  let rawtext = "POST%20%2Fecho%20HTTP%2F1.1%0D%0AHost%3A%20127.0.0.1%0D%0AContent-Length%3A%202%0D%0A%0D%0Aok"
+  let form = "rawtext=" +
+    rawtext +
+    "&request_name=request&host=127.0.0.1&port=9000&policy=until&fixed_length=2&case_limit=0" +
+    "&f_body=on&p_body=text"
+  let body = post_roundtrip(server, "/convert/generate", form)
+  assert_true(body.has_prefix("HTTP/1.1 200"))
+  // The page pretty-prints and HTML-escapes the definition (quotes become
+  // &quot;); the derived length field and the wrapped body block must
+  // both appear. Exact-shape assertions live at the httpgen layer.
+  assert_true(body.contains("ascii&quot;: true"))
+  assert_true(body.contains("request.body"))
+  assert_true(body.contains("&quot;block&quot;"))
 }

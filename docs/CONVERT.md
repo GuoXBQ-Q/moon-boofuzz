@@ -9,7 +9,7 @@ moon run --target native cmd/boofuzz -- convert --ui-port 0    # 0 = 随机空�
 
 ## 操作流程
 
-1. **粘贴报文**：在文本框粘贴完整的原始 HTTP 请求（含头、空行和可选 body），配置目标地址（host/port）、请求名、读取策略和 case 上限，提交解析。
+1. **粘贴报文**：在文本框粘贴完整的原始 HTTP 请求（含头、空行和可选 body），配置目标地址（host/port）、请求名、读取策略和 case 上限（默认 **0 = 不限制**，生成的定义不含 `case_limit`，跑完为止；正数 N 则封顶 N 例），提交解析。
 2. **勾选分段**：报文被拆成方法、URI、版本、每个头部值和 body，每段一个勾选框和一个**变异原语**下拉框：
    - 不勾选 = 冻结，每个用例原样重发；
    - 原语 **string library** = 内置坏字符串库（`text` 字段），URI/头部等文本段的首选；
@@ -45,8 +45,9 @@ moon run --target native cmd/boofuzz -- convert --ui-port 0    # 0 = 随机空�
 - **逐字节还原**：所有冻结字段渲染出的报文与粘贴内容逐字节一致，包括冒号后空格的有无和 CRLF/LF 行尾。方法、URI 等位置按线上顺序拆分，结构字节成为独立的 `static` 字段。选择 string library 或 candidates 原语同样保持文本形态；选择 integer/bytes/random 后该段按二进制渲染（上游原语行为），与原报文的逐字节一致不再成立。
 - **仅支持 HTTP 请求**：fuzz HTTP 响应需要 TCP 服务端模式（未移植）。请求行必须是 `方法 SP URI SP HTTP版本` 三段；头部行必须含冒号。
 - **body 是 UTF-8 文本**：二进制 body 请手工编辑生成的 JSON（`bytes` 字段）。
-- **Content-Length 提示**：报文声明了 Content-Length 时，勾选 body 段会显示长度不匹配提醒——候选值改变 body 长度而该头部保持冻结，多数服务器会挂起或断连。经典做法是把 Content-Length 值本身作为头部值段的显式候选（如 `0`、`-1`、超大值）。
+- **Content-Length 自动跟随**：报文恰好声明一个 Content-Length 且存在 body 时，**未勾选**的 Content-Length 值段自动生成为 `"ascii": true` 的派生 size 字段（body 包进命名块）——body 变异时长度实时重算，报文永远自洽（对齐上游 `http_with_body.py` 的 `s_size(output_format="ascii")`；默认渲染与原报文逐字节一致）。勾选该段则保持显式候选的失配探测行为。多个 Content-Length（走私场景）不自动接线。
 - **混合行尾**：CRLF 与裸 LF 混用的报文按消息级行尾归一（有 `\r` 按 CRLF 处理）；头终结符与 body 始终保持原字节。
+- **生成的定义显式钉死 `"combinatorial": false`**：页面的用例数按顺序枚举（`raw_mutation_count`）计算、预览取前 3 例——组合爆破的总数无法预先得知，钉死顺序模式让这两个数字保持精确。要组合爆破时手工删掉该键即可（默认开启）。
 - 输入上限 64 KiB；生成的定义同样受单请求 1 MiB、单次执行 10,000 例等全局上限约束（见 README「边界」）。
 
 ## 命令行衔接

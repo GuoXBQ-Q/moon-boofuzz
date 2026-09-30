@@ -126,3 +126,39 @@ test "replay rejects unsupported config before connecting" {
     },
   )
 }
+
+///|
+test "execution config defaults combinatorial on; explicit false honored" {
+  let base : Json = {
+    "transport": "udp",
+    "endpoint": { "host": "127.0.0.1", "port": 1 },
+    "policies": {},
+    "case_limit": 2,
+  }
+  assert_true(ExecutionConfig::parse(base).combinatorial)
+  let opted_out : Json = {
+    "transport": "udp",
+    "endpoint": { "host": "127.0.0.1", "port": 1 },
+    "policies": {},
+    "case_limit": 2,
+    "combinatorial": false,
+  }
+  assert_false(ExecutionConfig::parse(opted_out).combinatorial)
+}
+
+///|
+test "execution config defaults to no case limit; explicit case_limit honored" {
+  let unlimited : Json = {
+    "transport": "udp",
+    "endpoint": { "host": "127.0.0.1", "port": 1 },
+    "policies": {},
+  }
+  assert_eq(ExecutionConfig::parse(unlimited).limit, NO_CASE_LIMIT)
+  let capped : Json = {
+    "transport": "udp",
+    "endpoint": { "host": "127.0.0.1", "port": 1 },
+    "policies": {},
+    "case_limit": 7,
+  }
+  assert_eq(ExecutionConfig::parse(capped).limit, 7)
+}

@@ -34,8 +34,8 @@ Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/rele
 
 | 命令 | 输入与用途 | 主要选项 |
 | --- | --- | --- |
-| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N` |
-| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`、`--db FILE`、`--record-passes N`、`--csv-out FILE`、`--web-port N`、`--target-cmd CMD` |
+| `generate` | JSON 协议定义 → 变异载荷 JSONL，不连接目标 | `--limit N`、`--start N`、`--id ID`（需 `--combinatorial false`）；组合爆破默认开启（与上游 CLI 一致） |
+| `run` | JSON 协议定义 → 逐例执行并保存实际流量 | 必填 `--output FILE`；可选 `--limit N`（缺省**无上限**，跑完为止）、`--combinatorial true|false`、`--start N`、`--end N`、`--db FILE`（缺省自动写 `boofuzz-results/run-<UTC时间戳>.db`，与上游一致常开）、`--record-passes N`、`--csv-out FILE`、`--web-port N`（缺省 26000，与上游一致常开；`0` 为随机空闲端口）、`--target-cmd CMD` |
 | `open` | 结果库/JSONL → 本地只读 Web 视图 | `--ui-port N`（默认 26000） |
 | `convert` | Web 页面：粘贴原始 HTTP 报文 → 勾选分段并选择变异原语（字符串库/整数/二进制/随机/候选值）→ 自动生成协议定义 JSON（校验、用例数、载荷预览、复制/下载） | `--ui-port N`（默认 26001） |
 | `report` | JSONL 执行记录 → 分类计数、失败身份和行号 | `--max-bytes N` |
@@ -43,13 +43,15 @@ Windows 用户可使用 [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/rele
 
 查看帮助：`moon run --target native cmd/boofuzz -- --help`。所有命令均从项目根目录执行。
 
-`examples/tcp.json`、`udp.json` 和 `stateful.json` 默认指向 127.0.0.1:9000。运行这些定义前，启动自己的测试目标并按需要修改地址和读取策略。
+`examples/tcp.json`、`udp.json` 和 `stateful.json` 默认指向 127.0.0.1:9000。前两者需要兼容的测试目标；`stateful.json` 可配合仓库自带的 `cmd/stateful_target` 直接运行，详见 [多报文手工测试](docs/STATEFUL.md)。
 
 ```sh
 moon run --target native cmd/boofuzz -- run examples/tcp.json --output _build/tcp-cases.jsonl
 moon run --target native cmd/boofuzz -- report _build/tcp-cases.jsonl
 moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["packet"]/v1:packet.data:0'
 ```
+
+与上游一致，`run` 每次都会在 `boofuzz-results/` 下生成一份 SQLite 结果库（`run-<UTC时间戳>.db`），并在默认端口 26000 启动实时 Web UI（端口被占时自动顺延）；进程在输出摘要后退出，不等待交互。组合爆破默认开启，按 id 续跑需显式 `--combinatorial false`。
 
 从 report 复制实际 case_id。重放可用 `--host HOST --port PORT` 显式覆盖目标，始终发送记录中的字节，不重新生成变异。响应无需与原记录完全相同。
 
@@ -58,7 +60,7 @@ moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["pa
 - [offline.json](examples/offline.json)：保留 `PING ` 前缀，依次生成空值、`00ff` 二进制值和 `long`。`payload_hex` 是完整请求，`prefix_hex` 是会话前置请求。
 - [tcp.json](examples/tcp.json)：向 127.0.0.1:9000 发送 `00ff`、`414141` 两个用例，每例等待 2 字节响应，接收超时 100 ms。目标不回复时会记录超时。
 - [udp.json](examples/udp.json)：发送空报文及 `00ff`，每例接收一个 UDP 报文。
-- [stateful.json](examples/stateful.json)：每个新连接重新发送 `HELLO`、`AUTH test`，再发送变异 `DATA`；只变异末端 `query`。示例使用默认的无响应读取策略。
+- [stateful.json](examples/stateful.json)：每个新连接重新发送 `HELLO`、`AUTH test`，再发送变异 `DATA`；只变异末端 `query`，每步等待响应。可直接运行 [多报文手工测试](docs/STATEFUL.md) 中的本地靶子和命令。
 
 `value_hex` 定义正常值，`values_hex` 定义显式变异候选；默认值用于普通渲染和前置请求，不会自动额外插入变异序列。Group 会从候选中只移除一次默认值。自动变异可使用 `integer`、`bytes` 或 `text` 字段。
 
@@ -75,7 +77,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 | 编写 JSON 协议、字段与读取策略 | [DEFINITIONS.md](docs/DEFINITIONS.md) |
 | 用 Web 页面把 HTTP 报文转成定义 | [CONVERT.md](docs/CONVERT.md) |
 | 运行本地 HTTP fuzz 靶子（httpd） | [HTTPD.md](docs/HTTPD.md) |
-| 用 MoonBit 代码编写 fuzz 脚本 | [CODE.md](docs/CODE.md)、[可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
+| 用 MoonBit 代码编写 fuzz 脚本 | [原生 MoonBit 完整示例](examples/moonbit_http/README.md)、[CODE.md](docs/CODE.md)、[可执行 API 示例](README.mbt.md)、[MODEL.md](docs/MODEL.md) |
 | 配置前置路径和执行器 | [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) |
 | 响应检查、故障通知和恢复回调 | [MONITORS.md](docs/MONITORS.md) |
 | 理解日志、重放和退出码 | [RECORDS.md](docs/RECORDS.md)、[REPLAY.md](docs/REPLAY.md)、[REPORT.md](docs/REPORT.md) |
@@ -96,11 +98,11 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 ## 边界
 
-默认单请求 1 MiB、每次执行 10,000 例、接收 64 KiB；可显式调整。直接渲染超限返回明确错误；变异流跳过超长候选并保留其原始序号，数量上限返回 limited 状态，不截断载荷。动态变异在分配前检查长度。
+默认单请求 1 MiB、接收 64 KiB；用例数**不设默认上限**（与上游一致，跑到用例全部耗尽为止，`--limit N` 或 `case_limit` 可显式设限，达到上限返回 limited 状态）。直接渲染超限返回明确错误；变异流跳过超长候选并保留其原始序号，不截断载荷。动态变异在分配前检查长度。
 
 连接、发送和接收超时默认各 5 秒。系统主机名解析发生在套接字连接计时前；需要严格连接总时限时使用 IPv4。网络异常只表示传输/响应故障，不直接判定目标崩溃；目标崩溃由监视器存活检测判定并以 `MonitorFailed` 计入失败。
 
-已在后续提交中补齐（不再是缺口）：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（`run --db`）、`--record-passes` 写入节流、Web UI 与 `open` 子命令、UDP 服务端模式与广播。
+已在后续提交中补齐（不再是缺口）：IPv6 双栈、File 传输、CSV 导出、SQLite 结果库（与上游一致常开，自动落 `boofuzz-results/run-<UTC时间戳>.db`）、`--record-passes` 写入节流、Web UI（默认 26000 常开）与 `open` 子命令、UDP 服务端模式与广播。
 
 仍不包含：Python `s_*` DSL、pedrpc 远程监视器、调试器与崩溃地址分析、curses TUI、TLS、串口、Unix 域 socket、Raw L2/L3 原始帧、多播、覆盖率引导、并行执行、TCP 服务端模式、`restart_interval` 周期性重启。String 支持动态 UTF-8 子集，不暴露上游按字符截断的 size/max_len；Bytes 填充限单字节。详细兼容边界与评估结论见 [UPSTREAM.md](docs/UPSTREAM.md)、[PLAN.md](docs/PLAN.md)。
 

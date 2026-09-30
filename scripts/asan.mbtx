@@ -17,7 +17,7 @@ async fn main {
   // The empty anchor blocks are committed in these moon.pkg files.
   let pkg_names = [
     "transport", "recordio", "runner", "process", "db", "web", "cmd/boofuzz",
-    "cmd/httpfuzz", "cmd/httpd",
+    "cmd/httpfuzz", "cmd/httpd", "cmd/stateful_target", "examples/moonbit_http",
   ]
   for pkg_name in pkg_names {
     let path = root + "/" + pkg_name + "/moon.pkg"

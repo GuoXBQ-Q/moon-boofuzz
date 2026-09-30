@@ -76,7 +76,7 @@ pub fn ProcessMonitor::new(
         None => start()
       }
     },
-    after=fn(_result) raise {
+    after=fn(result) raise {
       // Any target exit during the run is a fault, exit code zero included:
       // upstream's post_send reports death regardless of how it happened.
       // The signal is a MonitorSignal, not a ProcessError, so the runner
@@ -84,7 +84,18 @@ pub fn ProcessMonitor::new(
       // through fault/recover (upstream session.py:507-548, 569-632).
       match state.val {
         Some(process) => {
-          let status = process.status()
+          let mut status = process.status()
+          if !status.exited {
+            // A crashing target can reset the socket just before the OS
+            // reports process exit. Settle briefly only for those symptoms.
+            match result.outcome {
+              @runner.ConnectionIgnored(_) | @runner.PeerClosed => {
+                ignore(process.wait(timeout_ms=50))
+                status = process.status()
+              }
+              _ => ()
+            }
+          }
           if status.exited {
             let text = "target process exited with code \{status.exit_code}"
             synopsis.val = text

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // httpd: a small strict HTTP fuzz target. Listens on the loopback, parses
-// each request with the strict rules in http.mbt, answers malformed input
-// with explicit statuses, and never lets one bad connection take the
-// process down. Pair it with cmd/boofuzz run --target-cmd or drive it by
+// each request with the strict rules in http.mbt and answers malformed
+// input with explicit statuses. Optional lab mode adds controlled fault
+// triggers. Pair it with cmd/boofuzz run --target-cmd or drive it by
 // hand; see docs/HTTPD.md.
 
 ///|
@@ -21,11 +21,12 @@ struct HttpdConfig {
   port : Int
   max_head : Int
   max_body : Int
+  lab_mode : Bool
 } derive(Debug)
 
 ///|
 fn httpd_usage() -> String {
-  "httpd [--port N] [--max-head N] [--max-body N]\n  --port N        loopback port to bind (default 9000, 0 = pick a free port)\n  --max-head N    head cap in bytes, 431 beyond it (default 8192)\n  --max-body N    body cap in bytes, 413 beyond it (default 1048576)"
+  "httpd [--port N] [--max-head N] [--max-body N] [--lab-mode on|off]\n  --port N        loopback port to bind (default 9000, 0 = pick a free port)\n  --max-head N    head cap in bytes, 431 beyond it (default 8192)\n  --max-body N    body cap in bytes, 413 beyond it (default 1048576)\n  --lab-mode on   enable controlled fuzz fault routes (default off)"
 }
 
 ///|
@@ -63,6 +64,7 @@ fn parse_args(args : Array[String]) -> HttpdConfig raise HttpdArgError {
   let mut port = 9000
   let mut max_head = DEFAULT_HEAD_CAP
   let mut max_body = DEFAULT_BODY_CAP
+  let mut lab_mode = false
   let mut index = 0
   while index < args.length() {
     match args[index] {
@@ -74,6 +76,17 @@ fn parse_args(args : Array[String]) -> HttpdConfig raise HttpdArgError {
         }
       }
       "--max-body" => max_body = parse_flag(args, index, "--max-body", FLAG_CAP)
+      "--lab-mode" => {
+        guard index + 1 < args.length() else {
+          raise HttpdArg("missing value for --lab-mode")
+        }
+        match args[index + 1] {
+          "on" => lab_mode = true
+          "off" => lab_mode = false
+          other =>
+            raise HttpdArg("--lab-mode expects on or off, got \"\{other}\"")
+        }
+      }
       "--help" | "-h" => {
         println(httpd_usage())
         exit_process(0)
@@ -82,7 +95,7 @@ fn parse_args(args : Array[String]) -> HttpdConfig raise HttpdArgError {
     }
     index += 2
   }
-  { port, max_head, max_body, }
+  { port, max_head, max_body, lab_mode, }
 }
 
 ///|
@@ -97,6 +110,9 @@ fn main {
   }
   println("httpd listening on 127.0.0.1:\{server.port()}")
   println("httpd caps: max-head=\{config.max_head} max-body=\{config.max_body}")
+  if config.lab_mode {
+    println("httpd lab mode: on (loopback only)")
+  }
   for ;; {
     serve_once(server, config)
   }
@@ -158,7 +174,11 @@ fn serve_conn(conn : @web.RawConn, config : HttpdConfig) -> Unit {
   }
   let outcome : String = match result {
     Parsed(request) => {
-      let response = request.route()
+      let response = if config.lab_mode {
+        request.lab_route().unwrap_or_else(() => request.route())
+      } else {
+        request.route()
+      }
       let omit = request.verb == "HEAD"
       conn.write(response.render(omit_body=omit)) catch {
         _ => {

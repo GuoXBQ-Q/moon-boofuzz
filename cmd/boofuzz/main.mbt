@@ -7,6 +7,34 @@ suberror CliError {
 extern "c" fn exit_process(code : Int) -> Unit = "exit"
 
 ///|
+/// Upstream constants.RESULTS_DIR (constants.py:8): default home of the
+/// run-stamped SQLite results database.
+const RESULTS_DIR : String = "boofuzz-results"
+
+///|
+/// Accept a case id in either form: the bare "v1:request.field:index"
+/// position_of_id resolves, or the full "[\"path\"]/v1:..." form the
+/// generate output and run records print (everything after the last '/').
+fn inner_case_id(id : String) -> String {
+  if id.has_prefix("v1:") {
+    return id
+  }
+  let mut cut = -1
+  let mut index = 0
+  for ch in id {
+    if ch == '/' {
+      cut = index
+    }
+    index += 1
+  }
+  if cut >= 0 {
+    id[cut + 1:].to_owned()
+  } else {
+    id
+  }
+}
+
+///|
 fn options(
   args : ArrayView[String],
   allowed : Array[String],
@@ -127,6 +155,12 @@ fn dispatch(args : Array[String]) -> Int raise {
     @utf8.decode(@recordio.read_bytes(input)),
   )
   let execution = definition.execution().map(@runner.ExecutionConfig::parse)
+  // Entry-point default mirrors upstream's CLI (cli.py:52-54): combinatorial
+  // blasting is on unless the JSON execution config or the flag turns it off.
+  // The flag wins; without it the JSON value applies (true when absent).
+  let use_combinatorial = combinatorial.unwrap_or(
+    execution.map(config => config.combinatorial).unwrap_or(true),
+  )
   if command == "generate" {
     if execution is Some(config) {
       ignore(config.runner(definition.paths()))
@@ -148,21 +182,24 @@ fn dispatch(args : Array[String]) -> Int raise {
       },
       start=match case_id {
         Some(id) => {
-          guard !combinatorial.unwrap_or(false) else {
+          guard !use_combinatorial else {
             raise InvalidArguments(
-              "--id cannot be combined with --combinatorial",
+              "--id cannot be combined with --combinatorial (pass --combinatorial false to resume by id)",
             )
           }
           guard int_option(opts, "--start") is None else {
             raise InvalidArguments("--id cannot be combined with --start")
           }
-          let offset = definition.position_of_id(id)
+          // Both the bare and the full id forms resolve to the same inner
+          // id, which is what position_of_id and the verification compare.
+          let inner = inner_case_id(id)
+          let offset = definition.position_of_id(inner)
           // Verify the position actually holds the requested id; the
           // offset walks the same stream tree generate enumerates (group
           // product replays included), so a mismatch means the definition
           // differs from the one that produced the id.
-          let actual = definition.case_id_at(offset)
-          guard actual == Some(id) else {
+          let actual = definition.case_id_at(offset).map(inner_case_id)
+          guard actual == Some(inner) else {
             let found = actual.unwrap_or("end of stream")
             raise InvalidArguments(
               "case id \{id} does not resolve to itself at position \{offset} (found \{found}); the definition differs from the one that produced the id",
@@ -172,8 +209,8 @@ fn dispatch(args : Array[String]) -> Int raise {
         }
         None => int_option(opts, "--start").unwrap_or(0)
       },
-      limit=limit.unwrap_or(10000),
-      combinatorial=combinatorial.unwrap_or(false),
+      limit=limit.unwrap_or(@runner.NO_CASE_LIMIT),
+      combinatorial=use_combinatorial,
       max_depth?,
     )
     let summary : Json = {
@@ -236,7 +273,7 @@ fn dispatch(args : Array[String]) -> Int raise {
       definition.paths(),
       monitor~,
       limit=limit.unwrap_or(config.limit),
-      combinatorial=combinatorial.unwrap_or(false),
+      combinatorial=use_combinatorial,
       max_depth?,
       start~,
       end~,
@@ -248,7 +285,7 @@ fn dispatch(args : Array[String]) -> Int raise {
         config.runner(
           definition.paths(),
           limit=n,
-          combinatorial?,
+          combinatorial=use_combinatorial,
           max_depth?,
           start~,
           end~,
@@ -258,7 +295,7 @@ fn dispatch(args : Array[String]) -> Int raise {
       None =>
         config.runner(
           definition.paths(),
-          combinatorial?,
+          combinatorial=use_combinatorial,
           max_depth?,
           start~,
           end~,
@@ -274,45 +311,55 @@ fn dispatch(args : Array[String]) -> Int raise {
     })
   let writer = @recordio.Writer::open(output)
   defer writer.close()
-  let db_logger = match db_path {
-    Some(path) => Some(@db.DbLogger::open(path, num_log_cases=record_passes))
-    None => None
-  }
-  // Live web UI: bound even before the first case so the URL is known,
-  // mirroring upstream server_init before fuzz().
-  let webui : @web.WebUi? = match web_port {
-    Some(port) => {
-      let ui = @web.WebUi::open(port~, limit=limit.unwrap_or(config.limit))
-      println("Web interface can be found at http://localhost:\{ui.port()}")
-      Some(ui)
+  // Always-on SQLite results database (upstream session.py:175-188): an
+  // explicit --db chooses the file, otherwise a run-stamped file is created
+  // under boofuzz-results/. Both paths create missing parent directories
+  // like upstream helpers.mkdir_safe.
+  let db_file = match db_path {
+    Some(path) => {
+      let parent = @recordio.parent_directory(path)
+      if !parent.is_empty() {
+        @recordio.ensure_directory(parent)
+      }
+      path
     }
-    None => None
-  }
-  let count = match (db_logger, webui) {
-    (Some(logger), ui) => {
-      defer logger.close()
-      let executed = capture_all(
-        runner,
-        writer,
-        Some(logger),
-        ui,
-        record_passes,
-      )
-      // Final flush of any throttled queue entries, mirroring the
-      // upstream session close sequence.
-      logger.close_test()
-      executed
+    None => {
+      @recordio.ensure_directory(RESULTS_DIR)
+      RESULTS_DIR + "/run-\{@db.run_stamp()}.db"
     }
-    (None, ui) => capture_all(runner, writer, None, ui, record_passes)
+  }
+  let db_logger = @db.DbLogger::open(db_file, num_log_cases=record_passes)
+  // Progress denominator: the sum of every fuzzed target's primitive
+  // counts (upstream Session.num_mutations), computed from the compiled
+  // definition — not the case cap. Combinatorial blasting may run past it.
+  let mut mutations = 0L
+  for path in definition.paths() {
+    mutations += path.target().raw_mutation_count()
+  }
+  if mutations > 2147483647L {
+    mutations = 2147483647L
+  }
+  // Live web UI on upstream's default port: bound even before the first
+  // case so the URL is known, mirroring upstream server_init before fuzz().
+  // --web-port 0 still asks the OS for a free port.
+  let webui = @web.WebUi::open(
+    port=web_port.unwrap_or(26000),
+    total=mutations.to_int(),
+  )
+  println("Web interface can be found at http://localhost:\{webui.port()}")
+  let count = {
+    defer db_logger.close()
+    let executed = capture_all(runner, writer, db_logger, webui, record_passes)
+    // Final flush of any throttled queue entries, mirroring the
+    // upstream session close sequence.
+    db_logger.close_test()
+    executed
   }
   writer.close()
-  match webui {
-    Some(ui) =>
-      // Serve anything still queued, then expose the final state like
-      // keep_web_open; the process exits right after.
-      ui.serve()
-    None => ()
-  }
+  // Serve anything still queued, then expose the final state; the process
+  // exits right after (upstream's interactive keep-open ENTER wait is
+  // deliberately not reproduced in a batch CLI).
+  webui.serve()
   match csv_out {
     Some(csv) => {
       let rows = write_csv_report(csv, output)
@@ -325,22 +372,12 @@ fn dispatch(args : Array[String]) -> Int raise {
     }
     None => ()
   }
-  let summary : Json = match db_path {
-    Some(path) =>
-      {
-        "kind": "run_summary",
-        "executed": count,
-        "state": state_name(runner.state()),
-        "records": output,
-        "database": path,
-      }
-    None =>
-      {
-        "kind": "run_summary",
-        "executed": count,
-        "state": state_name(runner.state()),
-        "records": output,
-      }
+  let summary : Json = {
+    "kind": "run_summary",
+    "executed": count,
+    "state": state_name(runner.state()),
+    "records": output,
+    "database": db_file,
   }
   println(summary.stringify())
   0

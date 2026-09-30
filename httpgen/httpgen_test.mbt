@@ -392,6 +392,23 @@ test "execution block carries endpoint and policy" {
 }
 
 ///|
+test "case limit 0 omits the cap; positive values carry it" {
+  let message = @httpgen.HttpMessage::parse("GET / HTTP/1.1\r\nHost: h")
+  // 0 = no cap: the generated execution has no case_limit key, so the
+  // run goes to exhaustion.
+  let unlimited = @httpgen.to_definition(message, [], {
+    ..options(),
+    case_limit: 0,
+  })
+  assert_false(unlimited.definition_text.contains("case_limit"))
+  let capped = @httpgen.to_definition(message, [], {
+    ..options(),
+    case_limit: 25,
+  })
+  assert_true(capped.definition_text.contains("\"case_limit\":25"))
+}
+
+///|
 test "invalid selections and options are rejected" {
   let message = @httpgen.HttpMessage::parse("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
   let failed = try {
@@ -433,4 +450,41 @@ test "invalid selections and options are rejected" {
     _ => true
   }
   assert_true(bad_policy)
+}
+
+///|
+test "converter wires Content-Length to an ascii size over the body" {
+  let original = "POST /echo HTTP/1.1\r\nHost: h\r\nContent-Length: 2\r\n\r\nok"
+  let message = @httpgen.HttpMessage::parse(original)
+  // Body selected for fuzzing: the length must track the mutated body.
+  let result = @httpgen.to_definition(
+    message,
+    [sel("body", Text, [])],
+    options(),
+  )
+  assert_true(result.definition_text.contains("\"ascii\":true"))
+  assert_true(result.definition_text.contains("\"target\":\"request.body\""))
+  assert_true(
+    result.definition_text.contains("\"type\":\"block\",\"name\":\"body\""),
+  )
+  // Frozen conversion stays byte-exact: the computed decimal reproduces
+  // the original message.
+  let frozen = @httpgen.to_definition(message, [], options())
+  let parsed = @definition.ProtocolDefinition::parse(frozen.definition_text)
+  assert_eq(parsed.requests()[0].render(), @utf8.encode(original))
+}
+
+///|
+test "a checked Content-Length keeps explicit probing" {
+  let original = "POST /echo HTTP/1.1\r\nHost: h\r\nContent-Length: 2\r\n\r\nok"
+  let message = @httpgen.HttpMessage::parse(original)
+  // Host is hdr_0, Content-Length is hdr_1; selecting it for candidates
+  // keeps the mismatch-probing behavior instead of the derived size.
+  let result = @httpgen.to_definition(
+    message,
+    [sel("hdr_1", Candidates, ["0", "-1"])],
+    options(),
+  )
+  assert_false(result.definition_text.contains("\"ascii\":true"))
+  assert_true(result.definition_text.contains("2d31"))
 }

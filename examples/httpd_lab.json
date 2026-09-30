@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "requests": [
+    {
+      "name": "rce_header",
+      "children": [
+        {
+          "type": "static",
+          "name": "head",
+          "value_hex": "474554202f6c61622f7263652f68656164657220485454502f312e310d0a486f73743a203132372e302e302e313a393030300d0a582d4c61622d436f6d6d616e643a20"
+        },
+        {
+          "type": "simple",
+          "name": "command",
+          "value_hex": "73616665",
+          "values_hex": [
+            "68656c6c6f3b6964",
+            "736166657c77686f616d69"
+          ]
+        },
+        {
+          "type": "static",
+          "name": "tail",
+          "value_hex": "0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a"
+        }
+      ]
+    },
+    {
+      "name": "rce_path",
+      "children": [
+        {
+          "type": "static",
+          "name": "prefix",
+          "value_hex": "474554202f6c61622f7263652f706174682f"
+        },
+        {
+          "type": "simple",
+          "name": "suffix",
+          "value_hex": "73616665",
+          "values_hex": [
+            "6974656d3b6964",
+            "6974656d2533426964"
+          ]
+        },
+        {
+          "type": "static",
+          "name": "tail",
+          "value_hex": "20485454502f312e310d0a486f73743a203132372e302e302e313a393030300d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a"
+        }
+      ]
+    },
+    {
+      "name": "bof_header",
+      "children": [
+        {
+          "type": "static",
+          "name": "head",
+          "value_hex": "474554202f6c61622f626f662f68656164657220485454502f312e310d0a486f73743a203132372e302e302e313a393030300d0a582d4c61622d446174613a20"
+        },
+        {
+          "type": "simple",
+          "name": "data",
+          "value_hex": "73616665",
+          "values_hex": [
+            "4141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
+          ]
+        },
+        {
+          "type": "static",
+          "name": "tail",
+          "value_hex": "0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a"
+        }
+      ]
+    },
+    {
+      "name": "bof_path",
+      "children": [
+        {
+          "type": "static",
+          "name": "prefix",
+          "value_hex": "474554202f6c61622f626f662f706174682f"
+        },
+        {
+          "type": "simple",
+          "name": "suffix",
+          "value_hex": "73616665",
+          "values_hex": [
+            "414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
+          ]
+        },
+        {
+          "type": "static",
+          "name": "tail",
+          "value_hex": "20485454502f312e310d0a486f73743a203132372e302e302e313a393030300d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a"
+        }
+      ]
+    }
+  ],
+  "targets": [
+    "rce_header",
+    "rce_path",
+    "bof_header",
+    "bof_path"
+  ],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {
+      "host": "127.0.0.1",
+      "port": 9000,
+      "receive_timeout_ms": 500
+    },
+    "policies": {
+      "rce_header": {
+        "kind": "until",
+        "delimiter_hex": "0d0a0d0a"
+      },
+      "rce_path": {
+        "kind": "until",
+        "delimiter_hex": "0d0a0d0a"
+      },
+      "bof_header": {
+        "kind": "until",
+        "delimiter_hex": "0d0a0d0a"
+      },
+      "bof_path": {
+        "kind": "until",
+        "delimiter_hex": "0d0a0d0a"
+      }
+    },
+    "case_limit": 6
+  }
+}

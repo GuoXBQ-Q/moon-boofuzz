@@ -105,12 +105,18 @@ test "CLI run completes TCP and UDP flows with portable records" {
       },
     }
     save_definition(definition_path, definition)
+    let db_path = fixture_path()
+    defer fixture_remove(db_path)
     assert_eq(
       dispatch([
         "run",
         @utf8.decode(definition_path),
         "--output",
         @utf8.decode(output_path),
+        "--db",
+        @utf8.decode(db_path),
+        "--web-port",
+        "0",
       ]),
       0,
     )
@@ -170,12 +176,18 @@ test "CLI run honors --end as a global case ordinal" {
     },
   }
   save_definition(definition_path, definition)
+  let db_path = fixture_path()
+  defer fixture_remove(db_path)
   assert_eq(
     dispatch([
       "run",
       @utf8.decode(definition_path),
       "--output",
       @utf8.decode(output_path),
+      "--db",
+      @utf8.decode(db_path),
+      "--web-port",
+      "0",
       "--end",
       "2",
     ]),
@@ -255,6 +267,8 @@ test "run with csv-out writes a report row per case" {
   defer fixture_remove(records_path)
   let csv_path = fixture_path()
   defer fixture_remove(csv_path)
+  let db_path = fixture_path()
+  defer fixture_remove(db_path)
   // No live target: both cases fail to connect but records are still written.
   let exit = dispatch([
     "run",
@@ -263,6 +277,10 @@ test "run with csv-out writes a report row per case" {
     @utf8.decode(records_path),
     "--csv-out",
     @utf8.decode(csv_path),
+    "--db",
+    @utf8.decode(db_path),
+    "--web-port",
+    "0",
   ])
   assert_eq(exit, 0)
   let csv = @utf8.decode(@recordio.read_bytes(@utf8.decode(csv_path)))
@@ -323,6 +341,8 @@ test "run with --db writes upstream-compatible SQLite results" {
       @utf8.decode(records_path),
       "--db",
       @utf8.decode(db_file),
+      "--web-port",
+      "0",
     ]),
     0,
   )
@@ -389,6 +409,8 @@ test "run with --record-passes keeps only the first and last window" {
       @utf8.decode(db_file),
       "--record-passes",
       "2",
+      "--web-port",
+      "0",
     ]),
     0,
   )
@@ -432,12 +454,16 @@ test "run with --web-port binds the UI and completes the run" {
   save_definition(definition_path, definition)
   let records_path = fixture_path()
   defer fixture_remove(records_path)
+  let db_path = fixture_path()
+  defer fixture_remove(db_path)
   assert_eq(
     dispatch([
       "run",
       @utf8.decode(definition_path),
       "--output",
       @utf8.decode(records_path),
+      "--db",
+      @utf8.decode(db_path),
       "--web-port",
       "0",
     ]),
@@ -479,12 +505,18 @@ test "run udp_server waits for the peer request before answering" {
   save_definition(definition_path, definition)
   let records_path = fixture_path()
   defer fixture_remove(records_path)
+  let db_path = fixture_path()
+  defer fixture_remove(db_path)
   assert_eq(
     dispatch([
       "run",
       @utf8.decode(definition_path),
       "--output",
       @utf8.decode(records_path),
+      "--db",
+      @utf8.decode(db_path),
+      "--web-port",
+      "0",
     ]),
     0,
   )
@@ -522,4 +554,140 @@ test "convert validates its options before binding" {
     _ => true
   }
   assert_true(missing_value)
+}
+
+///|
+test "open detects SQLite and JSONL files longer than their signatures" {
+  let record : @records.CaseRecord = {
+    format_version: 1,
+    case_id: "open-test",
+    generator_version: "v1",
+    request_name: "request",
+    field_path: "request.x",
+    mutation_index: 0,
+    ordinal: 0,
+    path: ["request"],
+    config: {},
+    steps: [
+      {
+        request_name: "request",
+        sent: b"GET",
+        received: b"OK",
+        completed: true,
+      },
+    ],
+    outcome: "passed",
+    detail: "Passed",
+    failed_step: None,
+  }
+  let db_path = @db.temp_path()
+  defer @db.remove_file(db_path)
+  let logger = @db.DbLogger::open(db_path)
+  logger.log_record(record)
+  logger.close_test()
+  logger.close()
+  let database = open_session(db_path)
+  defer database.close()
+  assert_eq(@web.SessionView::current_index(database), 1)
+  let jsonl_path_bytes = fixture_path()
+  defer fixture_remove(jsonl_path_bytes)
+  let jsonl_path = @utf8.decode(jsonl_path_bytes)
+  let writer = @recordio.Writer::open(jsonl_path)
+  writer.append(record)
+  writer.close()
+  let jsonl = open_session(jsonl_path)
+  defer jsonl.close()
+  assert_eq(@web.SessionView::current_index(jsonl), 1)
+}
+
+///|
+test "run defaults: always-on results database and web UI complete the run" {
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "packet",
+        "children": [
+          { "type": "simple", "name": "value", "values_hex": ["01", "02"] },
+        ],
+      },
+    ],
+    "execution": {
+      "transport": "udp",
+      "endpoint": { "host": "127.0.0.1", "port": 1 },
+      "policies": {},
+      "case_limit": 2,
+    },
+  }
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  save_definition(definition_path, definition)
+  let records_path = fixture_path()
+  defer fixture_remove(records_path)
+  // No --db and no --web-port: the run still opens a run-stamped database
+  // under boofuzz-results/ and binds the UI on the default port, and
+  // neither may disturb the captured records.
+  assert_eq(
+    dispatch([
+      "run",
+      @utf8.decode(definition_path),
+      "--output",
+      @utf8.decode(records_path),
+    ]),
+    0,
+  )
+  let records = @recordio.read_records(@utf8.decode(records_path))
+  assert_true(records.error is None)
+  assert_eq(records.records.length(), 2)
+}
+
+///|
+test "generate --id requires an explicit --combinatorial false and then resumes" {
+  let definition : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "r",
+        "children": [
+          { "type": "simple", "name": "x", "values_hex": ["41", "42"] },
+        ],
+      },
+    ],
+  }
+  let definition_path = fixture_path()
+  defer fixture_remove(definition_path)
+  save_definition(definition_path, definition)
+  // Combinatorial blasting is the default, so resuming by id needs the
+  // explicit opt-out; both the bare and full id forms resolve.
+  let rejected = try {
+    ignore(
+      dispatch(["generate", @utf8.decode(definition_path), "--id", "v1:r.x:0"]),
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+  assert_eq(
+    dispatch([
+      "generate",
+      @utf8.decode(definition_path),
+      "--combinatorial",
+      "false",
+      "--id",
+      "v1:r.x:1",
+    ]),
+    0,
+  )
+  assert_eq(
+    dispatch([
+      "generate",
+      @utf8.decode(definition_path),
+      "--combinatorial",
+      "false",
+      "--id",
+      "[\"r\"]/v1:r.x:1",
+    ]),
+    0,
+  )
 }

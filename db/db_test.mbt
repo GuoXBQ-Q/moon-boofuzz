@@ -202,3 +202,16 @@ test "reopen keeps appending without recreating the schema" {
   let count = reader.query("SELECT count(*) FROM cases")
   assert_eq(count[0].values[0], @db.VInt(2L))
 }
+
+///|
+test "run_stamp matches upstream's filename-safe UTC timestamp" {
+  let stamp = @db.run_stamp()
+  // "YYYY-MM-DDTHH-MM-SS+00-00" — 25 characters, second precision, no
+  // colons or fractional part so it is safe as a filename.
+  assert_eq(stamp.length(), 25)
+  for ch in stamp {
+    assert_true(ch != ':')
+    assert_true(ch != '.')
+  }
+  assert_eq(stamp[19:25].to_owned(), "+00-00")
+}

@@ -4,10 +4,11 @@ moon-boofuzz 的核心是 MoonBit 库：`CompiledRequest`/`SessionGraph`/`Runner
 boofuzz `s_*` DSL + `Session` 的对应物。JSON 协议定义和 `convert` 页面只是这套 API
 之上的序列化适配层——两条入口编译到同一个执行模型，行为完全同源。
 
-本文从零走一遍：定义请求 → 离线枚举 → 会话 → 真实执行 → 监视器。完整可运行的
-配套示例在 [cmd/httpfuzz](../cmd/httpfuzz/main.mbt)：
+本文从零走一遍：定义请求 → 离线枚举 → 会话 → 真实执行 → 监视器。
+下面两个示例都直接使用 MoonBit API；[examples/moonbit_http](../examples/moonbit_http/README.md) 着重指定字段和显式候选，[cmd/httpfuzz](../cmd/httpfuzz/main.mbt) 展示内置字符串变异库：
 
 ```sh
+moon run --target native examples/moonbit_http                # 离线：明确选择变异字段
 moon run --target native cmd/httpfuzz                      # 离线：打印前几个变异载荷
 moon run --target native cmd/httpfuzz -- run 127.0.0.1 9000  # 真实 fuzz 一个 HTTP 服务
 ```
@@ -105,7 +106,10 @@ for ;; {
 `CaseStream` 是惰性的：`next()` 逐个取用；`position()` 记录位置后可用
 `cases(start=position)` 断点续跑；`stop()` 提前停止；`state()` 报告
 running/exhausted/limited/stopped。多字段组合变异用
-`request.combinatorial_cases(max_depth=n)`。
+`request.combinatorial_cases(max_depth=n)`。注意默认值的分层：JSON 定义、
+CLI 与 `ProtocolDefinition::generate` 这些**入口**默认开启组合爆破（对齐
+上游 CLI），而库级 `Runner::new/with_dialer` 与 `file_runner` 的
+`combinatorial` 参数默认仍为 `false`——API 用户需要显式传入开启。
 
 ## 第 4 步：会话（多请求协议）
 

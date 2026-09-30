@@ -32,3 +32,11 @@ extern "c" fn make_directory(path : Bytes) -> Int = "bf_file_mkdir"
 ///|
 #borrow(path)
 extern "c" fn create_file(path : Bytes) -> FileHandle = "bf_file_create"
+
+///|
+#borrow(file, buffer)
+extern "c" fn read_prefix_into(
+  file : FileHandle,
+  buffer : FixedArray[Byte],
+  length : Int,
+) -> Int = "bf_file_read_prefix"

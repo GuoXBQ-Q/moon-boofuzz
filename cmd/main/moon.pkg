@@ -1,5 +1,0 @@
-import {
-  "GuoXBQ-Q/moon-boofuzz" @boofuzz,
-}
-
-pkgtype(kind: "executable")

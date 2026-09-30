@@ -187,8 +187,10 @@ pub fn ProtocolDefinition::generate(
   self : ProtocolDefinition,
   emit : (GeneratedCase) -> Bool raise,
   start? : Int = 0,
-  limit? : Int = 10000,
-  combinatorial? : Bool = false,
+  // Default: no cap (Int max sentinel, runner's NO_CASE_LIMIT — repeated
+  // here because definition cannot import runner). Enumerate to exhaustion.
+  limit? : Int = 2147483647,
+  combinatorial? : Bool = true,
   max_depth? : Int,
 ) -> GenerationResult raise {
   guard start >= 0 && limit >= 0 else {

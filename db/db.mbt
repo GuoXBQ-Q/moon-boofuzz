@@ -77,3 +77,24 @@ pub fn remove_file(path : String) -> Unit {
   let bytes = @utf8.encode(path)
   db_remove(bytes, bytes.length())
 }
+
+///|
+/// UTC run identifier in upstream's filename form: wall clock truncated
+/// to whole seconds, every ':' swapped for '-' (session.py:174
+/// `datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+/// .replace(":", "-")`), e.g. "2026-09-29T07-15-30+00-00".
+pub fn run_stamp() -> String {
+  let stamp = @utf8.decode_lossy(now_iso())
+  let buffer = StringBuilder()
+  for ch in stamp {
+    if ch == '.' {
+      break
+    }
+    if ch == ':' {
+      buffer.write_char('-')
+    } else {
+      buffer.write_char(ch)
+    }
+  }
+  buffer.to_string() + "+00-00"
+}

@@ -149,3 +149,21 @@ codemod（读取 `moon check --output-json` 自动定位修改点）分两轮完
 ## 2026-09-27：HTTP 靶子与验收修复
 
 提交 HTTP 靶子与 RawServer/RawConn 接口，补齐严格解析与回环测试；修复 offset 接收覆盖旧字节、LF body 起点和头部上限。超长变异候选跳过时保留原始序号，generate 与 runner 记录采用跨路径全局序号，并验证续跑、组合枚举、排除 end 边界及阈值 lookahead。ASan 注入名单覆盖新增 cmd/httpfuzz 与 cmd/httpd，防止链接 instrumented C 桥时缺少运行库。最终测试和 CI 状态以对应提交的检查结果为准。
+
+## 2026-09-29：默认行为对齐上游
+
+系统核对上游 518c139 的默认值后发现五处"默认相反"的差异（SQLite 结果库、Web UI、curses TUI、record-passes 节流、组合爆破），本批对齐其中三项：`run` 的 SQLite 结果库改为与上游一致常开（缺省自动落 `boofuzz-results/run-<UTC秒级时间戳>.db`，文件名逐字对齐 session.py 的 run_id 格式，`--db` 可改道并自动创建父目录）；Web UI 默认 26000 常开（保留 `--web-port 0` 取随机端口，不复刻上游跑完阻塞等回车的 `--keep-web` 交互）；组合爆破在 JSON/CLI/definition.generate 入口默认开启（库级 Runner API 默认保持 false）。TUI 与 record-passes=0 两项维持本移植现状。convert 页面生成的 JSON 显式钉死 `"combinatorial": false`，使页面的用例计数与预览在顺序模式下保持精确。
+
+顺手修复一个既有 bug：`generate --id` 的自校验拿完整形态 id（`["r"]/v1:r.x:0`）与 `case_id_at` 的返回值比较，而 `position_of_id` 只接受裸形态（`v1:r.x:0`），导致两种输入形式都会被拒。现在 CLI 接受两种形态，归一后统一比较。默认开启组合爆破后 `--id` 需显式 `--combinatorial false`（组合爆破的 `+` 形 id 本就不可按 id 续跑）。测试侧给所有 dispatch `run` 的用例补显式 `--db`/`--web-port 0` 保持密闭，并新增默认值、run_stamp、ensure_directory、config 缺省与 `--id` 往返等用例。
+
+同批去掉用例数量的默认上限：`case_limit` 缺省与 CLI `--limit` 缺省均改为"无上限、跑到用例全部耗尽"（上游本就没有默认数量上限），内部以 32 位 Int 最大值 `NO_CASE_LIMIT` 哨兵表示；Web UI 侧把哨兵归一为无上限显示（页面显示 "many"）。显式 `--limit`/`case_limit` 行为不变。
+
+## 2026-09-30：Web UI 运行期详情与真实进度分母
+
+live 运行期间的 /test-case 详情页此前固定提示"数据不可用"（详情只能事后经 `open` 查看）。现改为 LiveSession 在 `observe` 时保留每条记录，详情页按已执行用例即时渲染收发字节（与离线 JSONL 视图共用同一 record→DbCase 转换），未执行到的索引渲染"未执行"提示——对齐上游 live 页面从实时写入 db 取详情的行为；CLI 与代码示例经既有 observe 调用自动受益。
+
+进度分母同步改为真实计数：WebUi 的 limit 参数语义改为 total，由定义编译后各变异字段的原语计数求和（等价上游 Session.num_mutations），不再显示 case 上限或 "many"；组合爆破可能执行超过该分母（上游同样以原语计数为分母），零变异定义仍显示 Unbounded。
+
+## 2026-09-30：ascii size 与 Content-Length 自动跟随
+
+补上移植缺口：上游 Size 原语的 `output_format="ascii"`（size.py:41-48，官方 http_with_body.py 即用它实现 Content-Length 跟随）此前未随 size.py 一并移植。核心 `size` 字段新增 `ascii` 模式——计算长度渲染为十进制文本、边界变异同样以文本渲染；因自身宽度随值变化，`inclusive` 与"位于自身目标块内"两种自包含形态在编译期拒绝。convert 页面对恰好声明一个未勾选 Content-Length 且带 body 的报文自动生成 `fuzzable:false` 的 ascii size 并把 body 包进命名块，默认渲染与原报文逐字节一致；勾选该段保留显式候选的失配探测。手写 JSON 以 `"ascii": true` 使用。

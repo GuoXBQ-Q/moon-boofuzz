@@ -389,9 +389,16 @@ fn write_response(client : WebSocket, response : HttpResponse) -> Unit {
 
 ///|
 fn html_escape(text : String) -> String {
-  text
-  .replace(old="&", new="&amp;")
-  .replace(old="<", new="&lt;")
-  .replace(old=">", new="&gt;")
-  .replace(old="\"", new="&quot;")
+  let out = StringBuilder()
+  for ch in text {
+    match ch {
+      '&' => out.write_string("&amp;")
+      '<' => out.write_string("&lt;")
+      '>' => out.write_string("&gt;")
+      '"' => out.write_string("&quot;")
+      '\'' => out.write_string("&#39;")
+      _ => out.write_char(ch)
+    }
+  }
+  out.to_string()
 }

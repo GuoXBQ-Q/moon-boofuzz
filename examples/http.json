@@ -25,7 +25,6 @@
   "execution": {
     "transport": "tcp",
     "endpoint": {"host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 500},
-    "policies": {"request": {"kind": "until", "delimiter_hex": "0d0a0d0a"}},
-    "case_limit": 20
+    "policies": {"request": {"kind": "until", "delimiter_hex": "0d0a0d0a"}}
   }
 }

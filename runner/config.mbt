@@ -1,4 +1,10 @@
 ///|
+/// The "no case limit" sentinel (32-bit Int max — the same bound int_option
+/// enforces for --limit). A run without an explicit --limit / case_limit
+/// executes every case until the stream is exhausted, like upstream.
+pub const NO_CASE_LIMIT : Int = 2147483647
+
+///|
 priv struct WireEndpoint {
   host : String
   port : Int
@@ -106,7 +112,9 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
   let limit : Int = if value is { "case_limit": limit, .. } {
     @json.from_json(limit)
   } else {
-    10000
+    // Default: no cap — run to exhaustion unless an explicit case_limit or
+    // --limit sets one (upstream has no default case cap either).
+    NO_CASE_LIMIT
   }
   guard limit >= 0 else { raise Invalid("negative case limit") }
   let policies : Map[String, ReadPolicy] = Map([])
@@ -156,7 +164,9 @@ pub fn ExecutionConfig::parse(value : Json) -> ExecutionConfig raise {
       policies[name] = parsed
     }
   }
-  let combinatorial = boolean_json(value, "combinatorial")
+  // Default true — the entry-point default matches upstream's CLI
+  // (--combinatorial, cli.py:52-54); an explicit false opts out.
+  let combinatorial = boolean_json_or(value, "combinatorial", true)
   let max_depth : Int? = if value is { "max_depth": depth, .. } {
     let parsed : Int = @json.from_json(depth)
     guard parsed >= 1 else { raise Invalid("max_depth must be at least 1") }

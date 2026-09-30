@@ -25,8 +25,9 @@ as TCP/UDP without a separately defined transport.
 
 ## 导出与结果库
 
-`run --db FILE` 旁路把每条记录写入上游兼容的 SQLite 结果库,`run
---record-passes N` 对 JSONL 与 SQLite 双侧做 keep-only-n 节流(CLI 默认
+`run` 与上游一致**始终**把每条记录写入上游兼容的 SQLite 结果库(缺省
+`boofuzz-results/run-<UTC时间戳>.db`,`--db FILE` 可改道,详见 DB.md),
+`--record-passes N` 对 JSONL 与 SQLite 双侧做 keep-only-n 节流(CLI 默认
 0=全量记录;上游 CLI 默认 10)。`run --csv-out FILE` 把已执行用例导出为
 每用例一行的 CSV(表头 + 九列身份/结果/流量 hex)。这是独立的导出格式,
 **并非**上游 fuzz_logger_csv.py 的逐消息行格式(上游每行一条日志消息、

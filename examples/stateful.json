@@ -11,5 +11,14 @@
   ],
   "edges": [["hello","auth"],["auth","query"]],
   "targets": ["query"],
-  "execution": {"transport":"tcp","endpoint":{"host":"127.0.0.1","port":9000},"case_limit":2}
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {"host":"127.0.0.1","port":9000,"receive_timeout_ms":2000},
+    "policies": {
+      "hello": {"kind":"until","delimiter_hex":"0a"},
+      "auth": {"kind":"until","delimiter_hex":"0a"},
+      "query": {"kind":"until","delimiter_hex":"0a"}
+    },
+    "case_limit": 2
+  }
 }

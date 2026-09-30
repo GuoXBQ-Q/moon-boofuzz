@@ -49,8 +49,12 @@
 
 Top-level properties are schema_version=1, requests, optional edges, targets,
 max_bytes (default 1048576), max_paths (default 10000), and execution.
-Execution accepts transport (tcp/udp/file), endpoint, policies, case_limit,
-udp_server, udp_broadcast, combinatorial, max_depth, variables,
+Execution accepts transport (tcp/udp/file), endpoint, policies, case_limit
+(default: **no limit** — the run executes every case until the stream is
+exhausted, like upstream; an explicit case_limit or CLI --limit caps it),
+udp_server, udp_broadcast, combinatorial (default true, matching the
+upstream CLI; explicit false restores single-field enumeration), max_depth,
+variables,
 check_data_received, receive_data_after_fuzz, ignore_connection_reset,
 ignore_connection_aborted,
 ignore_connection_issues_when_sending_fuzz_data (default true),
@@ -73,7 +77,7 @@ types, references and unsupported parameters are errors.
 | text / delimiter | value (UTF-8 string), fuzzable, fuzz_values, variable |
 | block | children, condition, alignment, group (target field path; group-product case ids cannot be resumed by --id, use --start) |
 | repeat | target, min, max, step, variable |
-| size | target, length, endian, offset, inclusive, mutations (decimal strings), fuzzable |
+| size | target, length, endian, offset, inclusive, ascii (decimal-text rendering for HTTP Content-Length; excludes inclusive and self-containment), mutations (decimal strings), fuzzable |
 | crc32 | target, endian, mutations (decimal strings), algorithm (crc32/crc32c/adler32/md5/sha1), fuzzable |
 | mirror | target |
 | random | value_hex, min_length, max_length, max_mutations, step, fuzzable, fuzz_values, variable |

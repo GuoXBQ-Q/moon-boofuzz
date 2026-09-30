@@ -265,7 +265,7 @@ test "head responses keep the declared length without the payload" {
 
 ///|
 fn test_config(max_head? : Int = 8192) -> HttpdConfig {
-  { port: 0, max_head, max_body: TEST_MAX_BODY, }
+  { port: 0, max_head, max_body: TEST_MAX_BODY, lab_mode: false, }
 }
 
 ///|
@@ -416,7 +416,12 @@ test "loopback LF requests use the two byte terminator for their body offset" {
 ///|
 test "loopback body growth retains bytes from earlier reads" {
   let server = @web.RawServer::bind(port=0)
-  let config : HttpdConfig = { port: 0, max_head: 64, max_body: 4096, }
+  let config : HttpdConfig = {
+    port: 0,
+    max_head: 64,
+    max_body: 4096,
+    lab_mode: false,
+  }
   let body = "a".repeat(1024)
   let response = roundtrip(
     server,

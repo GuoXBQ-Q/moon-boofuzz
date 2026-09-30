@@ -16,7 +16,7 @@
 | String / Delim | primitives/string.py、delim.py | 固定字符串库、确定性长字符串；动态 UTF-8 子集；见 TEXT.md |
 | 命名块/变异流 | blocks/request.py、fuzzable_block.py | 不可变编译模型和惰性序列为 MoonBit 适配；见 MODEL.md、MUTATION.md |
 | 条件/重复/对齐 | blocks/block.py、repeat.py、aligned.py | 条件子集、重复计数变异与变量驱动重复、整组对齐；见 CONDITIONS.md、REPEAT.md、ALIGNED.md |
-| Size / CRC32 | blocks/size.py、checksum.py | 派生字段、自包含、显式错误值；请求级样本；见 SIZE.md、CHECKSUM.md |
+| Size / CRC32 | blocks/size.py、checksum.py | 派生字段、自包含、显式错误值；`output_format="ascii"`（Content-Length 十进制文本跟随）已接入核心与 convert 自动接线；请求级样本；见 SIZE.md、CHECKSUM.md |
 | 会话 | sessions/session.py、pgraph/graph.py | DAG、插入顺序、末端目标变异；见 SESSION.md |
 | TCP / UDP | connections/tcp_socket_connection.py、udp_socket_connection.py | 新写系统调用桥接；见 TRANSPORT.md、UDP.md |
 | 回调与执行 | monitors/base_monitor.py、sessions/session.py | 顺序隔离、类型化结果；拨号失败走 `_open_connection_keep_trying` 等价重试（默认无限，正阈值按已完成重启计数：阈值 N 允许 N 次重启与 N+1 次拨号，放弃即记录用例并停止），故障阈值按请求/元素计数且拨号失败不计入，监视器 `after` 抛 `MonitorSignal::TargetFailed`（进程监视器崩溃信号）按上游 post_send→log_fail 计入失败并触发恢复；见 RUNNER.md、MONITORS.md |
@@ -25,16 +25,16 @@
 | 条件运算符 / 隐藏块发射 | blocks/block.py dep_compare 与条件不满足渲染空块 | 全部运算符与发射语义对齐（操作数顺序保留上游 quirk）；见 CONDITIONS.md |
 | fuzz_values / RandomData / Float / FromFile / Mirror | primitives/*.py | fuzz_values 追加语义等价；随机序列 MT19937 逐位一致；个别计数 quirk 未复现并声明；见 PRIMITIVES.md、MODEL.md |
 | Group+Block 笛卡尔 | blocks/block.py mutations 的 group 乘积 | 枚举顺序与用例数 n*(1+g) 一致；见 MODEL.md |
-| 组合爆破 | sessions/session.py _generate_mutations_indefinitely | 深度循环/子串包含去重/累积 skip 构造对齐；嵌套结构的 skip 粒度差异（上游按顶层条目过滤）见 MUTATION.md |
+| 组合爆破 | sessions/session.py _generate_mutations_indefinitely、cli.py --combinatorial | 深度循环/子串包含去重/累积 skip 构造对齐；JSON/CLI/definition.generate 入口默认开启（对齐上游 CLI 默认 true），库级 Runner API 默认仍为 false；嵌套结构的 skip 粒度差异（上游按顶层条目过滤）见 MUTATION.md |
 | 会话变量与动态重复 | protocol_session*.py、Repeat(variable=) | 内外双路径语义与 KeyError 对齐；见 VARIABLES.md |
 | 进程监视器 | utils/process_monitor_local.py、utils/debugger_thread_simple.py | 无调试器子集：spawn/存活/故障/重启；见 PROCESS.md |
 | 校验和算法集 | blocks/checksum.py 的算法表与 md5/sha1 字交换 | crc32/crc32c/adler32/md5/sha1 已接入节点与 JSON；ipv4/udp 以独立函数提供（块引用伪首部未接入）；见 CHECKSUM.md |
 | IPv6 传输（移植扩展） | 上游 TCP/UDP 实为 AF_INET 单栈（tcp/udp_socket_connection.py）；本移植的 AF_UNSPEC 解析 + IPv6 单播校验为文档化扩展，非上游行为；见 TRANSPORT.md、UDP.md |
 | File 传输 | connections/file_connection.py | 每消息一个编号文件（截断创建），NoResponse 策略；见 DEFINITIONS.md file 传输 |
 | CSV 导出 | fuzz_logger_csv.py | 新格式：每用例一行的执行后导出（非上游逐消息行格式）；见 RECORDS.md、cmd/boofuzz/csv_report.mbt |
-| SQLite 结果库 | fuzz_logger_db.py | 表结构/写入队列/keep-only-n/512 截断/Reader 逐条对齐；vendor SQLite 3.45.3（公有领域）；见 DB.md |
-| --record-passes 节流 | fuzz_logger_db.py num_log_cases（CLI record_passes） | SQLite 侧 num_log_cases + JSONL 侧 ThrottledWriter 等价实现；见 DB.md |
-| Web UI 与 open | web/app.py、sessions/web_app.py、session_info.py、helpers.py 日志模板 | 回环 HTTP 服务、上游路由/JSON/日志行渲染/端口+1/暂停联动；open 支持 SQLite 与 JSONL；见 WEB.md |
+| SQLite 结果库 | fuzz_logger_db.py、session.py:174-188 默认 db_filename | 表结构/写入队列/keep-only-n/512 截断/Reader 逐条对齐；与上游一致**常开**，缺省自动 `boofuzz-results/run-<UTC时间戳>.db`（文件名逐字对齐）；vendor SQLite 3.45.3（公有领域）；见 DB.md |
+| --record-passes 节流 | fuzz_logger_db.py num_log_cases（CLI record_passes） | SQLite 侧 num_log_cases + JSONL 侧 ThrottledWriter 等价实现；默认 0（上游 CLI 默认 10，有意保留）；见 DB.md |
+| Web UI 与 open | web/app.py、sessions/session.py:116 默认 26000、web_app.py | 回环 HTTP 服务、上游路由/JSON/日志行渲染/端口+1/暂停联动；与上游一致 `run` 默认 26000 常开（不复刻 keep-web 阻塞收尾）；open 支持 SQLite 与 JSONL；live 运行期间 /test-case 详情页由内存中观察到的记录渲染（对齐上游 live db 取详情的行为）；num_mutations 按各原语变异计数求和作进度分母（上游同款语义，组合爆破可超过）；见 WEB.md |
 | UDP server 模式与广播 | connections/udp_socket_connection.py server/broadcast 路径 | bind+recvfrom 记录对端+sendto 回发、SO_BROADCAST 非连接发送；Runner 预接收适配；见 UDP.md |
 
 ## 1. Simple / Group

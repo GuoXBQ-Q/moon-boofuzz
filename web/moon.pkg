@@ -1,5 +1,6 @@
 import {
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
   "GuoXBQ-Q/moon-boofuzz/db",
   "GuoXBQ-Q/moon-boofuzz/httpgen",
   "GuoXBQ-Q/moon-boofuzz/records",

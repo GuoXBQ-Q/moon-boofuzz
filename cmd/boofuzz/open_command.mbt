@@ -9,7 +9,7 @@ const SQLITE_HEADER : Bytes = b"SQLite format 3\x00"
 
 ///|
 fn open_session(path : String) -> @web.OfflineSession raise {
-  let head = @recordio.read_bytes(path, max_bytes=16)
+  let head = @recordio.read_prefix(path, max_bytes=16)
   if head == SQLITE_HEADER {
     @web.OfflineSession::open_database(path)
   } else {

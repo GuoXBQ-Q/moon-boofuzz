@@ -91,6 +91,7 @@ pub fn[T : SessionView] api_current_run(view : T) -> HttpResponse raise {
   let payload : Json = {
     "session_info": {
       "is_paused": SessionView::is_paused(view),
+      "state": SessionView::state(view),
       "current_index": SessionView::current_index(view),
       "num_mutations": num_mutations_json(view),
       "current_index_element": Json::null(),
@@ -137,46 +138,76 @@ pub fn[T : SessionView] render_test_case(
   view : T,
   index : Int,
 ) -> HttpResponse raise {
+  let builder = StringBuilder()
+  builder.write_string(
+    page_start("Test case #" + index.to_string(), "Case inspector", "/"),
+  )
+  builder.write_string(
+    "<a class=\"back-link\" href=\"/\">← Back to run overview</a>",
+  )
   let case_data = SessionView::test_case_data(view, index) catch {
     @db.NoSuchCase(_) => {
-      let builder = StringBuilder()
       builder.write_string(
-        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>",
-      )
-      builder.write_string(html_escape("Test Case \{index}"))
-      builder.write_string("</title><style>")
-      builder.write_string(PAGE_CSS)
-      builder.write_string("</style></head><body><div class=\"main-wrapper\">")
-      builder.write_string("<h1>boofuzz Test Case \{index}</h1>")
-      builder.write_string(
-        "<p><a href=\"/\">&larr; back to fuzz control</a></p>",
+        page_heading(
+          "Results / Case inspector",
+          "Test case #" + index.to_string(),
+          "The recorded traffic for this case is not available.",
+          "<span class=\"status finished\">No data</span>",
+        ),
       )
       builder.write_string(
-        "<p>No recorded data for this test case. During a live run case details are not persisted; open the JSONL or database file with <code>open</code> after the run for the full log.</p>",
+        "<section class=\"panel empty-state\"><span class=\"empty-symbol\" aria-hidden=\"true\">—</span><strong>No recorded data for this test case</strong><p>During a live run this case has not been executed yet — details appear as soon as it completes. In an offline view the record is not part of the results file.</p></section>",
       )
-      builder.write_string("</div></body></html>\n")
+      builder.write_string(page_end(PAGE_SCRIPT))
       return HttpResponse::html(builder.to_string())
     }
     error => raise error
   }
-  let builder = StringBuilder()
   builder.write_string(
-    "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>",
+    page_heading(
+      "Results / Case inspector",
+      "Test case #" + index.to_string(),
+      case_data.name,
+      "<span class=\"status finished\">Recorded</span>",
+    ),
   )
-  builder.write_string(html_escape("Test Case \{index}"))
-  builder.write_string("</title><style>")
-  builder.write_string(PAGE_CSS)
-  builder.write_string("</style></head><body><div class=\"main-wrapper\">")
-  builder.write_string("<h1>boofuzz Test Case \{index}</h1>")
-  builder.write_string("<p><a href=\"/\">&larr; back to fuzz control</a></p>")
+  builder.write_string(
+    "<section class=\"panel\"><div class=\"panel-head\"><div><h2>Traffic &amp; checks</h2><p class=\"hint\">" +
+    html_escape(
+      if case_data.timestamp.is_empty() {
+        "Exact bytes from the saved run"
+      } else {
+        case_data.timestamp
+      },
+    ) +
+    "</p></div><button type=\"button\" class=\"button small\" id=\"copy-log\">Copy visible log</button></div><div class=\"log-toolbar\"><div class=\"log-filters\" role=\"group\" aria-label=\"Log filters\"><button type=\"button\" data-log-filter=\"all\" aria-pressed=\"true\">All events</button><button type=\"button\" data-log-filter=\"traffic\" aria-pressed=\"false\">Traffic</button><button type=\"button\" data-log-filter=\"checks\" aria-pressed=\"false\">Checks</button><button type=\"button\" data-log-filter=\"errors\" aria-pressed=\"false\">Failures</button></div><span id=\"log-copy-status\" class=\"copy-status\" role=\"status\"></span></div><div class=\"log-lines\" id=\"case-log\">",
+  )
   for line in case_log_lines(case_data) {
-    builder.write_string("<div class=\"log-line ")
-    builder.write_string(line.css_class)
-    builder.write_string("\">")
-    builder.write_string(html_escape(line.log_line))
-    builder.write_string("</div>")
+    let label = match line.css_class {
+      "log-send" => "SEND"
+      "log-receive" => "RECV"
+      "log-fail" => "FAIL"
+      "log-error" => "ERROR"
+      "log-pass" => "PASS"
+      "log-check" => "CHECK"
+      "log-step" => "STEP"
+      "log-case" => "CASE"
+      _ => "INFO"
+    }
+    builder.write_string(
+      "<div class=\"log-line " +
+      line.css_class +
+      "\"><span class=\"log-marker\">" +
+      label +
+      "</span><pre class=\"log-text\">" +
+      html_escape(line.log_line) +
+      "</pre></div>",
+    )
   }
-  builder.write_string("</div></body></html>\n")
+  builder.write_string(
+    "</div><div class=\"empty-state\" id=\"log-empty\" hidden><strong>No events in this filter</strong><p>Choose another event type to inspect this case.</p></div></section>",
+  )
+  builder.write_string(page_end(PAGE_SCRIPT))
   HttpResponse::html(builder.to_string())
 }
 
@@ -184,98 +215,145 @@ pub fn[T : SessionView] render_test_case(
 /// / — the index page: progress bars, pause form and crash list with
 /// links into the per-case views (the index.html template subset).
 pub fn[T : SessionView] render_index(view : T) -> HttpResponse raise {
-  let total = SessionView::current_index(view)
-  let num_mutations = SessionView::num_mutations(view)
-  let progress = match num_mutations {
-    Some(limit) if limit > 0 =>
-      min_of(total.to_double() / limit.to_double(), 1.0)
-    _ => 0.0
+  let count = SessionView::current_index(view)
+  let limit = SessionView::num_mutations(view)
+  let failures = SessionView::crashes(view)
+  let offline = SessionView::state(view) == "finished"
+  let paused = SessionView::is_paused(view)
+  let state = if offline {
+    "finished"
+  } else if paused {
+    "paused"
+  } else {
+    "running"
+  }
+  let status = "<span id=\"is_paused_indicator\" class=\"status " +
+    state +
+    "\">" +
+    (if offline { "Saved run" } else if paused { "Paused" } else { "Running" }) +
+    "</span>"
+  let action = if offline {
+    status
+  } else {
+    status +
+    "<form method=\"get\" action=\"/togglepause\"><button id=\"pause-button\" class=\"button\" type=\"submit\">" +
+    (if paused { "Resume run" } else { "Pause run" }) +
+    "</button></form>"
   }
   let builder = StringBuilder()
+  builder.write_string(page_start("Run overview", "Results viewer", "/"))
+  builder.write_string("<div id=\"run-overview\" data-mode=\"" + state + "\">")
   builder.write_string(
-    "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>boofuzz</title>",
+    page_heading(
+      "Workspace / Results",
+      "Run overview",
+      if offline {
+        "Inspect saved traffic, locate failures and review individual test cases."
+      } else {
+        "Follow the current run and inspect the cases that need attention."
+      },
+      action,
+    ),
   )
-  builder.write_string("<style>")
-  builder.write_string(PAGE_CSS)
-  builder.write_string("</style></head><body><div class=\"main-wrapper\">")
-  builder.write_string("<h1>boofuzz Fuzz Control</h1>")
-  builder.write_string("<div id=\"is_paused_indicator\" class=\"")
   builder.write_string(
-    if SessionView::is_paused(view) {
-      "paused"
+    "<section class=\"panel metrics" +
+    (if offline { " offline" } else { "" }) +
+    "\" aria-label=\"Run metrics\"><div class=\"metric\"><div class=\"metric-label\">" +
+    (if offline { "Recorded cases" } else { "Executed cases" }) +
+    "</div><div class=\"metric-value\" id=\"current_index\">" +
+    count.to_string() +
+    "</div><div class=\"metric-caption\">" +
+    (if offline {
+      "Available in the saved run"
     } else {
-      "running"
-    },
+      "Completed in this session"
+    }) +
+    "</div></div><div class=\"metric\"><div class=\"metric-label\">Failure cases</div><div class=\"metric-value error\" id=\"failure-count\">" +
+    failures.length().to_string() +
+    "</div><div class=\"metric-caption\">Recorded failures, including response issues</div></div>",
   )
-  builder.write_string("\">")
-  builder.write_string(
-    if SessionView::is_paused(view) {
-      "paused"
-    } else {
-      "running"
-    },
-  )
-  builder.write_string("</div>")
-  builder.write_string("<table class=\"summary\"><tr>")
-  builder.write_string("<td>Total:</td><td id=\"current_index\">")
-  builder.write_string("\{total}")
-  builder.write_string("</td><td>of</td>")
-  builder.write_string("<td id=\"num_mutations\">")
-  builder.write_string(
-    match num_mutations {
-      Some(limit) => "\{limit}"
-      None => "many"
-    },
-  )
-  builder.write_string("</td>")
-  builder.write_string("<td id=\"progress_bar_total\" class=\"fixed\">")
-  builder.write_string(progress_bar(progress))
-  builder.write_string("</td>")
-  builder.write_string("<td id=\"progress_percentage_total\">")
-  builder.write_string(progress_percent(progress))
-  builder.write_string("</td></tr>")
-  builder.write_string(
-    "<tr><td id=\"current_element\" class=\"summary-content-row-header-text\">",
-  )
-  builder.write_string(html_escape(SessionView::current_element(view)))
-  builder.write_string(":</td><td colspan=\"5\" id=\"current_test_case_name\">")
-  builder.write_string(html_escape(SessionView::current_case_name(view)))
-  builder.write_string("</td></tr>")
-  builder.write_string(
-    "<tr><td class=\"summary-content-row-header-text\">run time</td>",
-  )
-  builder.write_string("<td id=\"run_time\">")
-  builder.write_string("\{SessionView::runtime_seconds(view).to_int()} sec")
-  builder.write_string(
-    "<td class=\"summary-content-row-header-text\">exec speed</td>",
-  )
-  builder.write_string("<td id=\"exec_speed\">")
-  builder.write_string(speed_text(SessionView::exec_speed(view)))
-  builder.write_string("</td></tr></table>")
-  builder.write_string("<form method=\"get\" action=\"/togglepause\">")
-  builder.write_string("<input class=\"input\" type=\"submit\" value=\"")
-  builder.write_string(
-    if SessionView::is_paused(view) {
-      "Resume"
-    } else {
-      "Pause"
-    },
-  )
-  builder.write_string("\"></form>")
-  builder.write_string("<h2>Crashes</h2><table id=\"crashes\">")
-  builder.write_string("<tr><th>test case</th><th>reasons</th></tr>")
-  for index, reasons in SessionView::crashes(view) {
-    builder.write_string("<tr><td><a href=\"/test-case/")
-    builder.write_string("\{index}")
-    builder.write_string("\">")
-    builder.write_string("\{index}")
-    builder.write_string("</a></td><td>")
-    builder.write_string(html_escape(reasons.join(" | ")))
-    builder.write_string("</td></tr>")
+  if !offline {
+    builder.write_string(
+      "<div class=\"metric\"><div class=\"metric-label\">Elapsed</div><div class=\"metric-value small-value\" id=\"run_time\">" +
+      SessionView::runtime_seconds(view).to_int().to_string() +
+      "s</div><div class=\"metric-caption\">Includes paused time</div></div><div class=\"metric\"><div class=\"metric-label\">Execution rate</div><div class=\"metric-value small-value\" id=\"exec_speed\">" +
+      speed_text(SessionView::exec_speed(view)) +
+      "</div><div class=\"metric-caption\">Cases per second</div></div>",
+    )
   }
-  builder.write_string("</table>")
-  builder.write_string(PAGE_SCRIPT)
-  builder.write_string("</div></body></html>\n")
+  builder.write_string("</section><div class=\"overview-grid\">")
+  if offline {
+    builder.write_string(
+      "<section class=\"panel\"><div class=\"panel-head\"><h2>Saved results</h2><span class=\"status finished\">Read-only</span></div><div class=\"panel-body\"><p class=\"muted\" style=\"margin:0\">This is a saved run. Open a case to inspect the exact recorded request, response and check results.</p><p class=\"connection\">Run controls and live timing are available while a runner is active.</p></div></section>",
+    )
+  } else {
+    let progress = match limit {
+      Some(total) if total > 0 =>
+        min_of(count.to_double() / total.to_double(), 1.0)
+      _ => 0.0
+    }
+    let budget = match limit {
+      Some(total) => total.to_string()
+      None => "Unbounded"
+    }
+    let percent = match limit {
+      Some(total) if total > 0 => progress_percent(progress)
+      _ => "No fixed limit"
+    }
+    builder.write_string(
+      "<section class=\"panel\"><div class=\"panel-head\"><h2>Run progress</h2><span id=\"progress_percentage_total\" class=\"mono muted\">" +
+      percent +
+      "</span></div><div class=\"panel-body\"><div class=\"progress-labels\"><span>Configured case limit</span><strong id=\"num_mutations\">" +
+      budget +
+      "</strong></div><progress class=\"run-progress\" id=\"progress_bar_total\" max=\"100\"" +
+      (match limit {
+        Some(total) if total > 0 =>
+          " value=\"" + (progress * 100.0).to_string() + "\""
+        _ => ""
+      }) +
+      " aria-label=\"Run progress\"></progress><div class=\"run-context\"><span>Last request</span><code id=\"current_test_case_name\">" +
+      html_escape(
+        if SessionView::current_case_name(view).is_empty() {
+          "Waiting for the first case"
+        } else {
+          SessionView::current_case_name(view)
+        },
+      ) +
+      "</code></div><span id=\"current_element\" hidden>" +
+      html_escape(SessionView::current_element(view)) +
+      "</span><div class=\"connection\" id=\"connection-status\">Connected · updates every 2 seconds</div></div></section>",
+    )
+  }
+  builder.write_string(
+    "<section class=\"panel\"><div class=\"panel-head\"><h2>Case inspector</h2></div><div class=\"panel-body\"><form class=\"lookup\" id=\"case-lookup\" action=\"/test-case/0\"><div class=\"field\"><label for=\"case-index\">Case index</label><input id=\"case-index\" type=\"number\" min=\"0\" max=\"999999999\" placeholder=\"e.g. 12\" required></div><button class=\"button\" type=\"submit\">Open case →</button></form><p class=\"hint\">Use the index from a failure record or saved log.</p></div></section></div>",
+  )
+  builder.write_string(
+    "<section id=\"failures\"><div class=\"section-heading\"><div><h2>Failure records<span class=\"count-label\" id=\"failure-count-heading\">" +
+    failures.length().to_string() +
+    "</span></h2><p class=\"hint\">Inspect the request and response behind a recorded failure.</p></div><label><span class=\"field-label\" hidden>Filter failure records</span><input class=\"search-input\" id=\"failure-filter\" type=\"search\" aria-label=\"Filter failure records\" placeholder=\"Filter by case or reason…\"></label></div><div class=\"panel\"><div class=\"table-wrap\"><table id=\"crashes\" class=\"data-table\"><thead><tr><th style=\"width:120px\">CASE INDEX</th><th>REASON</th><th style=\"width:120px\"></th></tr></thead><tbody id=\"failure-rows\">",
+  )
+  let indices = failures.keys().to_array()
+  indices.sort()
+  for index in indices {
+    let reasons = failures.get(index).unwrap_or([])
+    builder.write_string(
+      "<tr><td><a href=\"/test-case/" +
+      index.to_string() +
+      "\" class=\"case-link\">" +
+      index.to_string() +
+      "</a></td><td class=\"failure-reason\">" +
+      html_escape(reasons.join(" | ")) +
+      "</td><td><a class=\"row-action\" href=\"/test-case/" +
+      index.to_string() +
+      "\">View log →</a></td></tr>",
+    )
+  }
+  builder.write_string(
+    "</tbody></table></div><div class=\"empty-state\" id=\"failure-empty\"" +
+    (if failures.is_empty() { "" } else { " hidden" }) +
+    "><span class=\"empty-symbol\" aria-hidden=\"true\">✓</span><strong id=\"failure-empty-title\">No failures recorded</strong><p id=\"failure-empty-description\">Failure records will appear here with a link to their traffic log.</p></div></div></section></div>",
+  )
+  builder.write_string(page_end(PAGE_SCRIPT))
   HttpResponse::html(builder.to_string())
 }
 
@@ -286,21 +364,6 @@ fn min_of(a : Double, b : Double) -> Double {
   } else {
     b
   }
-}
-
-///|
-/// The 50-character progress bar of the upstream template
-/// (index.html: "=" fill plus &nbsp; padding).
-fn progress_bar(progress : Double) -> String {
-  let filled = (progress * 50.0).to_int()
-  let mut bar = "["
-  for _ in 0..<filled {
-    bar = bar + "="
-  }
-  for _ in 0..<(50 - filled) {
-    bar = bar + "&nbsp;"
-  }
-  bar + "]"
 }
 
 ///|

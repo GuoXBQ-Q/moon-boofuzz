@@ -51,10 +51,13 @@ test "JSON fields render the same bytes as API construction" {
   assert_eq(protocol.requests()[0].render(), expected.render())
   let generated : Array[Bytes] = []
   ignore(
-    protocol.generate(case => {
-      generated.push(case.case.payload)
-      true
-    }),
+    protocol.generate(
+      case => {
+        generated.push(case.case.payload)
+        true
+      },
+      combinatorial=false,
+    ),
   )
   let stream = expected.cases()
   assert_eq(generated, [
@@ -113,10 +116,13 @@ test "JSON nested computed and conditional blocks match API" {
   assert_eq(protocol.requests()[0].render(), expected.render())
   let stream = expected.cases()
   ignore(
-    protocol.generate(case => {
-      assert_eq(case.case.payload, stream.next().unwrap().payload)
-      true
-    }),
+    protocol.generate(
+      case => {
+        assert_eq(case.case.payload, stream.next().unwrap().payload)
+        true
+      },
+      combinatorial=false,
+    ),
   )
   assert_true(stream.next() is None)
 }
@@ -142,6 +148,7 @@ test "definition limits resume and unsupported options fail" {
     },
     start=1,
     limit=1,
+    combinatorial=false,
   )
   assert_eq(result.generated, 1)
   assert_eq(result.state, Limited)
@@ -285,6 +292,7 @@ test "JSON generation identities resume after an oversized candidate" {
         true
       },
       limit=1,
+      combinatorial=false,
     ),
   )
   assert_eq(cases[0].case.ordinal, 1)
@@ -297,6 +305,7 @@ test "JSON generation identities resume after an oversized candidate" {
       },
       start=cases[0].case.ordinal + 1,
       limit=1,
+      combinatorial=false,
     ),
   )
   assert_eq(resumed[0].case.mutation_index, 2)
@@ -368,4 +377,42 @@ test "generation ordinals remain global across paths and oversized gaps" {
     assert_eq(rest[0].case.payload, b"E")
     assert_eq(protocol.position_of_id(rest[0].case.id), 4)
   }
+}
+
+///|
+test "generate defaults to combinatorial enumeration for multi-field requests" {
+  let source : Json = {
+    "schema_version": 1,
+    "requests": [
+      {
+        "name": "r",
+        "children": [
+          {
+            "type": "simple",
+            "name": "a",
+            "value_hex": "00",
+            "values_hex": ["01", "02"],
+          },
+          { "type": "static", "name": "sp", "value_hex": "20" },
+          {
+            "type": "simple",
+            "name": "b",
+            "value_hex": "10",
+            "values_hex": ["11", "12"],
+          },
+        ],
+      },
+    ],
+  }
+  let protocol = ProtocolDefinition::parse(source.stringify())
+  let payloads : Array[Bytes] = []
+  let result = protocol.generate(case => {
+    payloads.push(case.case.payload)
+    true
+  })
+  // Sequential enumeration would stop at the four single-field cases; the
+  // default adds the four depth-2 combinations across both fields.
+  assert_eq(result.generated, 8)
+  assert_true(payloads.contains(b"\x01\x20\x11"))
+  assert_true(payloads.contains(b"\x02\x20\x12"))
 }

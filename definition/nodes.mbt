@@ -96,8 +96,8 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
   }
   if kind == "size" {
     @records.require_keys(value, [
-      "type", "name", "target", "length", "endian", "offset", "inclusive", "mutations",
-      "fuzzable",
+      "type", "name", "target", "length", "endian", "offset", "inclusive", "ascii",
+      "mutations", "fuzzable",
     ])
     return @core.Node::size(
       name,
@@ -106,6 +106,7 @@ fn parse_node(value : Json, depth : Int) -> @core.Node raise {
       endian=endian(value),
       offset=number(value, "offset", 0),
       inclusive=boolean(value, "inclusive", false),
+      ascii=boolean(value, "ascii", false),
       mutations=unsigned_values(value),
       fuzzable=boolean(value, "fuzzable", true),
     )

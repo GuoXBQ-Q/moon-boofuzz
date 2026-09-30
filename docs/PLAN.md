@@ -132,8 +132,13 @@ socket（Windows 工具链无 AF_UNIX 头，双平台 CI 无法统一）、Seria
 - `num_mutations` 对禁用字段计 0（上游可能仍计数）——UPSTREAM.md
 - 条件隐藏块发射空载荷用例后已对齐上游；ordinal 无空洞
 - UDP 载荷超限拒绝而非截断——UDP.md
-- Web UI 默认关闭（`run --web-port` 显式启用），上游默认 26000 常开；
-  服务在用例间隙而非独立线程——WEB.md
+- Web UI 默认 26000 常开（与上游一致，端口占用自动顺延）但跑完即退出，
+  不复刻上游 `--keep-web` 阻塞等待回车；服务在用例间隙而非独立线程
+  ——WEB.md
+- `--record-passes` 默认 0（上游 CLI 默认 10）——DB.md
+- 组合爆破在 JSON/CLI/definition.generate 入口默认开启（与上游 CLI 一
+  致），但库级 `Runner`/`file_runner` API 默认仍为 false，需显式开启
+  ——CODE.md
 - RandomData 的计数怪癖（fuzz_values 计入随机条数）未复现——PRIMITIVES.md
 - Float `num_mutations` 等于实际产出数（上游虚报 max_mutations）
 - 上游 Repeat(variable=) docstring 声称禁用 fuzzing 但实现未禁用，本移植

@@ -1,5 +1,8 @@
 # Session paths
 
+For a runnable three-message JSON example and a matching loopback target, see
+[STATEFUL.md](STATEFUL.md).
+
 Create `SessionGraph::new()`, add compiled requests, then
 `connect("handshake", "authentication")` and
 `connect("authentication", "request")`.

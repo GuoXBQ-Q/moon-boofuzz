@@ -102,3 +102,73 @@ pub fn write_file_raw(path : String, bytes : Bytes) -> Unit raise StorageError {
   }
   close_file(handle)
 }
+
+///|
+/// Create every missing directory level along path, tolerating levels
+/// that already exist — the equivalent of upstream helpers.mkdir_safe /
+/// os.makedirs(exist_ok=True). Both '/' and '\' act as separators.
+pub fn ensure_directory(path : String) -> Unit raise StorageError {
+  ignore(check_path(path))
+  let buffer = StringBuilder()
+  for ch in path {
+    if ch == '/' || ch == '\\' {
+      make_directory_prefix(buffer.to_string())
+      buffer.write_char(ch)
+    } else {
+      buffer.write_char(ch)
+    }
+  }
+  make_directory_prefix(buffer.to_string())
+}
+
+///|
+/// Create one directory level, skipping roots that always exist (empty,
+/// ".", "/" and drive roots like "C:") and tolerating an existing
+/// directory (bf_file_mkdir accepts EEXIST).
+fn make_directory_prefix(body : String) -> Unit raise StorageError {
+  if body.is_empty() || body == "." {
+    return
+  }
+  if body.length() == 2 && body[1] == ':' {
+    return
+  }
+  let bytes = @utf8.encode(body) + b"\x00"
+  guard make_directory(bytes) == 0 else { raise WriteFailure(-1) }
+}
+
+///|
+/// Directory portion of a path — everything before the last separator.
+/// Empty when the path contains no separator.
+pub fn parent_directory(path : String) -> String {
+  let mut last = -1
+  let mut index = 0
+  for ch in path {
+    if ch == '/' || ch == '\\' {
+      last = index
+    }
+    index += 1
+  }
+  if last <= 0 {
+    return ""
+  }
+  path[0:last].to_owned()
+}
+
+///|
+/// Read at most max_bytes from the beginning of a file. Larger files are
+/// valid; read_bytes retains its separate whole-file size-limit contract.
+pub fn read_prefix(
+  path : String,
+  max_bytes? : Int = 16,
+) -> Bytes raise StorageError {
+  guard max_bytes >= 0 && max_bytes <= 67108864 else { raise InvalidPath }
+  let file = open_file(check_path(path), 0)
+  defer close_file(file)
+  if file_error(file) != 0 {
+    raise OpenFailure(file_error(file))
+  }
+  let buffer : FixedArray[Byte] = FixedArray::make(max_bytes, b'\x00')
+  let length = read_prefix_into(file, buffer, max_bytes)
+  guard length >= 0 else { raise ReadFailure(file_error(file)) }
+  Bytes::makei(length, i => buffer[i])
+}

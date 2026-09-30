@@ -1,0 +1,19 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz" @boofuzz,
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "GuoXBQ-Q/moon-boofuzz/runner",
+  "GuoXBQ-Q/moon-boofuzz/transport",
+  "GuoXBQ-Q/moon-boofuzz/web",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+}
+
+supported_targets = "native"
+
+pkgtype(kind: "executable")
+
+// Anchor for scripts/asan.mbtx: this executable links native C bridges.
+
+options(
+  "native-stub": [ ],
+)

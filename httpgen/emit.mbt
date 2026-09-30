@@ -51,6 +51,8 @@ pub(all) struct ConvertOptions {
   policy_kind : String
   /// Response length for the "fixed" read policy.
   fixed_length : Int
+  /// 0 = no cap (the generated definition omits case_limit); N > 0 caps
+  /// the run at N cases.
   case_limit : Int
 } derive(Debug)
 
@@ -98,6 +100,27 @@ pub fn to_definition(
       candidates: selection.candidates.filter(c => !c.is_empty()),
     }
   }
+  let request_name = if options.request_name.is_empty() {
+    "request"
+  } else {
+    options.request_name
+  }
+  // Auto Content-Length: when the message declares exactly one
+  // Content-Length header and has a body, an unchecked (frozen) value
+  // becomes an ascii size tracking the body's live length — upstream's
+  // examples/http_with_body.py s_size(output_format="ascii"). A user
+  // selection on that header keeps the explicit probing behavior.
+  let mut clen_count = 0
+  let mut clen_index = -1
+  for i, header in message.headers {
+    if header.name.to_lower() == "content-length" {
+      clen_count += 1
+      clen_index = i
+    }
+  }
+  let auto_clen : Bool = clen_count == 1 &&
+    message.terminator is Some(_) &&
+    !chosen.contains("hdr_\{clen_index}")
   let children : Array[Json] = []
   children.push(field_node("method", message.verb, chosen.get("method")))
   children.push(static_node("sp1", " "))
@@ -112,7 +135,22 @@ pub fn to_definition(
   }
   for i, header in message.headers {
     children.push(static_node("name_\{i}", header.name + ":" + header.gap))
-    children.push(field_node("hdr_\{i}", header.value, chosen.get("hdr_\{i}")))
+    if auto_clen && i == clen_index {
+      // The decimal rendering of the body's current wire length; frozen
+      // (no boundary probes) so generated case counts stay predictable.
+      children.push({
+        "type": "size",
+        "name": "hdr_\{i}",
+        "target": "\{request_name}.body",
+        "length": 4,
+        "ascii": true,
+        "fuzzable": false,
+      })
+    } else {
+      children.push(
+        field_node("hdr_\{i}", header.value, chosen.get("hdr_\{i}")),
+      )
+    }
     let is_last_header = i == message.headers.length() - 1
     if message.terminator is Some(_) || !is_last_header || message.final_eol {
       children.push(static_node("crlf\{i + 1}", message.eol))
@@ -123,14 +161,19 @@ pub fn to_definition(
       // The terminator's first line ending was already emitted after the
       // last head line; only the remainder opens the body.
       children.push(static_node("head_end", terminator_remainder(terminator)))
-      children.push(field_node("body", message.body, chosen.get("body")))
+      let body_field = field_node("body", message.body, chosen.get("body"))
+      if auto_clen {
+        // A named block gives the ascii size its measurement target.
+        children.push({
+          "type": "block",
+          "name": "body",
+          "children": [body_field],
+        })
+      } else {
+        children.push(body_field)
+      }
     }
     None => ()
-  }
-  let request_name = if options.request_name.is_empty() {
-    "request"
-  } else {
-    options.request_name
   }
   let host = if options.host.is_empty() { "127.0.0.1" } else { options.host }
   guard options.port >= 1 && options.port <= 65535 else {
@@ -151,19 +194,31 @@ pub fn to_definition(
   let policies : Map[String, Json] = Map([])
   policies[request_name] = policy
   let request : Json = { "name": request_name, "children": children }
+  let endpoint : Json = {
+    "host": host,
+    "port": options.port,
+    "receive_timeout_ms": 500,
+  }
+  let execution : Map[String, Json] = Map([
+    ("transport", ("tcp" : Json)),
+    ("endpoint", endpoint),
+    ("policies", Json::object(policies)),
+    // Pinned so the page's case count (sequential raw_mutation_count) and
+    // previews stay exact; combinatorial totals are unknown up front.
+    ("combinatorial", (false : Json)),
+  ])
+  // 0 means no cap: the key is omitted and the run goes to exhaustion,
+  // matching the CLI's no-default-limit behavior.
+  if options.case_limit > 0 {
+    execution["case_limit"] = Json::number(
+      options.case_limit.to_double(),
+      repr="\{options.case_limit}",
+    )
+  }
   let definition : Json = {
     "schema_version": 1,
     "requests": [request],
-    "execution": {
-      "transport": "tcp",
-      "endpoint": {
-        "host": host,
-        "port": options.port,
-        "receive_timeout_ms": 500,
-      },
-      "policies": Json::object(policies),
-      "case_limit": options.case_limit,
-    },
+    "execution": Json::object(execution),
   }
   let definition_text = definition.stringify()
   let parsed = @definition.ProtocolDefinition::parse(definition_text) catch {
@@ -185,6 +240,7 @@ pub fn to_definition(
         previews.length() < 3
       },
       limit=3,
+      combinatorial=false,
     ),
   ) catch {
     _ => raise Invalid("generated definition failed to enumerate cases")

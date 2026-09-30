@@ -139,13 +139,17 @@ fn open_request(port : Int, path : String) -> WebSocket raise {
 
 ///|
 fn drain(client : WebSocket) -> String {
-  let buffer : FixedArray[Byte] = FixedArray::make(16384, b'\x00')
+  let buffer : FixedArray[Byte] = FixedArray::make(262144, b'\x00')
+  let conn : RawConn = { socket: client, }
   let mut total = 0
   for ;; {
     // Bounded waits everywhere: a missing response fails the test instead
     // of hanging it (accept queues can lag a completed loopback connect).
+    if total == buffer.length() {
+      break
+    }
     guard web_wait(client, 0, 2000) == 0 else { break }
-    let n = web_recv(client, buffer, 16384 - total)
+    let n = conn.recv(buffer, offset=total) catch { _ => -1 }
     if n > 0 {
       total += n
       if total >= 16384 {
@@ -241,14 +245,14 @@ test "index and test-case pages render; unknown paths 404" {
   let view : FakeSession = { paused: @ref.Ref(false), }
   let index_page = roundtrip(server, view, "/")
   assert_true(index_page.has_prefix("HTTP/1.1 200"))
-  assert_true(index_page.contains("boofuzz Fuzz Control"))
-  assert_true(index_page.contains("/togglepause"))
-  assert_true(index_page.contains("<a href=\"/test-case/1\">1</a>"))
-  // num_mutations is unknown here: the bar is empty and the total reads "many".
-  assert_true(index_page.contains(">many<"))
-  assert_true(index_page.contains("0.000%"))
+  assert_true(index_page.contains("Run overview"))
+  assert_true(!index_page.contains("action=\"/togglepause\""))
+  assert_true(index_page.contains("href=\"/test-case/1\""))
+  // Saved views show neither a fabricated percentage nor live controls.
+  assert_true(index_page.contains("Saved run"))
+  assert_true(index_page.contains("Read-only"))
   let case_page = roundtrip(server, view, "/test-case/0")
-  assert_true(case_page.contains("boofuzz Test Case 0"))
+  assert_true(case_page.contains("Test case #0"))
   assert_true(case_page.contains("Check Failed: ReceiveTimedOut"))
   assert_true(case_page.contains("Transmitted 2 bytes"))
   let missing = roundtrip(server, view, "/test-case/99")
@@ -330,7 +334,7 @@ test "OfflineSession serves JSONL and SQLite views" {
   assert_true(jsonl_index.contains("\"current_index\":2"))
   assert_true(jsonl_index.contains("\"reasons\":[\"ReceiveTimedOut\"]"))
   let jsonl_case = roundtrip_view(jsonl_view, "/test-case/1")
-  assert_true(jsonl_case.contains("boofuzz Test Case 1"))
+  assert_true(jsonl_case.contains("Test case #1"))
   assert_true(jsonl_case.contains("Transmitted 1 bytes"))
   // Connection errors log type "error": absent from the failure map.
   let jsonl_conn = roundtrip_view(jsonl_view, "/api/test-case/2")
@@ -349,7 +353,7 @@ test "OfflineSession serves JSONL and SQLite views" {
   assert_true(db_api.contains("\"current_index\":2"))
   assert_true(db_api.contains("\"reasons\":[\"ReceiveTimedOut\""))
   let db_page = roundtrip_view(db_view, "/")
-  assert_true(db_page.contains("<a href=\"/test-case/1\">1</a>"))
+  assert_true(db_page.contains("href=\"/test-case/1\""))
 }
 
 ///|
@@ -370,7 +374,7 @@ fn[T : SessionView] roundtrip_view(view : T, path : String) -> String raise {
 
 ///|
 test "LiveSession observes cases and gates on pause" {
-  let ui = WebUi::open(port=0, limit=10)
+  let ui = WebUi::open(port=0, total=10)
   defer web_socket_close(ui.server.socket)
   let session = ui.session()
   SessionView::toggle_pause(session)
@@ -385,6 +389,34 @@ test "LiveSession observes cases and gates on pause" {
   assert_true(page.contains("\"is_paused\":false"))
   assert_true(page.contains("\"current_test_case_name\":\"udp_request\""))
   assert_true(page.contains("\"reasons\":[\"SendTimedOut\"]"))
+}
+
+///|
+test "LiveSession serves case details from observed records" {
+  let view = LiveSession::new(total=10)
+  view.observe(jsonl_record(0, "passed", "Passed"))
+  view.observe(jsonl_record(1, "send_failed", "SendTimedOut"))
+  let case0 = SessionView::test_case_data(view, 0)
+  assert_eq(case0.name, "udp_request")
+  assert_eq(case0.index, 0)
+  // step / send / receive / pass — the upstream log sequence.
+  assert_eq(case0.steps.length(), 4)
+  assert_eq(case0.steps[1].step_type, "send")
+  assert_eq(case0.steps[1].data, b"\xaa")
+  assert_eq(case0.steps[3].step_type, "pass")
+  let case1 = SessionView::test_case_data(view, 1)
+  assert_eq(case1.steps[3].step_type, "fail")
+  // Indexes beyond the executed count still raise, and the page explains
+  // the case has not run yet.
+  assert_true(
+    try {
+      ignore(SessionView::test_case_data(view, 2))
+      false
+    } catch {
+      @db.NoSuchCase(_) => true
+      _ => false
+    },
+  )
 }
 
 ///|
@@ -451,4 +483,51 @@ test "raw socket receive appends at its offset and rejects invalid buffer ranges
       },
     )
   }
+}
+
+///|
+test "offline overview reports saved state and omits ineffective run controls" {
+  let path = @db.temp_path()
+  defer @db.remove_file(path)
+  @recordio.write_file_raw(
+    path,
+    @utf8.encode(
+      jsonl_record(8, "receive_failed", "<script>alert(1)</script>").encode() +
+      "\n",
+    ),
+  )
+  let view = OfflineSession::open_jsonl(path)
+  defer view.close()
+  let page = render_index(view)
+  let html = @utf8.decode(page.body)
+  assert_true(html.contains("Saved run"))
+  assert_true(html.contains("Read-only"))
+  assert_true(!html.contains("action=\"/togglepause\""))
+  assert_true(!html.contains("id=\"pause-button\""))
+  assert_true(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"))
+  assert_true(!html.contains("<script>alert(1)</script>"))
+  let api = @json.parse(@utf8.decode(api_current_run(view).body))
+  guard api is { "session_info": { "state": String(state), .. }, .. } else {
+    fail("missing run state")
+  }
+  assert_eq(state, "finished")
+}
+
+///|
+test "live display counts completed cases rather than raw mutation coordinates" {
+  let view = LiveSession::new(total=5)
+  view.observe(jsonl_record(500, "passed", "Passed"))
+  assert_eq(SessionView::current_index(view), 1)
+  view.observe(jsonl_record(900, "receive_failed", "ReceiveTimedOut"))
+  assert_eq(SessionView::current_index(view), 2)
+  assert_true(SessionView::crashes(view).contains(900))
+}
+
+///|
+test "live unbounded runs do not fabricate a progress percentage" {
+  let view = LiveSession::new(total=0)
+  let html = @utf8.decode(render_index(view).body)
+  assert_true(html.contains(">Unbounded<"))
+  assert_true(html.contains("No fixed limit"))
+  assert_true(html.contains("action=\"/togglepause\""))
 }

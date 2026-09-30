@@ -75,9 +75,15 @@ fuzz_logger_db.py:119-132)、`close_test_case`(尝试刷写)、
 
 ## CLI
 
-- `run --db FILE`:JSONL 与 SQLite 双写;`run_summary` 增加 `database`。
-- `run --record-passes N`:keep-only-n 节流,两侧共用(N=0 全量)。JSONL
-  侧由 `recordio/ThrottledWriter` 实现(记录级环形缓冲,首例 + 失败立即
+- `run` 的 SQLite 结果库与上游一致**常开**:显式 `--db FILE` 选择文件
+  (会按需创建缺失的父目录,等价上游 mkdir_safe);缺省时自动写入
+  `boofuzz-results/run-<UTC时间戳>.db`,文件名与上游 session.py:174,180
+  的 `run-{run_id}.db` 逐字对齐(秒级 UTC ISO 时间戳、`:` 换 `-`,形如
+  `run-2026-09-29T07-15-30+00-00.db`)。同秒内两次运行共享同一文件,与
+  上游"静默共享"语义一致。`run_summary` 始终携带 `database`。
+- `run --record-passes N`:keep-only-n 节流,两侧共用(N=0 全量;上游
+  CLI 默认 10,本 CLI 保留 0)。JSONL 侧由
+  `recordio/ThrottledWriter` 实现(记录级环形缓冲,首例 + 失败立即
   刷 + 收尾回填最近 N 例),SQLite 侧即 `num_log_cases`。
 
 ## 测试与差分

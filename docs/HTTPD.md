@@ -81,7 +81,9 @@ moon run --target native cmd/boofuzz -- run examples/httpd.json \
 
 预期 outcome 分布：passed（200/404/405 回答）、receive_timeout /
 peer_closed（静默断连类）、response_mismatch（若配置校验）、
-monitor_failed（真把进程打死才算发现）。
+monitor_failed（真把进程打死才算发现）。组合爆破默认开启后，depth-2+
+的组合用例也会进入 case_limit 窗口，各分类的比例随之变化；要复现单
+字段逐例枚举可加 `--combinatorial false`。
 
 ## 与 web UI 服务器的关系
 

@@ -23,3 +23,15 @@ The dependency compiler and strict overflow errors are MoonBit adaptations.
 compare the complete default and mutation payloads, including parent sizing,
 Repeat and conditional switching. Upstream reference strings omit the request
 prefix, while this API requires it explicitly.
+
+## ASCII output（Content-Length 形态）
+
+`Node::size(..., ascii=true)` / JSON `"ascii": true` 对应上游 `output_format="ascii"`
+（size.py:41-48、examples/http_with_body.py）：计算出的长度渲染为**ASCII 十进制
+文本**而非定宽二进制——HTTP `Content-Length:` 是典型用途，长度字段随 body 变异
+实时跟随。宽度参数 `length` 退化为变异边界与溢出上限的位宽；默认变异序列
+（无显式 `mutations` 且 fuzzable）同样按位宽边界生成，但以十进制文本渲染。
+两个限制：ascii 模式不支持 `inclusive`（自身宽度随值变化，无法自计数）；
+ascii size 不得位于其目标块内部（变宽自包含有歧义，编译期拒绝）。convert
+页面对带单个未勾选 Content-Length 头的报文自动生成 `fuzzable: false` 的
+ascii size 并把 body 包进命名块。

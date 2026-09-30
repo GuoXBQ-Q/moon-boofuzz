@@ -46,7 +46,9 @@ jobs:
         if: runner.os == 'Linux'
         run: moon run scripts/asan.mbtx
       - run: moon run cmd/main
+      - run: moon run --target native examples/moonbit_http
       - run: moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
+      - run: moon run --target native cmd/boofuzz -- generate examples/stateful.json --limit 2
       - run: moon fmt --check
       - run: moon info
       - run: moon info --target native

@@ -18,6 +18,8 @@ pub fn print_error(String) -> Unit
 
 pub fn read_bytes(String, max_bytes? : Int) -> Bytes raise StorageError
 
+pub fn read_prefix(String, max_bytes? : Int) -> Bytes raise StorageError
+
 pub fn read_records(String, max_bytes? : Int) -> @records.RecordRead raise StorageError
 
 pub fn write_file_raw(String, Bytes) -> Unit raise StorageError

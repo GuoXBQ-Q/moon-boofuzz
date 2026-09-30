@@ -45,7 +45,13 @@ log-case/log-step/log-send/log-receive/log-fail/log-pass/log-error。
 
 - `LiveSession`(`run --web-port N`):计数与暂停标志在 Ref 中,
   capture 循环每例经 `observe` 推进 current_index/当前请求名/失败表;
-  num_mutations 为配置上限(无上限时为 null → 页面显示 "many")。
+  num_mutations 是**进度分母**:由定义编译后的各变异字段原语计数
+  求和(上游 Session.num_mutations 同款语义),与 case 上限无关——
+  组合爆破可能执行超过该分母,零变异定义显示 Unbounded。
+  **用例详情页在运行期间可用**:observe 同时保留每条记录,
+  `/test-case/<index>` 按已执行用例即时渲染收发字节(等价上游从
+  live-written db 取详情);尚未执行到的索引渲染"未执行"提示,
+  内存占用随已执行用例数增长。
 - `OfflineSession`(`open FILE`):等价 session_info.SessionInfo 的
   只读视图——is_paused 恒 false、state "finished"、runtime/exec_speed
   0、current_index 为持久化用例数(上游 COUNT(*))。支持两种后端:
@@ -56,9 +62,13 @@ log-case/log-step/log-send/log-receive/log-fail/log-pass/log-error。
 
 ## CLI
 
-- `run --web-port N`:启动实时 UI(默认关闭——有意偏离上游
-  web_port=26000 默认开启,避免本地运行时意外占用端口);打印
+- `run [--web-port N]`:实时 UI 与上游一致**默认开启**,端口 26000
+  (上游 DEFAULT_WEB_UI_PORT),端口被占时自动顺延重试;打印
   "Web interface can be found at http://localhost:PORT"。
+  `--web-port 0` 请求操作系统分配随机空闲端口。与上游的两点差异:
+  CLI 无关闭开关(上游亦无,仅程序化 web_port=None 可关),以及跑完
+  输出摘要后直接退出——不复刻上游 `--keep-web` 阻塞等待回车的交互,
+  批处理与 CI 才能正常收尾;需要事后翻看时用 `open` 重开只读视图。
 - `open FILE [--ui-port N]`:离线打开 SQLite 结果库或 JSONL 记录,
   默认端口 26000,打印上游同款 "Serving web page at ..." 后常驻服务,
   Ctrl+C 退出。文件类型按 16 字节 SQLite 魔数判别。
@@ -89,3 +99,13 @@ Source: `boofuzz/web/app.py`(路由 :26-91、_get_log_data :54-65)、
 (:359-399)、`boofuzz/data_test_case.py`、`boofuzz/data_test_step.py`。
 `web/http.c`、`SessionView`/`LiveSession`/`OfflineSession`、页面渲染
 为 MoonBit 适配。
+
+## 深色控制台界面
+
+概览、用例日志与 HTTP 转换器共享石墨灰界面和响应式布局。概览显示执行计数、故障记录、配置进度和连接状态；轮询同步进度条与故障列表，未知上限不显示虚构的百分比。离线结果明确标为 Saved run / Read-only，隐藏暂停和实时计时控件。
+
+故障列表可在当前页面按索引或原因筛选；Case inspector 按索引打开日志。用例页支持 All events / Traffic / Checks / Failures 筛选与复制可见日志，未知用例提供明确的空状态。所有记录内容保留 HTML 转义，实时更新通过 textContent 构造。
+
+HTTP 转换器使用 Request / Mutations / Definition 三步布局，提供示例填充、全部选择/清除、选择计数、参数按策略显示、JSON 复制反馈与下载。界面不依赖外部字体、脚本或静态文件服务。
+
+/api/current-run 的 session_info 新增 state，保留原有字段。LiveSession 的 current_index 为本次已完成用例数；故障链接仍使用记录中的原始 ordinal。open 使用有界文件头读取识别 SQLite/JSONL，避免把 16 字节前缀检测误作整文件大小上限。

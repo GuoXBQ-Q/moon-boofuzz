@@ -90,10 +90,13 @@ test "offline parser consumes generated binary cases without text corruption" {
   }
   let definition = @definition.ProtocolDefinition::parse(value.stringify())
   let accepted : Array[Bool] = []
-  let result = definition.generate(case => {
-    accepted.push(parse_ping(case.case.payload))
-    true
-  })
+  let result = definition.generate(
+    case => {
+      accepted.push(parse_ping(case.case.payload))
+      true
+    },
+    combinatorial=false,
+  )
   assert_eq(result.generated, 3)
   assert_eq(accepted, [false, false, true])
 }
@@ -126,12 +129,18 @@ test "TCP robustness run reports and replays a failed request from saved bytes" 
       "case_limit": 1,
     },
   })
+  let db_path = fixture_path()
+  defer fixture_remove(db_path)
   assert_eq(
     dispatch([
       "run",
       @utf8.decode(definition_path),
       "--output",
       @utf8.decode(output_path),
+      "--db",
+      @utf8.decode(db_path),
+      "--web-port",
+      "0",
     ]),
     0,
   )
@@ -197,12 +206,18 @@ test "stateful CLI repeats handshake and authentication for every target case" {
       "case_limit": 2,
     },
   })
+  let db_path = fixture_path()
+  defer fixture_remove(db_path)
   assert_eq(
     dispatch([
       "run",
       @utf8.decode(input_path),
       "--output",
       @utf8.decode(output_path),
+      "--db",
+      @utf8.decode(db_path),
+      "--web-port",
+      "0",
     ]),
     0,
   )

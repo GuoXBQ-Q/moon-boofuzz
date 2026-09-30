@@ -1,0 +1,14 @@
+import {
+  "GuoXBQ-Q/moon-boofuzz/records",
+  "GuoXBQ-Q/moon-boofuzz/web",
+}
+
+supported_targets = "native"
+
+pkgtype(kind: "executable")
+
+// Anchor for scripts/asan.mbtx: this executable links the native web bridge.
+
+options(
+  "native-stub": [ ],
+)

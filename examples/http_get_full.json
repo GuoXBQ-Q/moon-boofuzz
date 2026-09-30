@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "requests": [
+    {
+      "name": "request",
+      "children": [
+        { "type": "group", "name": "verb", "values_hex": ["474554", "48454144"], "default_hex": "474554" },
+        { "type": "static", "name": "sp1", "value_hex": "20" },
+        { "type": "simple", "name": "uri", "value_hex": "2f", "values_hex": ["2f6563686f", "2f68656164657273", "2f6e6f7065"] },
+        { "type": "static", "name": "sp2", "value_hex": "20" },
+        { "type": "static", "name": "version", "value_hex": "485454502f312e31" },
+        { "type": "static", "name": "crlf0", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_host", "value_hex": "486f73743a20" },
+        { "type": "static", "name": "host", "value_hex": "3132372e302e302e313a39303030" },
+        { "type": "static", "name": "crlf1", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_ua", "value_hex": "557365722d4167656e743a20" },
+        { "type": "static", "name": "ua", "value_hex": "6d6f6f6e2d626f6f66757a7a2f302e31" },
+        { "type": "static", "name": "crlf2", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_accept", "value_hex": "4163636570743a20" },
+        { "type": "text", "name": "accept", "value": "application/json" },
+        { "type": "static", "name": "crlf3", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_ae", "value_hex": "4163636570742d456e636f64696e673a20" },
+        { "type": "static", "name": "ae", "value_hex": "6964656e74697479" },
+        { "type": "static", "name": "crlf4", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_xfuzz", "value_hex": "582d46757a7a3a20" },
+        { "type": "text", "name": "xfuzz", "value": "seed" },
+        { "type": "static", "name": "crlf5", "value_hex": "0d0a" },
+        { "type": "static", "name": "name_conn", "value_hex": "436f6e6e656374696f6e3a20" },
+        { "type": "static", "name": "conn", "value_hex": "636c6f7365" },
+        { "type": "static", "name": "crlf6", "value_hex": "0d0a" },
+        { "type": "static", "name": "head_end", "value_hex": "0d0a" }
+      ]
+    }
+  ],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": { "host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 500 },
+    "policies": { "request": { "kind": "until", "delimiter_hex": "0d0a0d0a" } },
+    "case_limit": 60
+  }
+}

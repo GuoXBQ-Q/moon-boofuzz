@@ -134,3 +134,12 @@ MOONBIT_FFI_EXPORT int bf_file_mkdir(const char *path) {
   return 0;
 #endif
 }
+
+/* Bounded prefix inspection without seeking or requiring the file to fit. */
+MOONBIT_FFI_EXPORT int bf_file_read_prefix(bf_file *f, uint8_t *buffer, int length) {
+  if (!f->file || f->error) { if (!f->error) f->error = EBADF; return -1; }
+  if (length < 0) { f->error = EINVAL; return -1; }
+  size_t n = fread(buffer, 1, (size_t)length, f->file);
+  if (ferror(f->file)) { f->error = errno ? errno : EIO; return -1; }
+  return (int)n;
+}

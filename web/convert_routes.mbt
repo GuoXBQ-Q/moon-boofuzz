@@ -52,7 +52,7 @@ fn form_of(fields : Map[String, String]) -> ConvertForm {
     port: fields.get("port").unwrap_or("9000"),
     policy: fields.get("policy").unwrap_or("until"),
     fixed_length: fields.get("fixed_length").unwrap_or("2"),
-    case_limit: fields.get("case_limit").unwrap_or("100"),
+    case_limit: fields.get("case_limit").unwrap_or("0"),
   }
 }
 
@@ -68,27 +68,31 @@ fn convert_segments(fields : Map[String, String]) -> HttpResponse {
   }
   let rows = StringBuilder()
   for segment in message.segments() {
-    let open = "<tr><td><input type=\"checkbox\" name=\"f_" +
+    let open = "<tr><td><input type=\"checkbox\" aria-label=\"Fuzz " +
+      html_escape(segment.label) +
+      "\" name=\"f_" +
       segment.id +
-      "\"></td><td>"
+      "\"></td><td class=\"segment-name\">"
     rows.write_string(open)
     rows.write_string(html_escape(segment.label))
-    rows.write_string("</td><td><code>")
+    rows.write_string("</td><td><code class=\"segment-value\">")
     rows.write_string(html_escape(segment.value))
     rows.write_string("</code></td><td>")
     rows.write_string(primitive_select(segment.id, segment.kind))
     rows.write_string(primitive_params(segment.id))
     let close = "</td><td><textarea name=\"c_" +
       segment.id +
+      "\" aria-label=\"Custom candidates for " +
+      html_escape(segment.label) +
       "\" rows=\"2\" placeholder=\"one candidate per line (optional)\"></textarea></td></tr>"
     rows.write_string(close)
   }
   let hint = match message.header("content-length") {
     Some(_) =>
-      "<p>Note: the message declares a Content-Length header. When a body " +
+      "<div class=\"notice warning\">Note: the message declares a Content-Length header. When a body " +
       "segment is fuzzed, its candidates may change the body length while the " +
       "header stays frozen at the original value unless that header is also " +
-      "fuzzed.</p>"
+      "fuzzed.</div>"
     None => ""
   }
   let body = "<p>Parsed " +
@@ -103,10 +107,10 @@ fn convert_segments(fields : Map[String, String]) -> HttpResponse {
     hint +
     "<form method=\"post\" action=\"/convert/generate\">" +
     hidden_message(form) +
-    "<table class=\"summary\"><tr><th>Fuzz</th><th>Segment</th><th>Original value</th><th>Mutation primitive</th><th>Custom candidates</th></tr>" +
+    "<section class=\"panel\"><div class=\"panel-head\"><div><h2>Mutation surface</h2><p class=\"hint\"><span id=\"selected-count\">0 selected</span> · select only the fields you want to fuzz</p></div><div class=\"actions\"><button type=\"button\" class=\"button ghost small\" data-select-fields=\"all\">Select all</button><button type=\"button\" class=\"button ghost small\" data-select-fields=\"none\">Clear</button></div></div><div class=\"table-wrap\"><table class=\"summary segments-table\"><thead><tr><th>FUZZ</th><th>SEGMENT</th><th>ORIGINAL VALUE</th><th>MUTATION STRATEGY</th><th>CUSTOM CANDIDATES</th></tr></thead><tbody>" +
     rows.to_string() +
-    "</table>" +
-    "<p><input class=\"input\" type=\"submit\" value=\"Generate definition\"> " +
+    "</tbody></table></div></section>" +
+    "<p class=\"actions\"><input class=\"input primary\" type=\"submit\" value=\"Generate definition →\"> " +
     "<a href=\"/convert\">Start over</a></p>" +
     "</form>"
   convert_page("Pick fuzzed segments", body)
@@ -157,65 +161,51 @@ fn convert_generate(fields : Map[String, String]) -> HttpResponse {
   let result = @httpgen.to_definition(message, selections, options) catch {
     @httpgen.Invalid(text) => return convert_error(text)
   }
+
+  let definition_json = try! @json.parse(result.definition_text)
+  let pretty_definition = definition_json.stringify(indent=2)
   let previews = StringBuilder()
   for i, payload in result.previews {
-    let head = "<h2>Preview case " +
+    previews.write_string(
+      "<details class=\"payload-preview\"" +
+      (if i == 0 { " open" } else { "" }) +
+      "><summary>Preview case " +
       i.to_string() +
-      "</h2><pre class=\"fixed\">"
-    previews.write_string(head)
+      " · " +
+      payload.length().to_string() +
+      " bytes</summary><pre>",
+    )
     previews.write_string(html_escape(ascii_dump(payload)))
-    previews.write_string("</pre><p>hex: <code>")
-    previews.write_string(@records.hex_encode(payload))
-    previews.write_string("</code></p>")
+    previews.write_string(
+      "</pre><div class=\"hex-preview\">" +
+      @records.hex_encode(payload) +
+      "</div></details>",
+    )
   }
-  let body = "<p>Definition validated: <b>" +
+  let body = "<div class=\"result-grid\"><section class=\"panel\"><div class=\"panel-head\"><h2>Definition JSON</h2><span class=\"status\">Validated</span></div><textarea id=\"definition-json\" class=\"definition-json\" aria-label=\"Generated definition JSON\" rows=\"22\" readonly spellcheck=\"false\">" +
+    html_escape(pretty_definition) +
+    "</textarea><input type=\"hidden\" id=\"download-name\" value=\"" +
+    html_escape(form.request_name) +
+    "\"><div class=\"json-actions\"><button class=\"button primary\" type=\"button\" onclick=\"downloadDefinition()\">Download JSON ↓</button><button class=\"button\" type=\"button\" onclick=\"copyDefinition()\">Copy JSON</button><span id=\"copy-status\" class=\"copy-status\" role=\"status\"></span></div></section><aside class=\"panel\"><div class=\"panel-head\"><h2>Ready to run</h2></div><div class=\"panel-body\"><div class=\"muted\">Fuzzing cases</div><div class=\"result-stat\">" +
     result.case_count.to_string() +
-    " fuzzing cases</b> will be generated for target " +
+    "</div><p class=\"hint\">fuzzing cases in the generated definition</p><hr style=\"border:0;border-top:1px solid var(--line);margin:24px 0\"><div class=\"metric-label\">Target endpoint</div><div class=\"result-target\">" +
     html_escape(form.host) +
     ":" +
     html_escape(form.port) +
-    ". Adjust the endpoint in the JSON if needed.</p>" +
-    previews.to_string() +
-    "<h2>Definition JSON</h2>" +
-    "<textarea id=\"definition-json\" rows=\"16\" class=\"fixed\" readonly style=\"width:100%\">" +
-    html_escape(result.definition_text) +
-    "</textarea>" +
-    "<input type=\"hidden\" id=\"download-name\" value=\"" +
-    html_escape(form.request_name) +
-    "\">" +
-    "<p><button class=\"input\" onclick=\"copyDefinition()\">Copy JSON</button> " +
-    "<button class=\"input\" onclick=\"downloadDefinition()\">Download JSON</button> " +
-    "<a href=\"/convert\">Convert another message</a></p>"
+    "</div><ul class=\"result-notes\"><li>Selected segments receive mutations.</li><li>Unselected segments keep their original bytes.</li><li>The endpoint can be changed in the JSON.</li></ul><a class=\"button ghost\" href=\"/convert\">Convert another request</a></div></aside></div><div class=\"section-heading\"><div><h2>Payload previews</h2><p class=\"hint\">Inspect the exact bytes before running the definition.</p></div></div>" +
+    previews.to_string()
   convert_page("Generated definition", body)
 }
 
 ///|
 fn render_convert_input(rawtext : String) -> HttpResponse {
-  let sample = "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1:9000\r\nUser-Agent: moon-boofuzz\r\n\r\n"
-  let body = "<p>Paste a raw HTTP request message. On the next page you choose the " +
-    "segments to fuzz and optionally provide explicit candidate values; the " +
-    "converted definition targets the message over TCP.</p>" +
-    "<form method=\"post\" action=\"/convert/segments\">" +
-    "<p><textarea name=\"rawtext\" rows=\"14\" style=\"width:100%\" placeholder=\"" +
+  let sample = "GET /api/items HTTP/1.1\r\nHost: 127.0.0.1:9000\r\nUser-Agent: moon-boofuzz\r\nAccept: application/json\r\n\r\n"
+  let body = "<form class=\"builder-grid\" method=\"post\" action=\"/convert/segments\"><section class=\"panel request-panel\"><div class=\"panel-head\"><div><h2>Raw HTTP request</h2><p class=\"hint\">The starting point for your fuzz definition</p></div><button class=\"button ghost small\" id=\"use-sample\" type=\"button\">Use sample</button></div><div class=\"panel-body\"><label class=\"field-label\" for=\"raw-request\" hidden>Raw HTTP request</label><textarea class=\"code-input\" id=\"raw-request\" name=\"rawtext\" rows=\"16\" spellcheck=\"false\" required placeholder=\"" +
     html_escape(sample) +
     "\">" +
     html_escape(rawtext) +
-    "</textarea></p>" +
-    "<table class=\"summary\">" +
-    "<tr><td>Request name</td><td><input class=\"input\" name=\"request_name\" value=\"request\"></td></tr>" +
-    "<tr><td>Target host</td><td><input class=\"input\" name=\"host\" value=\"127.0.0.1\"></td></tr>" +
-    "<tr><td>Target port</td><td><input class=\"input\" name=\"port\" value=\"9000\"></td></tr>" +
-    "<tr><td>Read policy</td><td><select name=\"policy\" class=\"input\">" +
-    "<option value=\"until\">until CRLFCRLF (HTTP responses)</option>" +
-    "<option value=\"none\">none</option>" +
-    "<option value=\"fixed\">fixed length</option>" +
-    "</select></td></tr>" +
-    "<tr><td>Fixed length</td><td><input class=\"input\" name=\"fixed_length\" value=\"2\"></td></tr>" +
-    "<tr><td>Case limit</td><td><input class=\"input\" name=\"case_limit\" value=\"100\"></td></tr>" +
-    "</table>" +
-    "<p><input class=\"input\" type=\"submit\" value=\"Parse message\"></p>" +
-    "</form>"
-  convert_page("HTTP to fuzz definition", body)
+    "</textarea></div><div class=\"panel-foot\">HTTP request line / headers / optional body</div></section><aside class=\"panel settings-panel\"><div class=\"panel-head\"><h2>Execution settings</h2></div><div class=\"panel-body\"><div class=\"field\"><label for=\"request-name\">Request name</label><input id=\"request-name\" name=\"request_name\" value=\"request\" required></div><div class=\"field-row\"><div class=\"field\"><label for=\"target-host\">Target host</label><input id=\"target-host\" name=\"host\" value=\"127.0.0.1\" required></div><div class=\"field\"><label for=\"target-port\">Port</label><input id=\"target-port\" name=\"port\" type=\"number\" min=\"1\" max=\"65535\" value=\"9000\" required></div></div><div class=\"field\"><label for=\"read-policy\">Read policy</label><select id=\"read-policy\" name=\"policy\" onchange=\"syncReadPolicy()\"><option value=\"until\">Until HTTP header boundary</option><option value=\"none\">No response</option><option value=\"fixed\">Fixed length</option></select><p class=\"hint\">Choose how the runner reads each response.</p></div><div class=\"field\" id=\"fixed-length-field\"><label for=\"fixed-length\">Response length (bytes)</label><input id=\"fixed-length\" name=\"fixed_length\" type=\"number\" min=\"0\" value=\"2\"></div><div class=\"field\"><label for=\"case-limit\">Case limit</label><input id=\"case-limit\" name=\"case_limit\" type=\"number\" min=\"0\" value=\"0\" required><p class=\"hint\">0 runs every generated case (no cap).</p></div></div></aside><div class=\"wizard-actions\"><p class=\"hint\">Next: choose the segments and mutation strategies.</p><button class=\"button primary\" type=\"submit\">Parse request →</button></div></form>"
+  convert_page("HTTP request builder", body)
 }
 
 ///|
@@ -240,25 +230,33 @@ fn hidden_message(form : ConvertForm) -> String {
 
 ///|
 fn convert_page(title : String, body : String) -> HttpResponse {
+  let stage = match title {
+    "Pick fuzzed segments" => 2
+    "Generated definition" => 3
+    _ => 1
+  }
+  let description = match stage {
+    2 =>
+      "Choose the fields to mutate. Everything else keeps its original bytes."
+    3 => "Your definition is validated and ready to copy, download or inspect."
+    _ => "Turn a raw HTTP request into a reproducible fuzz definition."
+  }
   HttpResponse::html(
-    "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>" +
-    html_escape(title) +
-    " - moon-boofuzz converter</title><style>" +
-    PAGE_CSS +
-    "textarea{background:#222;color:#ddd;border:1px solid #555;font-family:monospace}</style></head>" +
-    "<body><div class=\"main-wrapper\"><h1>moon-boofuzz HTTP converter</h1>" +
+    page_start(title, "HTTP request builder", "/convert") +
+    page_heading(
+      "Workspace / Request builder", title, description, "<span class=\"status finished\">HTTP / TCP</span>",
+    ) +
+    converter_steps(stage) +
     body +
-    "</div>" +
-    CONVERT_SCRIPT +
-    "</body></html>",
+    page_end(PAGE_SCRIPT + CONVERT_SCRIPT),
   )
 }
 
 ///|
 fn convert_error(message : String) -> HttpResponse {
-  let body = "<p>The request could not be processed: " +
+  let body = "<div class=\"notice error\" role=\"alert\">The request could not be processed: " +
     html_escape(message) +
-    "</p><p><a href=\"/convert\">Back to the converter</a></p>"
+    "</div><p><a class=\"button\" href=\"/convert\">Back to the converter</a></p>"
   let response = convert_page("Conversion failed", body)
   {
     status: 400,
@@ -321,6 +319,8 @@ fn primitive_select(id : String, kind : String) -> String {
   let is_method = kind == "method"
   "<select name=\"p_" +
   html_escape(id) +
+  "\" aria-label=\"Mutation strategy for " +
+  html_escape(id) +
   "\" class=\"input\" onchange=\"syncPrimitive('" +
   html_escape(id) +
   "')\">" +
@@ -351,19 +351,19 @@ fn primitive_params(id : String) -> String {
     value.to_string() +
     "\" style=\"width:5em\">"
   }
-  "<span id=\"params_integer_" +
+  "<span class=\"primitive-params\" id=\"params_integer_" +
   html_escape(id) +
   "\"> width " +
   number_input("p_" + id + "_width", 32) +
   " <select name=\"p_" +
   html_escape(id) +
   "_endian\" class=\"input\"><option value=\"little\">little</option><option value=\"big\">big</option></select></span>" +
-  "<span id=\"params_bytes_" +
+  "<span class=\"primitive-params\" id=\"params_bytes_" +
   html_escape(id) +
   "\"> max_len " +
   number_input("p_" + id + "_maxlen", 16) +
   "</span>" +
-  "<span id=\"params_random_" +
+  "<span class=\"primitive-params\" id=\"params_random_" +
   html_escape(id) +
   "\"> max_len " +
   number_input("p_" + id + "_rlength", 16) +

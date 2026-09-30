@@ -5,6 +5,11 @@ Call `compiled.cases(start=0, limit=10000)`, then `stream.next()` until `None`.
 global ordinal and a `v1:path:index` identity. Identities are stable for the
 same named model and generator version; cross-version replay must save bytes.
 Cases change one field at a time, in depth-first field order and candidate order.
+`combinatorial_cases` layers depth-2+ combinations on top; the JSON/CLI
+entry points default to it **on** (upstream CLI parity — an explicit
+`"combinatorial": false` or `--combinatorial false` restores single-field
+enumeration), while `combinatorial_cases` itself and the `Runner` API
+default to off and must be requested explicitly.
 
 `position()` is the next raw candidate ordinal; create a new stream with that
 start to resume. Oversized candidates consume positions without counting toward
