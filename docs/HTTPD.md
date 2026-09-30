@@ -7,6 +7,15 @@
 
 ## 运行
 
+不克隆仓库时，可直接从 mooncakes 全局安装后运行（需本机 C 编译器）：
+
+```sh
+moon install GuoXBQ-Q/moon-boofuzz/cmd/httpd
+httpd --port 9000
+```
+
+在源码仓库内构建运行：
+
 ```sh
 moon build --target native cmd/httpd
 # 二进制位于 _build/native/debug/build/cmd/httpd/httpd.exe

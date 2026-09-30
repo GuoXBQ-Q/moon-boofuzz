@@ -24,42 +24,187 @@ moon build --target native
 moon test --target native --deny-warn
 ```
 
-运行 `moon update` 是为独立开发脚本初始化包索引，正常使用 CLI 不需要 Python。
-
 ## 使用示例
 
-库示例由 `moon test` 执行。根包测试使用 `@moon_boofuzz` 别名；在自己的项目中按所用别名导入即可。`CompiledRequest` 用于新协议模型：正常渲染和变异枚举分别调用 `render()` 与 `cases()`，用 `next()` 逐个获取载荷，避免先建立完整用例数组。
+### 1. 直接安装 CLI 使用
 
-```mbt check
-///|
-test "named request quick start" {
-  let request = @moon_boofuzz.CompiledRequest::compile(
-    @moon_boofuzz.Block::new("packet", [
-      Leaf("prefix", @moon_boofuzz.Field::simple(b"PING ", [])),
-      Leaf("value", @moon_boofuzz.Field::simple(b"ok", [b"", b"\x00\xff"])),
-    ]),
-  )
-  assert_eq(request.render(), b"PING ok")
-  let cases = request.cases(limit=1)
-  assert_eq(cases.next().map(case => case.payload), Some(b"PING "))
-  assert_eq(cases.next(), None)
-  assert_eq(cases.state(), Limited)
-  let resumed = request.cases(start=cases.position())
-  assert_eq(resumed.next().map(case => case.payload), Some(b"PING \x00\xff"))
+无需克隆仓库（需本机 C 编译器），从 mooncakes 全局安装：
+
+```sh
+moon install GuoXBQ-Q/moon-boofuzz/cmd/boofuzz   # 主 CLI，装到 ~/.moon/bin
+moon install GuoXBQ-Q/moon-boofuzz/cmd/httpd     # 可选：自带 HTTP fuzz 靶子
+```
+
+**启用 httpd 靶子**：一个严格解析的回环 HTTP 服务器，对畸形输入返回明确的拒绝状态码（431/413/405 等），让 fuzzer 能区分"被拒绝"和"连接被丢弃"；配合 `--target-cmd` 进程监视时，崩溃也会被记为 fault。
+
+```sh
+httpd --port 9000
+# httpd listening on 127.0.0.1:9000
+```
+
+保存协议定义 `http.json`（与仓库 [examples/http.json](examples/http.json) 相同——只有 `uri` 字段开启变异，其余请求行/头部字节全部冻结，完整枚举共 1954 个用例）：
+
+```json
+{
+  "schema_version": 1,
+  "requests": [{
+    "name": "request",
+    "children": [
+      {"type": "text", "name": "method", "value": "GET", "fuzzable": false},
+      {"type": "static", "name": "sp1", "value_hex": "20"},
+      {"type": "text", "name": "uri", "value": "/index.html", "fuzzable": true},
+      {"type": "static", "name": "sp2", "value_hex": "20"},
+      {"type": "text", "name": "version", "value": "HTTP/1.1", "fuzzable": false},
+      {"type": "static", "name": "crlf0", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_0", "value_hex": "486f73743a20"},
+      {"type": "text", "name": "hdr_0", "value": "127.0.0.1:9000", "fuzzable": false},
+      {"type": "static", "name": "crlf1", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_1", "value_hex": "557365722d4167656e743a20"},
+      {"type": "text", "name": "hdr_1", "value": "moon-boofuzz", "fuzzable": false},
+      {"type": "static", "name": "crlf2", "value_hex": "0d0a"},
+      {"type": "static", "name": "name_2", "value_hex": "436f6e6e656374696f6e3a20"},
+      {"type": "text", "name": "hdr_2", "value": "close", "fuzzable": false},
+      {"type": "static", "name": "crlf3", "value_hex": "0d0a"},
+      {"type": "static", "name": "head_end", "value_hex": "0d0a"},
+      {"type": "text", "name": "body", "value": "", "fuzzable": false}
+    ]
+  }],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {"host": "127.0.0.1", "port": 9000, "receive_timeout_ms": 500},
+    "policies": {"request": {"kind": "until", "delimiter_hex": "0d0a0d0a"}}
+  }
 }
 ```
 
-字段路径包含请求名，例如 `packet.value`。字段原语与模型细节见 [MODEL.md](docs/MODEL.md)；会话图、网络执行及回调见 [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) 与 [MONITORS.md](docs/MONITORS.md)。
-
-CLI 侧先跑自动验收场景（临时文件、回环地址和临时端口，无需另启服务），再离线生成用例看产出，最后连接自己的服务：
+**执行 fuzz**（逐例变异发送，同时把真实收发字节写入 JSONL 和 `boofuzz-results/` 下的 SQLite 结果库）：
 
 ```sh
-moon test --target native --deny-warn -p cmd/boofuzz
-moon run --target native cmd/boofuzz -- generate examples/offline.json --limit 3
-moon run --target native cmd/boofuzz -- run examples/tcp.json --output _build/tcp-cases.jsonl
-moon run --target native cmd/boofuzz -- report _build/tcp-cases.jsonl
-moon run --target native cmd/boofuzz -- replay _build/tcp-cases.jsonl --id '["packet"]/v1:packet.data:0'
+boofuzz run http.json --output cases.jsonl
 ```
+
+启动时会打印实时 Web 界面地址，**fuzz 过程中用浏览器打开它即可查看进度**：
+
+```text
+Web interface can be found at http://localhost:26000
+```
+
+页面提供进度条（当前用例 / 总数）、运行速率、崩溃列表和暂停/恢复按钮（暂停会挂起用例循环），失败或崩溃条目可点进 `/test-case/<n>` 查看逐例日志。`--web-port N` 可改端口（被占用时自动顺延，`0` 为随机空闲端口）。对本地 httpd 全速约 80 例/秒，此定义完整跑约 25 秒，结束时输出汇总：
+
+```text
+{"kind":"run_summary","executed":1954,"state":"exhausted","records":"cases.jsonl","database":"boofuzz-results/run-<UTC时间戳>.db"}
+```
+
+**分析结果**。注意：每条记录包含完整的收发字节，1954 例的 JSONL 约 117 MB，超过 `report` 默认 64 MiB 读取上限，需显式提高：
+
+```sh
+boofuzz report cases.jsonl --max-bytes 130000000
+```
+
+```text
+{"kind":"report","summary":{"total":1954,"outcomes":{"passed":1947,"connection_ignored":7},
+ "failures":[{"line":240,"case_id":"[\"request\"]/v1:request.uri:239","outcome":"connection_ignored",
+ "failed_step":0,"detail":"ConnectionIgnored(\"send reset/aborted at step 0\")"}, ...]},"error":null}
+```
+
+`connection_ignored` 是 httpd 对超长 URI 直接重置连接，属于可观察的拒绝行为而非工具错误。只想快速体验时给 `run` 加 `--limit 200`，输出文件小到无需 `--max-bytes`。跑完后可用 `boofuzz open cases.jsonl`（或 run_summary 里的 `.db` 路径）打开只读 Web 视图复看进度与用例详情；不连接目标预览用例用 `boofuzz generate http.json --limit 3`。
+
+从源码仓库使用时等价命令为 `moon run --target native cmd/boofuzz -- <子命令> ...`；自动验收场景测试（临时文件、回环地址和临时端口，无需另启服务）用 `moon test --target native --deny-warn -p cmd/boofuzz`。
+
+### 2. 作为库使用（MoonBit API）
+
+以 [examples/http_get_full](examples/http_get_full/main.mbt)（头部丰富的 HTTP GET 变异，与 `examples/http_get_full.json` 等价）为蓝本的精简版。在自己的模块 `moon add GuoXBQ-Q/moon-boofuzz` 后，新建可执行包 `cmd/main`：
+
+`cmd/main/moon.pkg`：
+
+```
+import {
+  "GuoXBQ-Q/moon-boofuzz" @boofuzz,
+  "GuoXBQ-Q/moon-boofuzz/runner",
+  "GuoXBQ-Q/moon-boofuzz/transport",
+}
+
+supported_targets = "native"
+
+pkgtype(kind: "executable")
+```
+
+`cmd/main/main.mbt`：
+
+```moonbit
+/// 冻结的结构字节：空格、CRLF、头名，永不变异。
+fn fixed(bytes : Bytes) -> @boofuzz.Field {
+  @boofuzz.Field::simple(bytes, [], fuzzable=false)
+}
+
+/// 请求行 + Host/Accept/X-Fuzz 头。变异点：动词组（GET/HEAD）、
+/// URI 显式候选、两个字符串库字段。
+fn http_get() -> @boofuzz.CompiledRequest raise {
+  @boofuzz.CompiledRequest::compile(
+    @boofuzz.Block::new("http_get", [
+      @boofuzz.Leaf("verb", @boofuzz.Field::group([b"GET", b"HEAD"])),
+      @boofuzz.Leaf("sp1", fixed(b" ")),
+      @boofuzz.Leaf(
+        "uri",
+        @boofuzz.Field::simple(b"/", [b"/echo", b"/headers", b"/nope"]),
+      ),
+      @boofuzz.Leaf("sp2", fixed(b" ")),
+      @boofuzz.Leaf("version", fixed(b"HTTP/1.1")),
+      @boofuzz.Leaf("crlf0", fixed(b"\r\n")),
+      @boofuzz.Leaf("host", fixed(b"Host: 127.0.0.1:9000\r\n")),
+      @boofuzz.Leaf("accept_name", fixed(b"Accept: ")),
+      @boofuzz.Leaf("accept", @boofuzz.Field::text("application/json")),
+      @boofuzz.Leaf("crlf1", fixed(b"\r\n")),
+      @boofuzz.Leaf("xfuzz_name", fixed(b"X-Fuzz: ")),
+      @boofuzz.Leaf("xfuzz", @boofuzz.Field::text("seed")),
+      @boofuzz.Leaf("crlf2", fixed(b"\r\n")),
+      @boofuzz.Leaf("head_end", fixed(b"\r\n")),
+    ]),
+  )
+}
+
+fn main raise {
+  let request = http_get()
+  let graph = @boofuzz.SessionGraph::new()
+  graph.add(request)
+  let paths = graph.paths(targets=["http_get"])
+  let endpoint = @transport.Endpoint::new(
+    "127.0.0.1",
+    9000,
+    connect_timeout_ms=750,
+    receive_timeout_ms=750,
+  )
+  // 读到 HTTP 头结束为止；每例新建连接。
+  let policies : Map[String, @runner.ReadPolicy] = Map([
+    ("http_get", @runner.Until(b"\r\n\r\n")),
+  ])
+  let runner = @runner.Runner::new(
+    paths,
+    endpoint,
+    policies~,
+    limit=@runner.NO_CASE_LIMIT,
+    restart_threshold=Some(1),
+    restart_sleep_ms=0,
+  )
+  for ;; {
+    match runner.next() {
+      Some(result) =>
+        println(
+          "\{result.case.field_path}:\{result.case.mutation_index} -> \{result.outcome.name()}",
+        )
+      None => break
+    }
+  }
+}
+```
+
+对着 httpd 靶子运行（先按上面方式启动 `httpd --port 9000`）：
+
+```sh
+moon run --target native cmd/main
+```
+
+输出形如 `uri:1 -> timeout`、`verb:0 -> ...` 的逐例结果。完整版（参数化 host/port、离线生成模式、Web UI 实时面板与暂停）见 [examples/http_get_full/main.mbt](examples/http_get_full/main.mbt)；从零编写自己的 fuzz 程序见 [CODE.md](docs/CODE.md) 教程，模型与字段原语见 [MODEL.md](docs/MODEL.md)，会话与执行器细节见 [SESSION.md](docs/SESSION.md)、[RUNNER.md](docs/RUNNER.md) 与 [MONITORS.md](docs/MONITORS.md)。
 
 ## CLI 流程
 
