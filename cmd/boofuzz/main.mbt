@@ -12,6 +12,11 @@ extern "c" fn exit_process(code : Int) -> Unit = "exit"
 const RESULTS_DIR : String = "boofuzz-results"
 
 ///|
+/// Printed by --version. Must stay equal to `version` in moon.mod;
+/// version_wbtest.mbt fails the test suite when the two drift apart.
+const CLI_VERSION : String = "0.1.3"
+
+///|
 /// Accept a case id in either form: the bare "v1:request.field:index"
 /// position_of_id resolves, or the full "[\"path\"]/v1:..." form the
 /// generate output and run records print (everything after the last '/').
@@ -85,7 +90,7 @@ fn dispatch(args : Array[String]) -> Int raise {
     return 0
   }
   if args == ["--version"] {
-    println("moon-boofuzz 0.1.0")
+    println("moon-boofuzz \{CLI_VERSION}")
     return 0
   }
   if args is ["convert", .. flags] {
