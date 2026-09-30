@@ -26,7 +26,8 @@ moon run --target native cmd/boofuzz -- replay _build/run-001.jsonl --id '["pack
 `report CASES.jsonl` summarizes total cases and counts by outcome, with failure
 case IDs, line numbers and steps. It prints a report for the complete prefix
 even if a later line is corrupt, includes the issue, and exits with code 2.
-`--max-bytes N` raises the default 64 MiB file-read limit explicitly.
+The CLI reads the whole file, defaulting to the 32-bit Int maximum
+(2147483647 bytes, ~2 GiB); `--max-bytes N` sets a smaller explicit limit.
 
 `replay CASES.jsonl --id CASE_ID` validates the complete file, selects an
 unambiguous identity, and replays saved bytes. Add `--host HOST --port PORT`

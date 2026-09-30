@@ -1,4 +1,9 @@
 ///|
+/// Default whole-file read limit for report/replay. Int is 32-bit, so the
+/// practical ceiling is 2147483647 bytes (~2 GiB), one byte below 2 GiB.
+let default_read_limit : Int = 2147483647
+
+///|
 /// Read a JSONL cases file, translating the C layer's EFBIG (errno 27 on all
 /// supported toolchains) size-limit failure into a message that names the
 /// limit and the --max-bytes flag instead of a bare errno.
@@ -6,7 +11,7 @@ fn read_cases(input : String, max_bytes : Int) -> @records.RecordRead raise {
   @recordio.read_records(input, max_bytes~) catch {
     ReadFailure(27) =>
       raise InvalidArguments(
-        "\{input} exceeds the read limit of \{max_bytes} bytes (default 64 MiB); re-run with --max-bytes N, at least the file size",
+        "\{input} exceeds the read limit of \{max_bytes} bytes; re-run with --max-bytes N, at least the file size",
       )
     other => raise other
   }
@@ -26,7 +31,7 @@ fn replay_or_report(
       ["--id", "--host", "--port", "--max-bytes"]
     },
   )
-  let max_bytes = int_option(opts, "--max-bytes").unwrap_or(67108864)
+  let max_bytes = int_option(opts, "--max-bytes").unwrap_or(default_read_limit)
   let read = read_cases(input, max_bytes)
   if command == "report" {
     let report = @records.summarize(read.records)
