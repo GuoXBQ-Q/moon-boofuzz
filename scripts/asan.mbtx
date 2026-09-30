@@ -18,6 +18,7 @@ async fn main {
   let pkg_names = [
     "transport", "recordio", "runner", "process", "db", "web", "cmd/boofuzz",
     "cmd/httpfuzz", "cmd/httpd", "cmd/stateful_target", "examples/moonbit_http",
+    "examples/http_get_full", "examples/http_post_full",
   ]
   for pkg_name in pkg_names {
     let path = root + "/" + pkg_name + "/moon.pkg"
