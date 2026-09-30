@@ -9,6 +9,8 @@ import {
 }
 
 // Values
+pub const NO_CASE_LIMIT : Int = 2147483647
+
 pub fn replay(@records.CaseRecord, override_target? : (String, Int)) -> ReplayResult raise
 
 // Errors

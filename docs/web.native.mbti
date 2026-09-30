@@ -66,10 +66,11 @@ pub fn HttpServer::serve_pending(Self, (HttpRequest) -> HttpResponse raise) -> U
 pub struct LiveSession {
   paused : @ref.Ref[Bool]
   executed : @ref.Ref[Int]
-  limit : Int
+  total : Int
   started_ms : Int64
   failures : @ref.Ref[Map[Int, Array[String]]]
   current_name : @ref.Ref[String]
+  cases : @ref.Ref[Map[Int, @records.CaseRecord]]
 }
 #deprecated
 pub fn LiveSession::crashes(Self) -> Map[Int, Array[String]] raise
@@ -83,7 +84,7 @@ pub fn LiveSession::current_index(Self) -> Int raise
 pub fn LiveSession::exec_speed(Self) -> Double
 #deprecated
 pub fn LiveSession::is_paused(Self) -> Bool
-pub fn LiveSession::new(limit~ : Int) -> Self
+pub fn LiveSession::new(total~ : Int) -> Self
 #deprecated
 pub fn LiveSession::num_mutations(Self) -> Int?
 pub fn LiveSession::observe(Self, @records.CaseRecord) -> Unit
@@ -160,7 +161,7 @@ pub struct WebUi {
   session : LiveSession
 }
 pub fn WebUi::gate(Self) -> Unit raise
-pub fn WebUi::open(port~ : Int, limit~ : Int) -> Self raise
+pub fn WebUi::open(port~ : Int, total~ : Int) -> Self raise
 pub fn WebUi::port(Self) -> Int
 pub fn WebUi::serve(Self) -> Unit raise
 pub fn WebUi::session(Self) -> LiveSession
