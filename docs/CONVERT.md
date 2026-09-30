@@ -10,7 +10,7 @@ moon run --target native cmd/boofuzz -- convert --ui-port 0    # 0 = 随机空�
 ## 操作流程
 
 1. **粘贴报文**：在文本框粘贴完整的原始 HTTP 请求（含头、空行和可选 body），配置目标地址（host/port）、请求名、读取策略和 case 上限（默认 **0 = 不限制**，生成的定义不含 `case_limit`，跑完为止；正数 N 则封顶 N 例），提交解析。
-2. **勾选分段**：报文被拆成方法、URI、版本、每个头部值和 body，每段一个勾选框和一个**变异原语**下拉框：
+2. **勾选分段**：报文被拆成方法、URI、版本、每个头部值和 body，每段一个勾选框和一个**变异原语**下拉框；下拉框切换时只显示该原语的参数（custom candidates 文本框仅在选择 candidates 原语时出现）：
    - 不勾选 = 冻结，每个用例原样重发；
    - 原语 **string library** = 内置坏字符串库（`text` 字段），URI/头部等文本段的首选；
    - 原语 **integer** = 数值边界变异（`integer` 字段，可选位宽 8/16/32/64 和端序），适合 Content-Length、端口等数字段；注意整数按二进制渲染，非 ASCII；

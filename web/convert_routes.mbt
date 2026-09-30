@@ -80,11 +80,13 @@ fn convert_segments(fields : Map[String, String]) -> HttpResponse {
     rows.write_string("</code></td><td>")
     rows.write_string(primitive_select(segment.id, segment.kind))
     rows.write_string(primitive_params(segment.id))
-    let close = "</td><td><textarea name=\"c_" +
+    let close = "</td><td id=\"cand_" +
+      segment.id +
+      "\"><textarea name=\"c_" +
       segment.id +
       "\" aria-label=\"Custom candidates for " +
       html_escape(segment.label) +
-      "\" rows=\"2\" placeholder=\"one candidate per line (optional)\"></textarea></td></tr>"
+      "\" rows=\"2\" placeholder=\"one candidate per line (shown for the candidates strategy)\"></textarea></td></tr>"
     rows.write_string(close)
   }
   let hint = match message.header("content-length") {
@@ -107,7 +109,7 @@ fn convert_segments(fields : Map[String, String]) -> HttpResponse {
     hint +
     "<form method=\"post\" action=\"/convert/generate\">" +
     hidden_message(form) +
-    "<section class=\"panel\"><div class=\"panel-head\"><div><h2>Mutation surface</h2><p class=\"hint\"><span id=\"selected-count\">0 selected</span> · select only the fields you want to fuzz</p></div><div class=\"actions\"><button type=\"button\" class=\"button ghost small\" data-select-fields=\"all\">Select all</button><button type=\"button\" class=\"button ghost small\" data-select-fields=\"none\">Clear</button></div></div><div class=\"table-wrap\"><table class=\"summary segments-table\"><thead><tr><th>FUZZ</th><th>SEGMENT</th><th>ORIGINAL VALUE</th><th>MUTATION STRATEGY</th><th>CUSTOM CANDIDATES</th></tr></thead><tbody>" +
+    "<section class=\"panel\"><div class=\"panel-head\"><div><h2>Mutation surface</h2><p class=\"hint\"><span id=\"selected-count\">0 selected</span> · select only the fields you want to fuzz</p></div><div class=\"actions\"><button type=\"button\" class=\"button ghost small\" data-select-fields=\"all\">Select all</button><button type=\"button\" class=\"button ghost small\" data-select-fields=\"none\">Clear</button></div></div><div class=\"table-wrap\"><table class=\"summary segments-table\"><thead><tr><th>FUZZ</th><th>SEGMENT</th><th>ORIGINAL VALUE</th><th>MUTATION STRATEGY</th><th>CUSTOM CANDIDATES <span class=\"hint\">(candidates strategy only)</span></th></tr></thead><tbody>" +
     rows.to_string() +
     "</tbody></table></div></section>" +
     "<p class=\"actions\"><input class=\"input primary\" type=\"submit\" value=\"Generate definition →\"> " +

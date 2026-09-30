@@ -93,6 +93,7 @@ const CONVERT_SCRIPT : String =
   #|function syncPrimitive(id){
   #| var select=document.getElementsByName('p_'+id)[0];if(!select)return;
   #| ['integer','bytes','random'].forEach(function(kind){var node=document.getElementById('params_'+kind+'_'+id);if(node)node.hidden=select.value!==kind;});
+  #| var cand=document.getElementById('cand_'+id);if(cand)cand.hidden=select.value!=='candidates';
   #|}
   #|function syncReadPolicy(){var policy=document.getElementById('read-policy'),field=document.getElementById('fixed-length-field');if(policy&&field)field.hidden=policy.value!=='fixed';}
   #|function syncSelections(){var selected=0;document.querySelectorAll('input[type=checkbox][name^="f_"]').forEach(function(input){if(input.checked)selected++;input.closest('tr').classList.toggle('is-selected',input.checked);});var count=document.getElementById('selected-count');if(count)count.textContent=selected+' selected';}

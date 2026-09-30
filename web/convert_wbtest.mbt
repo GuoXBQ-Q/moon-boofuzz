@@ -195,6 +195,11 @@ test "segments page offers a mutation primitive per segment" {
   // The method row defaults to candidates; other rows to the string library.
   assert_true(body.contains("candidates (built-in HTTP methods)"))
   assert_true(body.contains("params_integer_uri"))
+  // Each candidates cell carries an id so syncPrimitive can show it only
+  // when the candidates strategy is selected (JS hides it after load).
+  assert_true(body.contains("id=\"cand_uri\""))
+  assert_true(body.contains("id=\"cand_method\""))
+  assert_true(body.contains("cand.hidden=select.value!=='candidates'"))
 }
 
 ///|
