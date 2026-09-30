@@ -292,20 +292,34 @@ pub fn[T : SessionView] render_index(view : T) -> HttpResponse raise {
         min_of(count.to_double() / total.to_double(), 1.0)
       _ => 0.0
     }
+    // Combinatorial blasting runs past the single-field plan; instead of
+    // a pinned "100%", surface how far beyond the plan the run is.
+    let overrun = match limit {
+      Some(total) if total > 0 && count > total => count - total
+      _ => 0
+    }
     let budget = match limit {
       Some(total) => total.to_string()
       None => "Unbounded"
     }
     let percent = match limit {
+      Some(_) if overrun > 0 => "+\{overrun} beyond plan"
       Some(total) if total > 0 => progress_percent(progress)
       _ => "No fixed limit"
+    }
+    let bar_class = if overrun > 0 {
+      "run-progress overrun"
+    } else {
+      "run-progress"
     }
     builder.write_string(
       "<section class=\"panel\"><div class=\"panel-head\"><h2>Run progress</h2><span id=\"progress_percentage_total\" class=\"mono muted\">" +
       percent +
-      "</span></div><div class=\"panel-body\"><div class=\"progress-labels\"><span>Configured case limit</span><strong id=\"num_mutations\">" +
+      "</span></div><div class=\"panel-body\"><div class=\"progress-labels\"><span>Single-field mutations</span><strong id=\"num_mutations\">" +
       budget +
-      "</strong></div><progress class=\"run-progress\" id=\"progress_bar_total\" max=\"100\"" +
+      "</strong></div><progress class=\"" +
+      bar_class +
+      "\" id=\"progress_bar_total\" max=\"100\"" +
       (match limit {
         Some(total) if total > 0 =>
           " value=\"" + (progress * 100.0).to_string() + "\""

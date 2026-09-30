@@ -47,7 +47,8 @@ log-case/log-step/log-send/log-receive/log-fail/log-pass/log-error。
   capture 循环每例经 `observe` 推进 current_index/当前请求名/失败表;
   num_mutations 是**进度分母**:由定义编译后的各变异字段原语计数
   求和(上游 Session.num_mutations 同款语义),与 case 上限无关——
-  组合爆破可能执行超过该分母,零变异定义显示 Unbounded。
+  组合爆破执行超过该分母时进度条钉满并变为琥珀色,百分比标签改显
+  "+N beyond plan"(计划外已执行的用例数),零变异定义显示 Unbounded。
   **用例详情页在运行期间可用**:observe 同时保留每条记录,
   `/test-case/<index>` 按已执行用例即时渲染收发字节(等价上游从
   live-written db 取详情);尚未执行到的索引渲染"未执行"提示,

@@ -531,3 +531,24 @@ test "live unbounded runs do not fabricate a progress percentage" {
   assert_true(html.contains("No fixed limit"))
   assert_true(html.contains("action=\"/togglepause\""))
 }
+
+///|
+test "run progress surfaces the combinatorial overrun beyond the plan" {
+  // Eight executed cases against a five-mutation plan: the bar pins full,
+  // turns amber and the label counts the cases beyond the plan instead of
+  // a misleading 100%.
+  let view = LiveSession::new(total=5)
+  for i in 0..<8 {
+    view.observe(jsonl_record(i, "passed", "Passed"))
+  }
+  let html = @utf8.decode(render_index(view).body)
+  assert_true(html.contains("+3 beyond plan"))
+  assert_true(html.contains("run-progress overrun"))
+  assert_true(html.contains("Single-field mutations"))
+  // Within the plan the percentage rendering is unchanged.
+  let fresh = LiveSession::new(total=5)
+  fresh.observe(jsonl_record(0, "passed", "Passed"))
+  let plain = @utf8.decode(render_index(fresh).body)
+  assert_true(plain.contains("20.000%"))
+  assert_false(plain.contains("run-progress overrun"))
+}
