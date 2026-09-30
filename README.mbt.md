@@ -178,7 +178,7 @@ generate 输出 generated_case JSONL 及生成汇总；run 逐例写记录；rep
 
 [GitHub Actions](https://github.com/GuoXBQ-Q/moon-boofuzz/actions) 覆盖 Windows（MSVC）、Linux（GCC + ASan）与 Wasm/Native。`moon run scripts/verify.mbtx` 执行本地完整检查；GCC/Clang 下可运行 `moon run scripts/asan.mbtx`。
 
-`moon package --list` 审查源码包内容，`moon package` 生成待发布源码包。发布前清单见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。报名申报书仍由本人撰写，本项目不代填或提交。
+`moon package --list` 审查源码包内容，`moon package` 生成待发布源码包。发布前清单见 [ACCEPTANCE.md](docs/ACCEPTANCE.md)。
 
 ## 许可与来源
 
