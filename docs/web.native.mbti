@@ -70,8 +70,10 @@ pub struct LiveSession {
   started_ms : Int64
   failures : @ref.Ref[Map[Int, Array[String]]]
   current_name : @ref.Ref[String]
+  reader : @db.DbReader?
   cases : @ref.Ref[Map[Int, @records.CaseRecord]]
 }
+pub fn LiveSession::close(Self) -> Unit
 #deprecated
 pub fn LiveSession::crashes(Self) -> Map[Int, Array[String]] raise
 #deprecated
@@ -84,7 +86,7 @@ pub fn LiveSession::current_index(Self) -> Int raise
 pub fn LiveSession::exec_speed(Self) -> Double
 #deprecated
 pub fn LiveSession::is_paused(Self) -> Bool
-pub fn LiveSession::new(total~ : Int) -> Self
+pub fn LiveSession::new(total~ : Int, db_path? : String?) -> Self raise
 #deprecated
 pub fn LiveSession::num_mutations(Self) -> Int?
 pub fn LiveSession::observe(Self, @records.CaseRecord) -> Unit
@@ -161,7 +163,7 @@ pub struct WebUi {
   session : LiveSession
 }
 pub fn WebUi::gate(Self) -> Unit raise
-pub fn WebUi::open(port~ : Int, total~ : Int) -> Self raise
+pub fn WebUi::open(port~ : Int, total~ : Int, db_path? : String?) -> Self raise
 pub fn WebUi::port(Self) -> Int
 pub fn WebUi::serve(Self) -> Unit raise
 pub fn WebUi::session(Self) -> LiveSession
