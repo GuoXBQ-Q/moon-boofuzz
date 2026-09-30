@@ -30,6 +30,7 @@ _build/native/debug/build/cmd/httpd/httpd.exe --port 9000
 | `--port N` | 9000 | 绑定的回环端口；`0` = 随机空闲端口（打印实际值） |
 | `--max-head N` | 8192 | 头部字节数上限，超限回 431 |
 | `--max-body N` | 1048576 | body 字节数上限，超限回 413（上限 64 MiB） |
+| `--lab-mode on\|off` | off | 挂载受控故障注入路由，见下文「Lab 模式」 |
 
 绑定失败（端口被占）直接以退出码 2 结束——与 Web UI 的端口顺延策略不同，
 靶子必须可寻址。
@@ -43,6 +44,49 @@ _build/native/debug/build/cmd/httpd/httpd.exe --port 9000
 | `GET /headers` / `HEAD /headers` | 200 列出解析出的全部头（小写名） |
 | 其他路径 | 404 |
 | 已知路径 + 不允许的方法 | 405 |
+
+## Lab 模式（受控故障注入）
+
+`--lab-mode on` 在常规路由之外挂载一组演练用故障路由，模拟命令注入与
+缓冲区溢出两类缺陷：注入探测只回显标记字符串；超长输入越过长度阈值时
+调用 C `abort()` 立即终止进程。它**不执行任何命令，也不做真正的越界
+写**——崩溃是主动模拟的，进程终止即"缺陷被发现"。默认关闭，开启后
+启动多打印一行 `httpd lab mode: on (loopback only)`。
+
+这些路由仅接受 `GET`，其他方法落回常规路由（404）；头名解析不区分
+大小写（`X-Lab-Data` 与 `x-lab-data` 等价）：
+
+| 请求 | 触发条件 | 结果 |
+|---|---|---|
+| `GET /lab/health` | — | 200 `LAB_READY`（存活探针） |
+| `GET /lab/rce/header` | `X-Lab-Command` 头含注入标记 | 命中 200 `LAB_RCE_HIT`，否则 `LAB_RCE_MISS` |
+| `GET /lab/rce/path/<后缀>` | 路径后缀含注入标记 | 同上 |
+| `GET /lab/bof/header` | `X-Lab-Data` 头值长度 > 64 | `abort()` 进程终止；否则 200 `LAB_BOF_SAFE` |
+| `GET /lab/bof/path/<后缀>` | 路径后缀长度 > 128 | 同上 |
+
+注入标记（按小写比较）：`;`、`|`、`$(`、`%3b`、`%7c`。
+
+崩溃只有被进程监视器观测到才计为 failure：配合 `run --target-cmd` 时，
+`abort()` 所在用例记为 `monitor_failed`（Windows 上进程退出码
+-1073740791，即 0xC0000409；POSIX 上为 abort 信号），随后监视器自动
+重启靶子继续跑。不带 `--target-cmd` 手动起靶子时，崩溃只表现为连接被
+reset/对端关闭，不会被计为 failure。
+
+配套示例定义：`examples/httpd_bof.json` 是一个正常 HTTP 请求（`method`
+/`uri`/`X-Lab-Data` 头三个变异点），65 字节头值与 129 字节路径各越界
+1 字节，7 例中 2 例 `monitor_failed`、其余 passed；`examples/httpd_lab.json`
+覆盖全部四条探测路由：
+
+```sh
+moon run --target native cmd/boofuzz -- run examples/httpd_bof.json \
+  --output _build/httpd-bof-demo.jsonl --combinatorial false \
+  --target-cmd "_build/native/debug/build/cmd/httpd/httpd.exe --port 9000 --lab-mode on"
+moon run --target native cmd/boofuzz -- report _build/httpd-bof-demo.jsonl
+```
+
+注意：`--output` 文件是追加写，重复演示前先删旧文件；崩溃后 9000 端口
+会短暂处于 TIME_WAIT，紧接着重跑可能因靶子绑定失败把首个用例记成
+`recovery_failed`，等半分钟即可。
 
 ## 严格解析规则（fuzz 可观察行为）
 
@@ -90,7 +134,8 @@ moon run --target native cmd/boofuzz -- run examples/httpd.json \
 
 预期 outcome 分布：passed（200/404/405 回答）、receive_timeout /
 peer_closed（静默断连类）、response_mismatch（若配置校验）、
-monitor_failed（真把进程打死才算发现）。组合爆破默认开启后，depth-2+
+monitor_failed（真把进程打死才算发现——默认路由打不死进程，可复现的
+崩溃需要 `--lab-mode on` 的故障路由，见上文「Lab 模式」）。组合爆破默认开启后，depth-2+
 的组合用例也会进入 case_limit 窗口，各分类的比例随之变化；要复现单
 字段逐例枚举可加 `--combinatorial false`。
 

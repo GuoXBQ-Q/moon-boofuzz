@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "requests": [
+    {
+      "name": "request",
+      "children": [
+        {
+          "type": "group",
+          "name": "method",
+          "values_hex": [
+            "474554",
+            "504f5354",
+            "505554",
+            "44454c455445"
+          ],
+          "default_hex": "474554"
+        },
+        {
+          "type": "static",
+          "name": "sp1",
+          "value_hex": "20"
+        },
+        {
+          "type": "simple",
+          "name": "uri",
+          "value_hex": "2f6c61622f626f662f686561646572",
+          "values_hex": [
+            "2f696e6465782e68746d6c",
+            "2f6c61622f626f662f706174682f414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
+          ]
+        },
+        {
+          "type": "static",
+          "name": "sp2",
+          "value_hex": "20"
+        },
+        {
+          "type": "static",
+          "name": "version",
+          "value_hex": "485454502f312e31"
+        },
+        {
+          "type": "static",
+          "name": "crlf0",
+          "value_hex": "0d0a"
+        },
+        {
+          "type": "static",
+          "name": "host_name",
+          "value_hex": "486f73743a20"
+        },
+        {
+          "type": "static",
+          "name": "host_value",
+          "value_hex": "3132372e302e302e313a39303030"
+        },
+        {
+          "type": "static",
+          "name": "crlf1",
+          "value_hex": "0d0a"
+        },
+        {
+          "type": "static",
+          "name": "user_agent",
+          "value_hex": "557365722d4167656e743a206d6f6f6e2d626f6f66757a7a2d64656d6f0d0a"
+        },
+        {
+          "type": "static",
+          "name": "xld_name",
+          "value_hex": "582d4c61622d446174613a20"
+        },
+        {
+          "type": "simple",
+          "name": "xld_value",
+          "value_hex": "73657373696f6e3d30",
+          "values_hex": [
+            "41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141",
+            "4141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141"
+          ]
+        },
+        {
+          "type": "static",
+          "name": "tail",
+          "value_hex": "0d0a436f6e6e656374696f6e3a20636c6f73650d0a0d0a"
+        }
+      ]
+    }
+  ],
+  "execution": {
+    "transport": "tcp",
+    "endpoint": {
+      "host": "127.0.0.1",
+      "port": 9000,
+      "receive_timeout_ms": 500
+    },
+    "policies": {
+      "request": {
+        "kind": "until",
+        "delimiter_hex": "0d0a0d0a"
+      }
+    },
+    "case_limit": 7
+  }
+}
